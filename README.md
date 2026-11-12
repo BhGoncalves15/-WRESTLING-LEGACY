@@ -46,3 +46,7 @@ O calendário inicial inclui anúncios verificáveis conhecidos até 01/01/2026.
 - [Elenco oficial da BWF](https://bwf.com.br/lutadores/) e [histórico do Cinturão do Maremoto](https://bwf.com.br/maremoto-volta-a-bwf-em-show-no-proximo-sabado-conheca-sua-historia/).
 
 Arte original identifica as ilustrações do piloto enquanto as autorizações de imagens históricas são verificadas. A documentação técnica acompanha as entregas no repositório oficial.
+
+## Primeira versão jogável
+
+Veja [como rodar o piloto](docs/PILOTO.md), o recorte de dados e os testes.
