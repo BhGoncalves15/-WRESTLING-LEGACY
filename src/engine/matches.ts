@@ -1,8 +1,11 @@
-import type { MatchResult } from '../domain/model'
+import type { MatchFormat, MatchResult } from '../domain/model'
 
 export function matchTeams(match: MatchResult): [string[], string[]] {
-  if (match.tag) return [[match.firstId, match.tag.firstPartnerId], [match.secondId, match.tag.secondPartnerId]]
-  return [[match.firstId], [match.secondId]]
+  return [[match.firstId, ...(match.tag?.firstPartners ?? [])], [match.secondId, ...(match.tag?.secondPartners ?? [])]]
+}
+
+export function formatForSize(size: number): MatchFormat {
+  return size === 3 ? 'trios' : size === 2 ? 'tag' : 'singles'
 }
 
 export function matchWinners(match: MatchResult): string[] {

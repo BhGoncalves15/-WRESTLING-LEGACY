@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { OPENING_TITLES, ORGANIZATIONS, nextShows } from '../src/content/catalog'
-import { TAG_TEAM_REFERENCES } from '../src/content/tag-teams'
+import { TEAM_REFERENCES } from '../src/content/tag-teams'
 import { supportsTagDefense } from '../src/content/titles'
-import { COMPANIES, WORLD_DATA_VERSION, type Career, type TagBout } from '../src/domain/model'
-import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, recordFor, resolvePlayerTurn, setTagPartner, signOffer } from '../src/engine/career'
+import { COMPANIES, TAG_DATA_VERSION, WORLD_DATA_VERSION, type BoutSide, type Career, type TagBout } from '../src/domain/model'
+import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, recordFor, resolvePlayerTurn, setCareerTeam, signOffer } from '../src/engine/career'
 import { matchTeams, matchWinners } from '../src/engine/matches'
 import { isTagBout } from '../src/engine/tag-combat'
-import { availableTagPartners, tagRecordFor } from '../src/engine/tag-teams'
+import { availableTeamPartners, teamRecordFor } from '../src/engine/tag-teams'
 import { applyTitleMatch, titleEligible, titleStates } from '../src/engine/titles'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
 import { careerWithOffer } from './fixtures'
@@ -24,11 +24,16 @@ function boutOf(career: Career): TagBout {
 }
 
 function tagDebut() {
-  return advanceCareer(setTagPartner(nxtCareer(), PARTNER))
+  return advanceCareer(setCareerTeam(nxtCareer(), 'tag', [PARTNER]))
 }
 
 function tagOut(career: Career) {
   return resolvePlayerTurn({ ...career, bout: { ...boutOf(career), plan: 'guard' } }, 'tag')
+}
+
+function withReserve(corner: TagBout['tag']['player'], patch: Partial<BoutSide>): TagBout['tag']['player'] {
+  const [partner] = corner.partners
+  return { ...corner, partners: [{ ...partner, side: { ...partner.side, ...patch } }] }
 }
 
 function winByPin(career: Career) {
@@ -37,7 +42,7 @@ function winByPin(career: Career) {
     ...career,
     bout: {
       ...bout, plan: 'guard', rival: { ...bout.rival, condition: 0, position: 'grounded' },
-      tag: { ...bout.tag, rival: { ...bout.tag.rival, partner: { ...bout.tag.rival.partner, stamina: 0 } } },
+      tag: { ...bout.tag, rival: withReserve(bout.tag.rival, { stamina: 0 }) },
     },
   }, 'pin')
 }
@@ -45,24 +50,26 @@ function winByPin(career: Career) {
 describe('Tag Team', () => {
   it('forma uma dupla da mesma divisão e impede trocar a parceria durante a luta', () => {
     const signed = nxtCareer()
-    expect(availableTagPartners(signed).map(fighter => fighter.id)).toContain(PARTNER)
-    expect(() => setTagPartner(signed, 'dion-lennox')).toThrow(/disponível/)
-    expect(() => setTagPartner(signed, 'jacy-jayne')).toThrow(/disponível/)
-    expect(() => setTagPartner(signed, 'aj-styles')).toThrow(/disponível/)
+    expect(availableTeamPartners(signed, 'tag').map(fighter => fighter.id)).toContain(PARTNER)
+    expect(() => setCareerTeam(signed, 'tag', ['dion-lennox'])).toThrow(/disponíveis/)
+    expect(() => setCareerTeam(signed, 'tag', ['jacy-jayne'])).toThrow(/disponíveis/)
+    expect(() => setCareerTeam(signed, 'tag', ['aj-styles'])).toThrow(/disponíveis/)
     const fight = tagDebut()
-    expect(boutOf(fight).tag.player.partnerId).toBe(PARTNER)
-    expect(() => setTagPartner(fight, null)).toThrow(/luta em andamento/)
+    expect(boutOf(fight).tag.player.partners[0].id).toBe(PARTNER)
+    expect(() => setCareerTeam(fight, 'tag', null)).toThrow(/luta em andamento/)
     expect(validateCareer(fight)).toEqual(fight)
     const bout = boutOf(fight)
-    const duplicate = { ...bout, tag: { ...bout.tag, rival: { ...bout.tag.rival, partnerId: PARTNER } } }
+    const duplicate = { ...bout, tag: { ...bout.tag, rival: {
+      ...bout.tag.rival, partners: [{ ...bout.tag.rival.partners[0], id: PARTNER }],
+    } } }
     expect(() => validateCareer({ ...fight, bout: duplicate })).toThrow(/luta/)
   })
 
   it('troca os lutadores legais e restaura o apron e o turno pelo save', () => {
     const initial = tagDebut()
     const tagged = tagOut(initial)
-    expect(boutOf(initial).tag.player.partnerLegal).toBe(false)
-    expect(boutOf(tagged).tag.player).toMatchObject({ partnerLegal: true, lastTagTurn: 1 })
+    expect(boutOf(initial).tag.player.legalIndex).toBe(0)
+    expect(boutOf(tagged).tag.player).toMatchObject({ legalIndex: 1, lastTagTurn: 1 })
     expect(boutOf(tagged).used).toEqual(['tag'])
     expect(boutOf(tagged).log.some(entry => entry.text.includes('Hank Walker entrou'))).toBe(true)
     expect(() => resolvePlayerTurn(tagged, 'dropkick')).toThrow(/parceiro está no ringue/)
@@ -73,7 +80,7 @@ describe('Tag Team', () => {
       reloaded = resolvePlayerTurn({ ...reloaded, bout: { ...boutOf(reloaded), plan: 'guard' } }, 'watch')
     }
     const returned = resolvePlayerTurn({ ...reloaded, bout: { ...boutOf(reloaded), plan: 'guard' } }, 'ask-tag')
-    expect(boutOf(returned).tag.player).toMatchObject({ partnerLegal: false, lastTagTurn: 4 })
+    expect(boutOf(returned).tag.player).toMatchObject({ legalIndex: 0, lastTagTurn: 4 })
     expect(boutOf(returned).used).toEqual(['tag', 'watch', 'watch', 'ask-tag'])
     expect(validateCareer(returned)).toEqual(returned)
   })
@@ -86,9 +93,7 @@ describe('Tag Team', () => {
         ...career,
         bout: {
           ...bout, plan: 'pin', rival: { ...bout.rival, stamina: 100, position: 'standing' },
-          tag: { ...bout.tag, player: {
-            ...bout.tag.player, partner: { ...bout.tag.player.partner, condition: 0, position: 'grounded' },
-          } },
+          tag: { ...bout.tag, player: withReserve(bout.tag.player, { condition: 0, position: 'grounded' }) },
         },
       }
     }
@@ -102,7 +107,7 @@ describe('Tag Team', () => {
     const lost = resolvePlayerTurn(endangered(reloaded), 'watch')
     expect(boutOf(lost).finish).toEqual({ winner: 'rival', method: 'pinfall' })
     expect(recordFor(lost, PLAYER_ID).losses).toBe(1)
-    expect(tagRecordFor(lost, PARTNER)).toEqual({ wins: 0, losses: 1 })
+    expect(teamRecordFor(lost, [PARTNER])).toEqual({ wins: 0, losses: 1 })
     expect(validateCareer(lost)).toEqual(lost)
   })
 
@@ -114,7 +119,7 @@ describe('Tag Team', () => {
         ...career,
         bout: {
           ...bout, plan: 'guard', rival: { ...bout.rival, condition: 0, position: 'grounded' },
-          tag: { ...bout.tag, rival: { ...bout.tag.rival, partner: { ...bout.tag.rival.partner, stamina: 0 } } },
+          tag: { ...bout.tag, rival: withReserve(bout.tag.rival, { stamina: 0 }) },
         },
       }, 'watch')
     }
@@ -136,13 +141,13 @@ describe('Tag Team', () => {
     }
     const titleId = boutOf(career).titleId!
     expect(titleId).toBe('nxt-tag')
-    expect(tagRecordFor(career, PARTNER).wins).toBeGreaterThanOrEqual(2)
+    expect(teamRecordFor(career, [PARTNER]).wins).toBeGreaterThanOrEqual(2)
     const champion = winByPin(career)
     const title = titleStates(champion).get(titleId)
     expect(title?.holders).toEqual([PLAYER_ID, PARTNER])
     expect(title?.events.at(-1)?.kind).toBe('change')
     expect(titleStates(importCareer(exportCareer(champion))).get(titleId)).toEqual(title)
-    const ended = setTagPartner(champion, null)
+    const ended = setCareerTeam(champion, 'tag', null)
     expect(titleStates(ended).get(titleId)?.events.at(-1)).toMatchObject({ kind: 'vacancy', from: [PLAYER_ID, PARTNER], to: null })
     expect(ended.shows).toEqual(champion.shows)
     expect(validateCareer(ended)).toEqual(ended)
@@ -167,13 +172,13 @@ describe('Tag Team', () => {
     const match = {
       id: show.id + '/match-1', firstId: 'osiris-griffin', secondId: 'hank-walker', winnerId: 'dion-lennox',
       method: 'pinfall' as const, rounds: 11, player: false, titleId: 'nxt-tag',
-      tag: { firstPartnerId: 'dion-lennox', secondPartnerId: 'tank-ledger' },
+      tag: { firstPartners: ['dion-lennox'], secondPartners: ['tank-ledger'] },
     }
     applyTitleMatch(states, career, show, match)
     expect(states.get('nxt-tag')?.defenses).toBe(1)
     expect(states.get('nxt-tag')?.events.at(-1)?.kind).toBe('defense')
     expect(() => applyTitleMatch(states, career, show, { ...match, tag: undefined })).toThrow(/cinturão/)
-    expect(() => applyTitleMatch(states, career, show, { ...match, tag: { ...match.tag, firstPartnerId: 'saquon-shugars' } })).toThrow(/campeão vigente/)
+    expect(() => applyTitleMatch(states, career, show, { ...match, tag: { ...match.tag, firstPartners: ['saquon-shugars'] } })).toThrow(/campeão vigente/)
   })
 
   it('simula os 13 títulos de duplas nas sete empresas com quatro nomes por luta', () => {
@@ -182,17 +187,17 @@ describe('Tag Team', () => {
     expect(belts).toHaveLength(13)
     for (const title of belts) expect(title.holderTeam?.every(id => titleEligible(career, title, id))).toBe(true)
     while (career.date < '2026-07-01') career = advanceCareer(career)
-    const results = career.shows.flatMap(show => show.matches.filter(match => match.tag && match.titleId).map(match => ({ match, show })))
+    const results = career.shows.flatMap(show => show.matches.filter(match => match.tag?.firstPartners.length === 1 && match.titleId).map(match => ({ match, show })))
     expect(new Set(results.map(({ match }) => match.titleId))).toEqual(new Set(belts.map(title => title.id)))
     expect(new Set(results.map(({ show }) => ORGANIZATIONS[show.promotion].company))).toEqual(new Set(COMPANIES))
     expect(results.every(({ match }) => new Set(matchTeams(match).flat()).size === 4)).toBe(true)
-    expect(TAG_TEAM_REFERENCES.length).toBeGreaterThan(13)
+    expect(TEAM_REFERENCES.filter(team => team.members.length === 2).length).toBeGreaterThan(13)
     expect(validateCareer(career)).toEqual(career)
   })
 
   it('migra um save v2 em luta individual sem mudar seu turno nem seu calendário', () => {
     const career = resolvePlayerTurn(advanceCareer(nxtCareer()), 'guard')
-    const { tagPartnerId: _tagPartnerId, ...fields } = career
+    const { tagPartnerId: _tagPartnerId, trioPartnerIds: _trioPartnerIds, preferredFormat: _preferredFormat, ...fields } = career
     const versionTwo = {
       ...fields, schemaVersion: 2, dataVersion: WORLD_DATA_VERSION,
       shows: career.shows.map(show => ({ ...show, matches: show.matches.filter(match => !match.tag) })),
@@ -203,5 +208,27 @@ describe('Tag Team', () => {
     expect(upgraded.shows).toEqual(versionTwo.shows)
     expect(upgraded.vacatedTitles).toEqual(versionTwo.vacatedTitles)
     expect(resolvePlayerTurn(upgraded, 'guard').bout?.turn).toBe(2)
+  })
+
+  it('migra a versão 3 com dupla em andamento e mantém a próxima ação determinística', () => {
+    const career = tagOut(tagDebut())
+    const bout = boutOf(career)
+    const oldCorner = ({ partners, legalIndex, ...state }: TagBout['tag']['player']) => ({
+      ...state, partnerId: partners[0].id, partner: partners[0].side, partnerLegal: legalIndex === 1,
+    })
+    const { trioPartnerIds: _trioPartnerIds, preferredFormat: _preferredFormat, ...fields } = career
+    const versionThree = {
+      ...fields, schemaVersion: 3, dataVersion: TAG_DATA_VERSION,
+      bout: { ...bout, tag: { player: oldCorner(bout.tag.player), rival: oldCorner(bout.tag.rival) } },
+      shows: career.shows.map(show => ({
+        ...show, matches: show.matches.filter(match => !match.tag || match.tag.firstPartners.length === 1).map(match => match.tag
+          ? { ...match, tag: { firstPartnerId: match.tag.firstPartners[0], secondPartnerId: match.tag.secondPartners[0] } } : match),
+      })),
+    }
+    const upgraded = importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 3, career: versionThree }))
+    expect(upgraded.preferredFormat).toBe('tag')
+    expect(upgraded.trioPartnerIds).toBeNull()
+    expect(upgraded.bout).toEqual(bout)
+    expect(resolvePlayerTurn(upgraded, 'watch').bout).toEqual(resolvePlayerTurn(career, 'watch').bout)
   })
 })

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
   advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
-  renewOffers, resolvePlayerTurn, setDifficulty, setTagPartner, signOffer,
+  renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setMatchPreference, signOffer,
 } from '../engine/career'
 import { createSave, listSaves, openSave, saveCareer, type Vault } from '../storage/indexed-db'
 import { exportCareer, importCareer } from '../storage/save-format'
@@ -214,7 +214,8 @@ export function App() {
       if (route === 'lutador') return <Player career={career} pending={pending}
         onAttribute={attribute => change(current => improveAttribute(current, attribute))}
         onMove={id => change(current => improveMove(current, id))}
-        onPartner={id => change(current => setTagPartner(current, id))} />
+        onTeam={(format, ids) => change(current => setCareerTeam(current, format, ids))}
+        onFormat={format => change(current => setMatchPreference(current, format))} />
       if (route === 'contratos') return <Contracts career={career} pending={pending}
         onSign={id => change(current => signOffer(current, id), openCalendar)}
         onDecline={id => change(current => declineOffer(current, id))}
