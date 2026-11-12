@@ -380,17 +380,20 @@ test('navega em 320 px e pagina o calendário de uma carreira longa', async ({ p
   await pager.getByRole('button', { name: 'Próxima página' }).click()
   await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
   await expect(reports).toHaveCount(20)
-  await expect(summary).not.toHaveText(first)
+  await expect(summary).not.toHaveText(first, { useInnerText: true })
   await pager.getByRole('button', { name: 'Página anterior' }).click()
-  await expect(summary).toHaveText(first)
+  await expect(summary).toHaveText(first, { useInnerText: true })
+  await pager.getByRole('button', { name: 'Próxima página' }).click()
+  await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
   await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('bwf')
   await expect(pager.getByText(/^Página 1 de /)).toBeVisible()
+  await expect(summary.getByText('BWF', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/calendario-320-' + testInfo.project.name + '.png' })
 
   for (const route of ['Meu lutador', 'Campeonatos', 'Competições', 'Empresas', 'Configurações']) {
     await navigate(page, route)
     await expect(main.getByRole('heading', { name: route, exact: true })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(320)
   }
 })
