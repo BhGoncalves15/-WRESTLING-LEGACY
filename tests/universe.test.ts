@@ -9,14 +9,14 @@ import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, resol
 import { titleStates } from '../src/engine/titles'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
 
-import { careerWithOffer } from './fixtures'
+import { careerWithOffer, duelBoutFor } from './fixtures'
 
 function sign(career: Career, promotion: PromotionId) {
   return signOffer(career, career.offers.find(offer => offer.promotion === promotion)!.id)
 }
 
 function finishForPlayer(career: Career) {
-  const bout = career.bout!
+  const bout = duelBoutFor(career)
   return resolvePlayerTurn({
     ...career, bout: {
       ...bout, plan: 'guard',

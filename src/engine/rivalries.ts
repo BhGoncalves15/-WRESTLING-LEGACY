@@ -38,7 +38,7 @@ function seriesOver(rivalry: Rivalry) {
 }
 
 export function trackRivalry(states: RivalryStates, show: Show, match: MatchResult) {
-  if (match.tag) return undefined
+  if (match.tag || match.multi) return undefined
   const fighters: Rivalry['fighters'] = match.firstId < match.secondId ? [match.firstId, match.secondId] : [match.secondId, match.firstId]
   const promotion = onCircuit(show, match.firstId, match.secondId)
   const key = rivalryKey(promotion, fighters)

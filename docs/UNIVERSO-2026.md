@@ -5,7 +5,7 @@ A Carreira Livre agora abre em 01/01/2026 com WWE Raw, SmackDown e NXT, AEW, NJP
 ## Como rodar
 
 ```bash
-git clone --branch feat/competicoes-carreira-livre https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
+git clone --branch feat/combates-multiplos https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
 cd ./-WRESTLING-LEGACY
 npm ci
 npm run dev
@@ -25,7 +25,7 @@ O **Calendário** inclui 14 datas anunciadas antes da abertura e 26 registros de
 
 O catálogo reúne as 72 entradas do Documento Mestre em 71 IDs. O AAA World Cruiserweight Championship tem um registro canônico e aparece nos filtros da WWE e da AAA. Cada cinturão tem formato, divisão, fonte e situação em 01/01/2026. O cinturão de Rookies da BWF começa vago. O TNA Knockouts Television Championship e o NJPW TAMASHII Openweight Championship aparecem como títulos posteriores. O estado inicial do Maremoto da BWF segue em apuração.
 
-Quarenta e dois cinturões individuais têm regras de Singles e campeão disponível para defesas simuladas. O jogador pode receber oportunidades com três vitórias em Singles na carreira, popularidade de 18 ou mais e posição entre os oito primeiros da divisão. A página **Campeonatos** apresenta o campeão atual, o reinado, as defesas e as mudanças ocorridas no save. A transferência para outra agenda libera cinturões em posse do jogador que pertenciam à agenda anterior.
+Quarenta e dois cinturões individuais têm campeão ou vacância simulada. O jogador pode receber oportunidades com três vitórias individuais na carreira, popularidade de 18 ou mais e posição entre os oito primeiros da divisão. A página **Campeonatos** apresenta o campeão atual, o reinado, as defesas e as mudanças ocorridas no save. A transferência para outra agenda libera cinturões em posse do jogador que pertenciam à agenda anterior.
 
 Quinze cinturões de duplas da mesma divisão têm defesas e trocas de campeões nas sete empresas. O reinado é da dupla, independentemente de quem fez a finalização. O cinturão feminino de duplas da WWE aparece nas três brands, com disputas na agenda do Raw e nos seus eventos compartilhados. Dion Lennox e Osiris Griffin representam o DarkState na abertura. Ángel de Oro e Niebla Roja entram no elenco jogável da NJPW pela participação no cinturão STRONG, e Brian Racer entra no elenco da BWF pelo reinado com Christopher.
 
@@ -45,11 +45,21 @@ Cada lado tem um lutador legal. Em Trios, escolha qual dos dois reservas entra n
 
 A primeira queda por pinfall ou submissão encerra o combate. O resultado conta para todos os integrantes. O calendário mostra as duas formações completas e identifica quem finalizou. Os cards de trios dependem da disponibilidade de seis lutadores da divisão no dia.
 
+## Triple Threat e Fatal 4-Way
+
+Escolha **Triple Threat** ou **Fatal 4-Way** em **Meu lutador → Formato preferido nos cards**. Cada lutador age por conta própria e pode mirar qualquer adversário. Troque seu alvo na tela de combate para dirigir o próximo golpe. O jogo grava a escolha no save, e o turno só avança quando você confirma uma ação.
+
+A primeira queda por pinfall ou submissão encerra a luta. Em uma disputa de cinturão individual, quem conseguir a queda fica com o título, inclusive quando o campeão estiver fora da finalização. [Triple Threat na WWE](https://www.wwe.com/shows/hellinacell/history/hellinacell/matches/11769584) · [Fatal 4-Way na WWE](https://www.wwe.com/shows/nomercy/2006/maineventchange)
+
+Os adversários podem quebrar a contagem ou a chave. Quando uma finalização entre adversários está prestes a decidir a luta e seu lutador está em pé com condição positiva e pelo menos 12 de stamina, o jogo pausa para você reagir. Interromper custa 12 de stamina e derruba o lutador que aplicava a finalização. Você pode salvar ou reabrir a carreira nessa pausa.
+
+Os dois formatos também podem aparecer nos eventos especiais simulados. O booking usa um formato menor quando o elenco disponível não preenche a luta. Torneios e defesas por equipe seguem o formato da disputa. O calendário registra todos os participantes, o vencedor e quem sofreu a queda. O vencedor soma uma vitória individual e os demais participantes somam uma derrota.
+
 ## Competições
 
-Em **Competições → Rankings**, filtre as nove agendas por divisão. A classificação individual usa uma janela de 90 dias. Cada vitória em Singles vale três pontos. Em torneios, a vitória vale cinco. A pontuação ajuda a escolher os desafiantes nos cards e os cabeças de chave dos torneios.
+Em **Competições → Rankings**, filtre as nove agendas por divisão. A classificação individual usa uma janela de 90 dias. Cada vitória em Singles, Triple Threat ou Fatal 4-Way vale três pontos. Em torneios, a vitória vale cinco. A pontuação ajuda a escolher os desafiantes nos cards e os cabeças de chave dos torneios.
 
-Em **Rivalidades**, acompanhe o placar das séries. Uma disputa individual por cinturão ou uma vitória de cada lado abre uma rivalidade. Os cards dão preferência a revanches com pelo menos uma semana de intervalo. Duas vitórias fecham a série, e o interesse esfria após sete semanas de inatividade. Acompanhe as aberturas e os desfechos em **Notícias**. O jogador ganha oito pontos extras de XP quando luta numa rivalidade ativa.
+Em **Rivalidades**, acompanhe o placar das séries. Em Singles, uma disputa de cinturão ou uma vitória de cada lado abre uma rivalidade. Os cards dão preferência a revanches com pelo menos uma semana de intervalo. Duas vitórias fecham a série, e o interesse esfria após sete semanas de inatividade. Acompanhe as aberturas e os desfechos em **Notícias**. O jogador ganha oito pontos extras de XP quando luta numa rivalidade ativa.
 
 Em **Torneios**, escolha agenda, divisão e temporada. As copas eliminatórias têm quatro participantes e duas semifinais. O New Japan Cup usa essa chave. G1 Climax e Continental Classic usam dois grupos de três com todos contra todos e uma final entre os líderes. As vitórias de grupo valem dois pontos no G1 e três no Continental. Os desempates consideram os confrontos entre os empatados e depois a ordem de entrada. As páginas das edições incluem as referências oficiais para os torneios adaptados.
 
@@ -57,7 +67,7 @@ Cada agenda tem pelo menos um torneio anual no universo simulado. As copas estã
 
 ## Compatibilidade
 
-A versão 6 abre e importa saves das versões 1 a 5. Rankings e rivalidades usam os resultados já disputados. As edições de torneios são simuladas a partir da próxima abertura prevista no calendário do save. Em carreiras anteriores à versão 5, use **Meu lutador** para registrar o peso de ringue uma vez. Em lutas por equipes, o save guarda o lutador legal de cada lado, os recursos de todos os participantes e os salvamentos já usados.
+A versão 7 abre e importa saves das versões 1 a 6. Rankings e rivalidades usam os resultados já disputados. A migração das versões 1 a 5 inicia os torneios na próxima abertura prevista no calendário do save. Em carreiras anteriores à versão 5, use **Meu lutador** para registrar o peso de ringue uma vez. Em lutas por equipes, o save guarda o lutador legal de cada lado, os recursos de todos os participantes e os salvamentos já usados.
 
 O recorte de abertura e o arquivo de 2026 estão em expansão conforme as fontes são conferidas. O catálogo atual guarda fontes ao lado dos dados. Os comandos de testes e os perfis de navegador estão no [guia do piloto](PILOTO.md#como-rodar).
 
@@ -68,3 +78,7 @@ Os 57 testes do motor e do armazenamento cobrem trocas de lutador legal, salvame
 ## Verificação das competições
 
 Os testes cobrem classificação, inscrições, confrontos das chaves, desempates, rivalidades e retomada de uma luta de torneio. As simulações de 2026 a 2028 passaram pelas nove agendas nas três dificuldades. Cada carreira fechou 51 edições de torneios e registrou disputas pelos 62 cinturões jogáveis. Um save gerado pelo código da versão 5 conservou seus 176 shows, a formação de dupla e o combate em andamento ao passar para a versão 6.
+
+## Verificação de Triple Threat e Fatal 4-Way
+
+Uma carreira gerada no código da versão 6 conservou 134 shows, a chave do torneio e o turno de uma semifinal ao passar para a versão 7. Uma comparação de 400 lutas de Singles, Tag Team, Trios e duplas mistas encontrou os mesmos resultados, narração e estado do sorteio com a mesma escalação e semente. Nas três simulações de 2026 a 2028, todos os 62 cinturões jogáveis foram disputados e as 51 edições dos torneios foram concluídas em cada carreira. Os cards registraram 92 Triple Threats e 74 Fatal 4-Ways no total.

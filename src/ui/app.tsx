@@ -6,20 +6,20 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
   advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
-  registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setMatchPreference, signOffer,
+  registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setFightTarget, setMatchPreference, signOffer,
 } from '../engine/career'
 import { setTournamentEntry } from '../engine/tournaments'
 import { createSave, listSaves, openSave, saveCareer, type Vault } from '../storage/indexed-db'
 import { exportCareer, importCareer } from '../storage/save-format'
 import { Contracts } from './contracts'
 import { Creator } from './creator'
-import { Fight } from './fight'
 import { Player } from './player'
 import { Saves, Settings } from './saves'
 import { dateText } from './shared'
 import { Calendar, Championships, Companies, Feed, Home } from './world'
 
 const Competitions = lazy(() => import('./competitions'))
+const Fight = lazy(() => import('./fight'))
 
 const NAVIGATION = [
   { route: 'inicio', label: 'Visão geral', icon: LayoutDashboard },
@@ -230,8 +230,10 @@ export function App() {
         onDecline={id => change(current => declineOffer(current, id))}
         onNegotiate={(id, pay) => change(current => negotiate(current, id, pay))}
         onRefresh={() => change(renewOffers)} onCalendar={openCalendar} />
-      if (route === 'combates') return <Fight career={career} pending={pending}
-        onTurn={id => change(current => resolvePlayerTurn(current, id))} onAdvance={advance} onContracts={openContracts} />
+      if (route === 'combates') return <Suspense fallback={<section className="panel loading" aria-live="polite">Carregando combate…</section>}>
+        <Fight career={career} pending={pending} onTurn={id => change(current => resolvePlayerTurn(current, id))}
+          onTarget={id => change(current => setFightTarget(current, id))} onAdvance={advance} onContracts={openContracts} />
+      </Suspense>
       if (route === 'noticias' || route === 'historico') return <Feed key={route} career={career} history={route === 'historico'} />
     }
     return <Home career={career} pending={pending} onNew={openNew} onSaves={() => navigate('salvamentos')}

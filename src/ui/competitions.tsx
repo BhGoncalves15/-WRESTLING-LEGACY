@@ -45,8 +45,8 @@ function Rankings({ career, promotion, division }: Circuit) {
   const org = ORGANIZATIONS[promotion].name
   return <section className="panel">
     <header className="panel-head"><div>
-      <h2>{org}</h2><p>Singles nos últimos {RANKING_DAYS} dias. Cada vitória vale {WIN_POINTS} pontos. Vitórias em torneios valem {WIN_POINTS + TOURNAMENT_BONUS}.</p>
-      <p>Para desafiar um campeão em Singles, alcance o top {CONTENDER_LIMIT}, três vitórias individuais na carreira e 18 de popularidade.</p>
+      <h2>{org}</h2><p>Lutas individuais nos últimos {RANKING_DAYS} dias. Cada vitória vale {WIN_POINTS} pontos. Vitórias em torneios valem {WIN_POINTS + TOURNAMENT_BONUS}.</p>
+      <p>Para desafiar por um cinturão individual, alcance o top {CONTENDER_LIMIT}, três vitórias individuais na carreira e 18 de popularidade.</p>
     </div><OrgMark id={promotion} small /></header>
     {rows.length ? <ScoreTable career={career} caption={'Ranking individual · ' + org} rows={rows} rankings />
       : <p className="empty-line">O elenco deste circuito ainda não tem lutadores nesta divisão.</p>}
@@ -65,7 +65,7 @@ function Rivalries({ career, promotion, division }: Circuit) {
   const visible = onlyMine ? series.filter(item => item.fighters.includes(PLAYER_ID)) : series
   return <section className="panel">
     <header className="panel-head rivalry-header"><div><h2>Séries de rivalidade</h2>
-      <p>Uma disputa de cinturão ou uma vitória de cada lado pode abrir uma série. Duas vitórias decidem a série.</p></div>
+      <p>Em Singles, uma disputa de cinturão ou uma vitória de cada lado pode abrir uma série. Duas vitórias decidem a série.</p></div>
       <button className="button secondary small-button" aria-pressed={onlyMine} onClick={() => { setOnlyMine(!onlyMine); setLimit(20) }}>
         {onlyMine ? 'Mostrar todas' : 'Só minhas rivalidades'}
       </button>

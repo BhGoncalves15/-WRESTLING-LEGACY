@@ -1,5 +1,5 @@
 import type { Fighter } from '../content/roster-model'
-import { clamp, type Actor, type Bout, type BoutSide, type Difficulty, type Show, type TagBout, type WrestlingTeam } from '../domain/model'
+import { clamp, type Actor, type Bout, type BoutSide, type Difficulty, type DuelBout, type Show, type TagBout, type WrestlingTeam } from '../domain/model'
 import { chooseAction, createBout, reasonUnavailable, resolveExchange } from './combat'
 import type { Random } from './random'
 
@@ -24,15 +24,15 @@ export function isTagBout(bout: Bout): bout is TagBout {
   return bout.tag !== undefined
 }
 
-export function cornerFighterIds(bout: Bout, actor: Actor, starterId: string): string[] {
+export function cornerFighterIds(bout: DuelBout, actor: Actor, starterId: string): string[] {
   return [starterId, ...(bout.tag?.[actor].partners.map(partner => partner.id) ?? [])]
 }
 
-export function legalFighterId(bout: Bout, actor: Actor, starterId: string): string {
+export function legalFighterId(bout: DuelBout, actor: Actor, starterId: string): string {
   return cornerFighterIds(bout, actor, starterId)[bout.tag?.[actor].legalIndex ?? 0]
 }
 
-export function cornerSide(bout: Bout, actor: Actor, slot = bout.tag?.[actor].legalIndex ?? 0): BoutSide {
+export function cornerSide(bout: DuelBout, actor: Actor, slot = bout.tag?.[actor].legalIndex ?? 0): BoutSide {
   return slot === 0 ? bout[actor] : bout.tag![actor].partners[slot - 1].side
 }
 

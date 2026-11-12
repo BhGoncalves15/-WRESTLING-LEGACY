@@ -1,5 +1,6 @@
 import { rosterFor, showPromotions } from '../content/catalog'
 import { addDays, overall, type Career, type Division, type PromotionId } from '../domain/model'
+import { matchTeams } from './matches'
 import { CAREER_FIGHTER_ID } from './titles'
 
 export const RANKING_DAYS = 90
@@ -24,14 +25,16 @@ export function rankingsFor(career: Career, promotion: PromotionId, division: Di
     if (show.date > date || !showPromotions(show).includes(promotion)) continue
     for (const match of show.matches) {
       if (match.tag) continue
-      const loser = match.winnerId === match.firstId ? match.secondId : match.firstId
       const winning = byFighter.get(match.winnerId) ?? { wins: 0, losses: 0, points: 0 }
-      const losing = byFighter.get(loser) ?? { wins: 0, losses: 0, points: 0 }
       winning.wins++
       winning.points += WIN_POINTS + (match.tournamentId ? TOURNAMENT_BONUS : 0)
-      losing.losses++
       byFighter.set(match.winnerId, winning)
-      byFighter.set(loser, losing)
+      for (const [id] of matchTeams(match)) {
+        if (id === match.winnerId) continue
+        const losing = byFighter.get(id) ?? { wins: 0, losses: 0, points: 0 }
+        losing.losses++
+        byFighter.set(id, losing)
+      }
     }
   }
   const roster = rosterFor(promotion, false).filter(fighter => fighter.division === division)

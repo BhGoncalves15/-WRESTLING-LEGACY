@@ -9,7 +9,7 @@ import { JUNIOR_WEIGHT_LIMIT, defenseFormat, type TitleRule } from '../content/t
 import { roundName, tournamentEdition, tournamentSlots } from '../content/tournaments'
 import { COMPANIES, DIVISION_LABEL, MATCH_FORMAT_LABEL, METHOD_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId, type ShowReport } from '../domain/model'
 import { fighterName, fighterNames, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
-import { formatForSize, matchTeams, matchWinners, sameTeam } from '../engine/matches'
+import { matchFormat, matchTeams, matchWinners, sameTeam } from '../engine/matches'
 import { titleStates } from '../engine/titles'
 import { dateShort, dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
 
@@ -75,19 +75,20 @@ export function Home({ career, pending, onNew, onSaves, onCalendar, onCompanies,
 function Results({ report, career }: { report: ShowReport; career: Career }) {
   return <ul className="rows match-results">
     {report.matches.map(match => {
-      const [first, second] = matchTeams(match)
-      const format = MATCH_FORMAT_LABEL[formatForSize(first.length, match.tag?.mixed)]
+      const sides = matchTeams(match)
+      const format = MATCH_FORMAT_LABEL[matchFormat(match)]
       const winner = fighterNames(career, matchWinners(match))
-      const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId) : ''
+      const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId)
+        : match.multi ? ' sobre ' + fighterName(career, match.multi.defeatedId) : ''
       const edition = match.tournamentId ? tournamentEdition(match.tournamentId) : undefined
       return <li className="record-row" key={match.id}>
-        <div className="row-text"><strong>{fighterNames(career, first)} × {fighterNames(career, second)}</strong>
+        <div className="row-text"><strong>{sides.map(side => fighterNames(career, side)).join(' × ')}</strong>
           <small>{winner} {match.tag ? 'venceram' : 'venceu'} · {METHOD_LABEL[match.method]}{finisher}</small>
           {match.titleId && <small className="belt-label">{TITLES_BY_ID.get(match.titleId)?.name}</small>}
           {edition && <small className="belt-label">{edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === report.id))}</small>}
-          {match.tag && match.player && <small>Sua luta</small>}
+          {(match.tag || match.multi) && match.player && <small>Sua luta</small>}
         </div>
-        <span className="chip">{match.tag ? format : match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : format}</span>
+        <span className="chip">{match.tag || match.multi ? format : match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : format}</span>
       </li>
     })}
   </ul>

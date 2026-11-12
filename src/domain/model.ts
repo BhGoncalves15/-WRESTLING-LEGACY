@@ -6,8 +6,9 @@ export const WORLD_DATA_VERSION = 'world-2026-01-01.2'
 export const TAG_DATA_VERSION = 'world-2026-01-01.3'
 export const TRIOS_DATA_VERSION = 'world-2026-01-01.4'
 export const TEAM_TITLES_DATA_VERSION = 'world-2026-01-01.5'
-export const DATA_VERSION = 'world-2026-01-01.6'
-export const SAVE_VERSION = 6
+export const COMPETITIONS_DATA_VERSION = 'world-2026-01-01.6'
+export const DATA_VERSION = 'world-2026-01-01.7'
+export const SAVE_VERSION = 7
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
@@ -34,9 +35,14 @@ export const DIVISIONS = ['men', 'women'] as const
 export const COMPANIES = ['wwe', 'aew', 'njpw', 'tna', 'aaa', 'roh', 'bwf'] as const
 export const PROMOTIONS = ['raw', 'smackdown', 'nxt', 'aew', 'njpw', 'tna', 'aaa', 'roh', 'bwf'] as const
 export const TEAM_FORMATS = ['tag', 'trios', 'mixed'] as const
-export const MATCH_FORMATS = ['singles', ...TEAM_FORMATS] as const
+export const MULTI_FORMATS = ['triple-threat', 'fatal-4-way'] as const
+export const MATCH_FORMATS = ['singles', ...MULTI_FORMATS, ...TEAM_FORMATS] as const
 export const TEAM_SIZE = { tag: 2, trios: 3, mixed: 2 } as const
-export const MATCH_FORMAT_LABEL = { singles: 'Singles', tag: 'Tag Team', trios: 'Trios', mixed: 'Duplas mistas' } as const
+export const MULTI_SIZE = { 'triple-threat': 3, 'fatal-4-way': 4 } as const
+export const MATCH_FORMAT_LABEL = {
+  singles: 'Singles', 'triple-threat': 'Triple Threat', 'fatal-4-way': 'Fatal 4-Way',
+  tag: 'Tag Team', trios: 'Trios', mixed: 'Duplas mistas',
+} as const
 export const MIN_RING_WEIGHT_KG = 35
 export const MAX_RING_WEIGHT_KG = 300
 export const OPENING_OFFER_COUNT = 3
@@ -52,9 +58,13 @@ export type CompanyId = typeof COMPANIES[number]
 export type MoveKind = typeof MOVE_KINDS[number]
 export type Attributes = Record<Attribute, number>
 export type TeamFormat = typeof TEAM_FORMATS[number]
+export type MultiFormat = typeof MULTI_FORMATS[number]
 export type MatchFormat = typeof MATCH_FORMATS[number]
 export type TeamSize = typeof TEAM_SIZE[TeamFormat]
 export type WrestlingTeam<T = string> = readonly [T, T] | readonly [T, T, T]
+
+export const isTeamFormat = (format: MatchFormat): format is TeamFormat => TEAM_FORMATS.some(option => option === format)
+export const isMultiFormat = (format: MatchFormat): format is MultiFormat => MULTI_FORMATS.some(option => option === format)
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'Fácil', normal: 'Normal', hard: 'Difícil' }
 export const DIVISION_LABEL: Record<Division, string> = { men: 'Masculina', women: 'Feminina' }
@@ -180,21 +190,35 @@ const tagCornerSchema = z.object({
   lastTagTurn: safeInt.positive().nullable(),
   saveUsed: z.boolean(),
 })
-const boutSchema = z.object({
-  id, showId: id, rivalId: id, titleId: id.optional(), tournamentId: id.optional(),
+const boutFields = {
+  id, showId: id, titleId: id.optional(),
   turn: safeInt,
   player: sideSchema,
-  rival: sideSchema,
-  plan: id,
   log: z.array(turnLogSchema),
   used: z.array(id),
-  finish: finishSchema.nullable(),
   xpAwarded: safeInt,
+}
+const duelBoutSchema = z.object({
+  ...boutFields, rivalId: id, rival: sideSchema, plan: id, tournamentId: id.optional(),
+  finish: finishSchema.nullable(), multi: z.never().optional(),
   tag: z.object({ player: tagCornerSchema, rival: tagCornerSchema, mixed: z.literal(true).optional() }).optional(),
 })
+const fallSchema = z.object({ winnerId: id, defeatedId: id, method })
+const multiBoutSchema = z.object({
+  ...boutFields, finish: fallSchema.nullable(), tag: z.never().optional(), tournamentId: z.never().optional(),
+  multi: z.object({
+    opponents: z.array(z.object({ id, side: sideSchema, targetId: id, action: id })).min(2).max(3),
+    targetId: id,
+    pendingFall: fallSchema.nullable(),
+  }),
+})
+const boutSchema = z.union([duelBoutSchema, multiBoutSchema])
 export type Bout = z.infer<typeof boutSchema>
+export type DuelBout = z.infer<typeof duelBoutSchema>
+export type MultiBout = z.infer<typeof multiBoutSchema>
+export type Fall = z.infer<typeof fallSchema>
 export type BoutSide = z.infer<typeof sideSchema>
-export type TagBout = Bout & { tag: NonNullable<Bout['tag']> }
+export type TagBout = DuelBout & { tag: NonNullable<DuelBout['tag']> }
 export type Actor = 'player' | 'rival'
 export type TurnLog = z.infer<typeof turnLogSchema>
 
@@ -220,6 +244,7 @@ const matchSchema = z.object({
   player: z.boolean(),
   titleId: id.optional(),
   tournamentId: id.optional(),
+  multi: z.object({ otherIds: z.array(id).min(1).max(2), defeatedId: id }).optional(),
   tag: z.object({
     firstPartners: z.array(id).min(1).max(2),
     secondPartners: z.array(id).min(1).max(2),

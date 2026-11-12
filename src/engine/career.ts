@@ -7,13 +7,14 @@ import { defenseFormat, type TitleRecord } from '../content/titles'
 import { roundName, tournamentEdition } from '../content/tournaments'
 import {
   ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DATA_VERSION, DIFFICULTY_LABEL, INITIAL_BUDGET, INITIAL_LIMIT,
-  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_FORMATS, TEAM_SIZE,
-  addDays, clamp, dayDistance, overall, pointsSpent, profileSchema, ringWeightSchema,
+  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, MULTI_SIZE, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_FORMATS, TEAM_SIZE,
+  addDays, clamp, dayDistance, isMultiFormat, isTeamFormat, overall, pointsSpent, profileSchema, ringWeightSchema,
   suggestedAttributes, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
   type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type WrestlingTeam,
 } from '../domain/model'
 import { createBout, playTurn, simulateSingles } from './combat'
-import { matchTeams, matchWinners, sameTeam } from './matches'
+import { matchFormat, matchTeams, matchWinners, multiFormatForSize, sameTeam } from './matches'
+import { createMultiBout, playMultiTurn, simulateMulti } from './multi-combat'
 import { Random } from './random'
 import { CONTENDER_LIMIT, rankingsFor } from './rankings'
 import { matchRivalry, rematchReady, rivalryStates, trackRivalry, type RivalryStates } from './rivalries'
@@ -46,12 +47,12 @@ export function fighterNames(career: Career, fighters: readonly string[]) {
   return namesList.format(fighters.map(id => fighterName(career, id)))
 }
 
-export function recordFor(career: Career, fighterId: string, singlesOnly = false) {
+export function recordFor(career: Career, fighterId: string, individualOnly = false) {
   let wins = 0
   let losses = 0
   for (const show of career.shows) {
     for (const match of show.matches) {
-      if (singlesOnly && match.tag) continue
+      if (individualOnly && match.tag) continue
       const team = matchTeams(match).find(side => side.includes(fighterId))
       if (team?.includes(match.winnerId)) wins++
       else if (team) losses++
@@ -164,10 +165,19 @@ function vacatePlayerTitles(career: Career, release: (title: TitleRecord) => boo
 }
 
 export function setMatchPreference(career: Career, format: MatchFormat): Career {
-  if (format !== 'singles' && careerTeamPartners(career, format).length === 0) {
+  if (isTeamFormat(format) && careerTeamPartners(career, format).length === 0) {
     throw new Error('Forme a equipe antes de priorizar este formato.')
   }
   return { ...career, preferredFormat: format }
+}
+
+export function setFightTarget(career: Career, id: string): Career {
+  const { bout } = career
+  if (!bout?.multi || bout.finish || bout.multi.pendingFall || !bout.multi.opponents.some(entry => entry.id === id)) {
+    throw new Error('Escolha um adversário disponível durante o combate.')
+  }
+  if (bout.multi.targetId === id) return career
+  return { ...career, bout: { ...bout, multi: { ...bout.multi, targetId: id } } }
 }
 
 export function registerRingWeight(career: Career, weight: number): Career {
@@ -220,7 +230,7 @@ export function signOffer(career: Career, offerId: string): Career {
     next.tagPartnerId = null
     next.trioPartnerIds = null
     next.mixedPartnerId = null
-    next.preferredFormat = 'singles'
+    if (isTeamFormat(next.preferredFormat)) next.preferredFormat = 'singles'
     addHistory(next, 'team', 'Fim das parcerias', 'Sua mudança de empresa ou brand encerrou as equipes anteriores.', career.contract?.promotion)
   }
   vacatePlayerTitles(next, title => title.promotion !== promotion, 'Você assinou com ' + ORGANIZATIONS[promotion].name + '.')
@@ -279,12 +289,18 @@ function npcRematch(rivalries: RivalryStates, show: Show, pool: readonly RosterE
 }
 
 function matchResult(id: string, first: Fighter, second: Fighter, bout: Bout, player: boolean): MatchResult {
-  const finish = bout.finish
-  if (!finish) throw new Error('Uma luta em andamento não tem resultado.')
-  const starterId = finish.winner === 'player' ? first.id : second.id
+  if (!bout.finish) throw new Error('Uma luta em andamento não tem resultado.')
+  const fields = {
+    id, firstId: first.id, secondId: second.id, method: bout.finish.method, rounds: bout.turn,
+    player, ...(bout.titleId ? { titleId: bout.titleId } : {}),
+  }
+  if (bout.multi) return {
+    ...fields, winnerId: bout.finish.winnerId,
+    multi: { otherIds: bout.multi.opponents.slice(1).map(entry => entry.id), defeatedId: bout.finish.defeatedId },
+  }
+  const starterId = bout.finish.winner === 'player' ? first.id : second.id
   return {
-    id, firstId: first.id, secondId: second.id, winnerId: legalFighterId(bout, finish.winner, starterId),
-    method: finish.method, rounds: bout.turn, player, ...(bout.titleId ? { titleId: bout.titleId } : {}),
+    ...fields, winnerId: legalFighterId(bout, bout.finish.winner, starterId),
     ...(bout.tournamentId ? { tournamentId: bout.tournamentId } : {}),
     ...(bout.tag ? { tag: {
       firstPartners: bout.tag.player.partners.map(partner => partner.id),
@@ -379,12 +395,22 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
   const soloDefense = ordinaryBooking ? playerTitleOpportunity(career, show, states, occupied, random, rivalries, true) : undefined
   const team = ordinaryBooking && !soloDefense && (career.tagPartnerId || career.trioPartnerIds || career.mixedPartnerId)
     ? playerTeamBooking(career, show, states, eligible, occupied, random) : undefined
-  const opportunity = soloDefense ?? (ordinaryBooking && !team && career.preferredFormat === 'singles'
+  const opportunity = soloDefense ?? (ordinaryBooking && !team && !isTeamFormat(career.preferredFormat)
     ? playerTitleOpportunity(career, show, states, occupied, random, rivalries, false) : undefined)
   const rival = tournamentRival ?? team?.opponents[0] ?? opportunity?.rival
     ?? (ordinaryBooking && soloCandidates.length ? bookRival(career, show, soloCandidates, random, rivalries) : undefined)
   const playerTitle = team?.title ?? opportunity?.title
+  const extraRivals: RosterEntry[] = []
+  if (rival && ordinaryBooking && !team && isMultiFormat(career.preferredFormat)) {
+    const pool = soloCandidates.filter(fighter => fighter.id !== rival.id && (!playerTitle || titleEligible(career, playerTitle, fighter.id)))
+    while (pool.length && extraRivals.length < MULTI_SIZE[career.preferredFormat] - 2) {
+      const extra = bookRival(career, show, pool, random, rivalries)
+      extraRivals.push(extra)
+      pool.splice(pool.indexOf(extra), 1)
+    }
+  }
   if (rival) occupied.add(rival.id)
+  for (const fighter of extraRivals) occupied.add(fighter.id)
   if (team) for (const fighter of [...team.partners, ...team.opponents]) occupied.add(fighter.id)
   const matches: MatchResult[] = []
   const titleNight = show.special || show.promotion === 'bwf' || dayDistance(START_DATE, show.date) % 28 < 7
@@ -427,7 +453,10 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
     let format = title ? defenseFormat(title)! : 'singles'
     const titlePool = title ? (format === 'mixed' ? open : pool).filter(fighter => titleEligible(career, title, fighter.id)) : pool
     const rematch = !title ? npcRematch(rivalries, show, pool, random) : undefined
-    if (!title && !rematch && show.special) {
+    const individualSpecial = format === 'singles' && !rematch && show.special && !show.series && titlePool.length >= 3
+    const multiSize = individualSpecial && random.next() < 0.32
+      ? titlePool.length >= 4 && random.next() < 0.55 ? 4 : 3 : 0
+    if (!title && !rematch && !multiSize && show.special) {
       const hasTrios = !show.series && OPENING_TITLES.some(belt => circuits.includes(belt.promotion) && defenseFormat(belt) === 'trios')
       if (hasTrios && npcTeamPool(career, titlePool, 'trios').length >= 6) format = 'trios'
       else if (npcTeamPool(career, titlePool, 'tag').length >= 4) format = 'tag'
@@ -449,10 +478,12 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
       first = (booked && ROSTER_BY_ID.get(booked)) || random.pick(titlePool)
       const contenders = titlePool.filter(fighter => fighter.id !== first.id)
       const points = title ? new Map(rankingsFor(career, title.promotion, division, show.date).map(row => [row.fighterId, row.points])) : undefined
-      second = rematch ? ROSTER_BY_ID.get(rematch[1])!
-        : points ? random.weighted(contenders, fighter => 1 + (points.get(fighter.id) ?? 0) + overall(fighter.attributes, fighter.style) / 45)
-          : random.pick(contenders)
-      bout = simulateSingles(show, id, first, second, random)
+      const pick = (pool: readonly RosterEntry[]) => points
+        ? random.weighted(pool, fighter => 1 + (points.get(fighter.id) ?? 0) + overall(fighter.attributes, fighter.style) / 45) : random.pick(pool)
+      second = rematch ? ROSTER_BY_ID.get(rematch[1])! : pick(contenders)
+      const lineup = [first, second]
+      while (lineup.length < multiSize) lineup.push(pick(contenders.filter(fighter => !lineup.includes(fighter))))
+      bout = multiSize ? simulateMulti(show, id, lineup, random) : simulateSingles(show, id, first, second, random)
     }
     if (title) bout.titleId = title.id
     const result = matchResult(id, first, second, bout, false)
@@ -464,15 +495,17 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
 
   if (rival) {
     const id = show.id + '/career'
+    const player = playerFor(career)
     career.bout = team
-      ? createTagBout(show, id, { player: playerLineup(playerFor(career), team.partners), rival: team.opponents }, career.difficulty, random)
-      : createBout(show, id, rival, career.difficulty, random)
+      ? createTagBout(show, id, { player: playerLineup(player, team.partners), rival: team.opponents }, career.difficulty, random)
+      : extraRivals.length ? createMultiBout(show, id, [player, rival, ...extraRivals], career.difficulty, random)
+        : createBout(show, id, rival, career.difficulty, random)
     if (playerTitle) career.bout.titleId = playerTitle.id
-    if (playerFixture) career.bout.tournamentId = playerFixture.edition.editionId
-    const opponents = team ? namesList.format(team.opponents.map(fighter => fighter.name)) : rival.name
-    const format = team?.format ?? 'singles'
+    if (playerFixture && !career.bout.multi) career.bout.tournamentId = playerFixture.edition.editionId
+    const opponents = namesList.format((team?.opponents ?? [rival, ...extraRivals]).map(fighter => fighter.name))
+    const format = team?.format ?? (extraRivals.length ? multiFormatForSize(extraRivals.length + 2) : 'singles')
     const stakes = playerFixture ? playerFixture.edition.name + ' · ' + roundName(playerFixture.edition, playerFixture.round)
-      : playerTitle?.name ?? MATCH_FORMAT_LABEL[format]
+      : [MATCH_FORMAT_LABEL[format], playerTitle?.name].filter(Boolean).join(' · ')
     addHistory(career, 'match', 'Luta marcada contra ' + opponents, show.name + ' · ' + stakes, show.promotion)
   } else if (matches.length) {
     const mainEvent = matches.at(-1)!
@@ -543,14 +576,17 @@ export function renewOffers(career: Career): Career {
 export function resolvePlayerTurn(career: Career, action: string): Career {
   const current = career.bout
   if (!current || current.finish) throw new Error('Avance até um show para receber uma luta.')
-  const rival = ROSTER_BY_ID.get(current.rivalId)
+  const opponentIds = current.multi ? current.multi.opponents.map(opponent => opponent.id) : [current.rivalId]
+  const opponents = opponentIds.map(id => ROSTER_BY_ID.get(id)!)
+  const [rival] = opponents
   const show = career.shows.find(report => report.id === current.showId)
   const contract = career.contract
-  if (!rival || !show || contract?.status !== 'active') throw new Error('O save não tem os dados necessários para continuar esta luta.')
+  if (opponents.some(fighter => !fighter) || !show || contract?.status !== 'active') throw new Error('O save não tem os dados necessários para continuar esta luta.')
   const random = new Random(career.rng)
   const fighter = playerFor(career)
-  const bout = isTagBout(current)
-    ? playTagTurn(current, {
+  const bout = current.multi
+    ? playMultiTurn(current, [fighter, ...opponents], career.difficulty, action, random)
+    : isTagBout(current) ? playTagTurn(current, {
       player: playerLineup(fighter, current.tag.player.partners.map(partner => ROSTER_BY_ID.get(partner.id)!)),
       rival: rosterTeam(cornerFighterIds(current, 'rival', rival.id)),
     }, career.difficulty, action, random)
@@ -558,10 +594,11 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   const next: Career = { ...career, bout, rng: random.state }
   if (!bout.finish) return next
 
-  const won = bout.finish.winner === 'player'
+  const result = matchResult(bout.id, fighter, rival, bout, true)
+  const won = matchWinners(result).includes(PLAYER_ID)
   const variety = new Set(bout.used).size
   const rivalries = rivalryStates(career.shows)
-  const series = !bout.tag ? matchRivalry(rivalries, show, PLAYER_ID, rival.id) : undefined
+  const series = !bout.tag && !bout.multi ? matchRivalry(rivalries, show, PLAYER_ID, rival.id) : undefined
   const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId) : undefined
   const champion = edition && won && edition.shows.at(-1)?.id === show.id
   const xp = 24 + (won ? 24 : 0) + Math.min(14, variety * 2) + (show.special ? 10 : 0) + (bout.titleId ? 15 : 0)
@@ -569,13 +606,14 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   bout.xpAwarded = xp
   next.xp += xp
   next.popularity = clamp(next.popularity + (won ? 4 : 1) + (show.special ? 2 : 0), 0, 100)
-  const result = matchResult(bout.id, fighter, rival, bout, true)
   addTitleHistory(next, show, result, titleStates(career))
   addCompetitionHistory(next, show, result, rivalries)
   next.shows = career.shows.map(report => report.id === show.id ? { ...report, matches: [...report.matches, result] } : report)
   next.ledger = [...career.ledger, { id: bout.id, date: show.date, label: show.name + (won ? ' · participação e vitória' : ' · participação'), amount: contract.pay + (won ? contract.winBonus : 0) }]
-  addHistory(next, 'match', (won ? 'Vitória sobre ' : 'Derrota para ') + fighterNames(career, matchTeams(result)[1]),
-    show.name + ' · ' + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion)
+  const headline = result.multi ? (won ? 'Vitória em ' : 'Derrota em ') + MATCH_FORMAT_LABEL[matchFormat(result)]
+    : (won ? 'Vitória sobre ' : 'Derrota para ') + fighterNames(career, matchTeams(result)[1])
+  const fall = result.multi ? fighterName(career, result.winnerId) + ' finalizou ' + fighterName(career, result.multi.defeatedId) + ' · ' : ''
+  addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion)
   addHistory(next, 'show', show.name, 'Card encerrado com ' + (show.matches.length + 1) + ' lutas.', show.promotion)
   return next
 }
