@@ -124,6 +124,9 @@ export const REGIONAL_ROSTER = [
     ['taylor-wolf', 'Taylor Wolf', 'Brawler', 7, 'Face'],
     ['dante-bwf', 'Dante', 'Brawler', 10, 'Heel'],
   ]),
+  ...rosterGroup('bwf', '2024-06-08', SOURCES.bwfTag, 'men', [
+    ['brian-racer', 'Brian Racer', 'Brawler', 6, 'Face'],
+  ]),
   ...rosterGroup('bwf', '2025-12-07', SOURCES.bwfTelecatch, 'women', [
     ['zatara', 'Zatara', 'Highflyer', 8, 'Tweener'],
   ]),

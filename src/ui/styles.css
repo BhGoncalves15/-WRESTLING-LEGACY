@@ -203,6 +203,13 @@ select { padding-right: 22px; }
 
 .ring-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
 .ring-corner, .profile-card { padding: 16px; }
+.apron-grid { margin-top: 8px; }
+.apron-card { padding: 8px 12px; border-style: dashed; }
+.apron-card small { color: var(--muted); }
+.team-panel { margin: 14px 0; }
+.team-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; padding: 0 16px 16px; }
+.team-controls label, .team-controls .row-text { flex: 1 1 210px; min-width: 0; }
+.team-controls label select { width: 100%; }
 .corner-header, .profile-card { display: flex; align-items: center; gap: 12px; }
 .corner-header h2, .profile-card h2 { font-size: 34px; overflow-wrap: anywhere; }
 .corner-header p, .profile-card p { font-size: 12px; margin-top: 3px; }
