@@ -11,17 +11,35 @@ async function navigate(page: Page, route: string) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: route, exact: true }).click()
 }
 
-test('cria BH, negocia, retoma o combate e importa o save em outra carreira', async ({ page }, testInfo) => {
+async function openBeta(page: Page, baseURL: string) {
+  if (process.env.PLAYWRIGHT_BUILD !== '1') {
+    await page.goto(baseURL)
+    return
+  }
+  const preview = new URL(baseURL)
+  const localNetwork = new URL(baseURL)
+  localNetwork.hostname = 'wrestling-legacy.test'
+  await page.context().route(localNetwork.origin + '/**', async route => {
+    const target = new URL(route.request().url())
+    target.host = preview.host
+    await route.fulfill({ response: await route.fetch({ url: target.href }) })
+  })
+  await page.goto(localNetwork.href)
+  expect(await page.evaluate(() => window.isSecureContext)).toBe(false)
+}
+
+test('cria BH, negocia, reabre a luta e importa uma cópia pela rede local', async ({ page: firstPage, context, baseURL }, testInfo) => {
+  let page = firstPage
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
-  await page.goto('./')
+  await openBeta(page, baseURL!)
   await expect(page.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
   await expect(page.getByText('Brazilian Wrestling Federation', { exact: true })).toBeVisible()
   await expect(page.getByText('Wrestle Kingdom 20', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/home-' + testInfo.project.name + '.png', fullPage: true })
 
-  const main = page.getByRole('main')
+  let main = page.getByRole('main')
   await main.getByRole('button', { name: 'Nova carreira' }).click()
   await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
   await expect(main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' })).toHaveValue('80')
@@ -43,7 +61,12 @@ test('cria BH, negocia, retoma o combate e importa o save em outra carreira', as
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/fight-' + testInfo.project.name + '.png', fullPage: true })
   await main.getByRole('button', { name: /^Dropkick / }).click()
   await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
-  await page.reload()
+  const fightUrl = page.url()
+  await page.close()
+  page = await context.newPage()
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto(fightUrl)
+  main = page.getByRole('main')
   await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
 
   let turns = 0
@@ -63,6 +86,14 @@ test('cria BH, negocia, retoma o combate e importa o save em outra carreira', as
   await expect(result).toBeVisible()
   await expect(main.getByText(/\+\d+ XP/)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await navigate(page, 'Meu lutador')
+  const xp = main.locator('.stat').filter({ hasText: 'XP disponível' }).locator('strong')
+  const previousXp = Number(await xp.textContent())
+  const improvement = main.getByRole('button', { name: /^Melhorar .* por \d+ XP/ }).and(main.locator('button:enabled')).first()
+  const cost = Number((await improvement.getAttribute('aria-label'))?.match(/por (\d+) XP/)?.[1])
+  await improvement.click()
+  await expect(xp).toHaveText(String(previousXp - cost))
 
   await navigate(page, 'Salvamentos')
   await main.getByRole('button', { name: 'Salvar agora' }).click()
@@ -89,6 +120,9 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   await main.getByRole('textbox', { name: /Buscar lutador/ }).fill('Victor Boer')
   await expect(main.getByText('Victor Boer', { exact: true })).toBeVisible()
   await expect(main.getByText('1 perfil', { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^All Elite Wrestling/ }).click()
+  await main.getByRole('textbox', { name: /Buscar lutador/ }).fill('mascara dorada')
+  await expect(main.getByText('Máscara Dorada', { exact: true })).toBeVisible()
 
   await navigate(page, 'Campeonatos')
   await expect(main.getByText('71 títulos · Abertura em 01/01/2026')).toBeVisible()
@@ -317,4 +351,49 @@ test('reabre um save com a queda em curso e interrompe o pinfall no navegador', 
   await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
   await expect(main.getByText(/^BH interrompeu a contagem de /)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('navega em 320 px e pagina o calendário de uma carreira longa', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 720 })
+  let career = careerWithOffer('nxt')
+  while (career.date < '2029-01-01') career = advanceCareer(career)
+  const main = await importFixture(page, career, 'temporadas.json')
+  const menuToggle = page.getByRole('button', { name: 'Abrir navegação' })
+  await menuToggle.click()
+  const menu = page.getByRole('dialog', { name: 'Barra lateral' })
+  await expect(menu.getByRole('link', { name: 'Salvamentos', exact: true })).toBeFocused()
+  await expect(page.locator('.app-body')).toHaveJSProperty('inert', true)
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(menuToggle).toBeFocused()
+
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Resultados', exact: true }).click()
+  const pager = main.getByRole('navigation', { name: 'Páginas de resultados' })
+  const reports = main.locator('details.report')
+  const summary = reports.first().locator('summary')
+  await expect(pager.getByText('Página 1 de ' + Math.ceil(career.shows.length / 20))).toBeVisible()
+  await expect(reports).toHaveCount(20)
+  const first = await summary.innerText()
+  await summary.click()
+  await expect(reports.first().locator('.match-results')).toBeVisible()
+  await pager.getByRole('button', { name: 'Próxima página' }).click()
+  await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
+  await expect(reports).toHaveCount(20)
+  await expect(summary).not.toHaveText(first, { useInnerText: true })
+  await pager.getByRole('button', { name: 'Página anterior' }).click()
+  await expect(summary).toHaveText(first, { useInnerText: true })
+  await pager.getByRole('button', { name: 'Próxima página' }).click()
+  await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('bwf')
+  await expect(pager.getByText(/^Página 1 de /)).toBeVisible()
+  await expect(summary.getByText('BWF', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/calendario-320-' + testInfo.project.name + '.png' })
+
+  for (const route of ['Meu lutador', 'Campeonatos', 'Competições', 'Empresas', 'Configurações']) {
+    await navigate(page, route)
+    await expect(main.getByRole('heading', { name: route, exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(320)
+  }
 })

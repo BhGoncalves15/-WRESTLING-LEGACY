@@ -2,7 +2,7 @@ import {
   AlertCircle, ArrowRight, Building2, CalendarDays, Check, CircleUserRound, Handshake, History, ListOrdered,
   LayoutDashboard, Menu, Newspaper, Plus, Save, Settings2, Swords, Trophy, X,
 } from 'lucide-react'
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
   advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
@@ -70,6 +70,34 @@ export function App() {
   })
   const locked = useRef(false)
   const main = useRef<HTMLElement>(null)
+  const rail = useRef<HTMLElement>(null)
+  const menuToggle = useRef<HTMLButtonElement>(null)
+
+  const dismissMenu = useCallback(() => {
+    setMenu(false)
+    requestAnimationFrame(() => menuToggle.current?.focus({ preventScroll: true }))
+  }, [])
+
+  useEffect(() => {
+    if (!menu) return
+    const initialFocus = rail.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? rail.current
+    const focusFrame = requestAnimationFrame(() => initialFocus?.focus())
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        dismissMenu()
+      }
+    }
+    const narrow = window.matchMedia('(max-width: 740px)')
+    const onResize = (event: MediaQueryListEvent) => { if (!event.matches) setMenu(false) }
+    window.addEventListener('keydown', onKey)
+    narrow.addEventListener('change', onResize)
+    return () => {
+      cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKey)
+      narrow.removeEventListener('change', onResize)
+    }
+  }, [menu, dismissMenu])
 
   useEffect(() => {
     const sync = () => { setRoute(currentRoute()); setMenu(false) }
@@ -113,7 +141,7 @@ export function App() {
     setRoute(target)
     setMenu(false)
     window.scrollTo(0, 0)
-    main.current?.focus({ preventScroll: true })
+    requestAnimationFrame(() => main.current?.focus({ preventScroll: true }))
   }
 
   async function operation(work: () => Promise<void>) {
@@ -241,12 +269,16 @@ export function App() {
   }
 
   return <div className="app-shell">
-    <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Ir para o conteúdo</a>
-    {menu && <button type="button" className="mobile-scrim" aria-label="Fechar menu" onClick={() => setMenu(false)} />}
-    <aside className={'rail' + (menu ? ' open' : '')} aria-label="Barra lateral">
-      <a className="brand" href="#/inicio" onClick={event => { event.preventDefault(); navigate('inicio') }}>
-        <span className="brand-icon"><Swords size={21} aria-hidden /></span><span>Wrestling<strong>Legacy</strong></span>
-      </a>
+    <a className="skip-link" href="#main-content" inert={menu} onClick={event => { event.preventDefault(); main.current?.focus() }}>Ir para o conteúdo</a>
+    {menu && <div className="mobile-scrim" aria-hidden onClick={dismissMenu} />}
+    <aside ref={rail} id="barra-lateral" className={'rail' + (menu ? ' open' : '')}
+      role={menu ? 'dialog' : undefined} aria-modal={menu || undefined} aria-label="Barra lateral" tabIndex={menu ? -1 : undefined}>
+      <div className="rail-header">
+        <a className="brand" href="#/inicio" onClick={event => { event.preventDefault(); navigate('inicio') }}>
+          <span className="brand-icon"><Swords size={21} aria-hidden /></span><span>Wrestling<strong>Legacy</strong></span>
+        </a>
+        {menu && <button className="menu-toggle" type="button" aria-label="Fechar navegação" onClick={dismissMenu}><X size={22} aria-hidden /></button>}
+      </div>
       <nav aria-label="Navegação principal">
         {nav.map(item => <a key={item.route} className={'nav-link' + (item.route === route ? ' active' : '')} href={'#/' + item.route}
           aria-current={item.route === route ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(item.route) }}>
@@ -255,13 +287,14 @@ export function App() {
       </nav>
       <div className="rail-bottom">
         <button className="rail-new" onClick={openNew}><Plus size={18} aria-hidden /> Nova carreira</button>
-        <span>Universo 2026</span>
+        <span>Beta · Universo 2026</span>
       </div>
     </aside>
-    <div className="app-body">
+    <div className="app-body" inert={menu}>
       <header className="topbar">
-        <div className="topbar-left"><button className="menu-toggle" type="button" aria-label={menu ? 'Fechar navegação' : 'Abrir navegação'} aria-expanded={menu} onClick={() => setMenu(!menu)}>
-          {menu ? <X size={22} /> : <Menu size={22} />}
+        <div className="topbar-left"><button ref={menuToggle} className="menu-toggle" type="button" aria-label="Abrir navegação"
+          aria-controls="barra-lateral" aria-expanded={menu} onClick={() => setMenu(true)}>
+          <Menu size={22} aria-hidden />
         </button><div className="breadcrumb"><span>Wrestling Legacy</span><span className="slash">/</span><strong>{title}</strong></div></div>
         <div className="topbar-right">
           {career && <button className="save-indicator" onClick={() => navigate('salvamentos')} aria-label="Ir aos salvamentos" title={pending ? 'Salvando' : 'Salvamentos'}>

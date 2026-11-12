@@ -4,14 +4,7 @@ A Carreira Livre agora abre em 01/01/2026 com WWE Raw, SmackDown e NXT, AEW, NJP
 
 ## Como rodar
 
-```bash
-git clone --branch feat/combates-multiplos https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
-cd ./-WRESTLING-LEGACY
-npm ci
-npm run dev
-```
-
-Abra a URL do Vite com Node.js 22.13 ou posterior.
+Use o pacote testado ou rode pelo código com Node.js 22.13 ou posterior. [Como testar no PC e no celular](BETA-CARREIRA-LIVRE.md)
 
 ## Elencos e calendário
 

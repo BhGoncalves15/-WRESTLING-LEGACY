@@ -36,7 +36,8 @@ svg { flex-shrink: 0; }
 .skip-link:focus { position: fixed; left: 12px; top: 10px; z-index: 30; background: var(--lime); color: #16180d; padding: 10px 15px; border-radius: 5px; }
 
 .app-shell { --rail-width: 222px; min-height: 100dvh; }
-.rail { position: fixed; z-index: 10; inset: 0 auto 0 0; width: var(--rail-width); background: var(--rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 24px 15px 18px; overflow-y: auto; }
+.rail { position: fixed; z-index: 10; inset: 0 auto 0 0; width: var(--rail-width); background: var(--rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 24px 15px 18px; overflow-y: auto; overscroll-behavior: contain; }
+.rail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
 .brand { min-height: 52px; display: flex; align-items: center; gap: 11px; margin: 0 6px 36px; font: 700 23px/.9 var(--heading); text-transform: uppercase; letter-spacing: .025em; }
 .brand strong { display: block; color: var(--lime); font-weight: 800; }
 .brand-icon { display: grid; place-items: center; background: var(--lime); color: #15180b; width: 42px; height: 42px; border-radius: 9px; transform: rotate(-5deg); }
@@ -88,6 +89,8 @@ svg { flex-shrink: 0; }
 .text-button { padding: 4px 0; border: 0; background: transparent; color: var(--lime); display: inline-flex; align-items: center; gap: 2px; font-weight: 650; white-space: nowrap; font-size: 12px; }
 .text-button:hover { color: var(--lime-hover); }
 .market-shortcut { margin-top: 16px; }
+.result-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.result-pagination span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
 .panel-head { min-height: 62px; display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 16px 19px; }
 .panel-head h2 { display: flex; gap: 9px; align-items: center; font-size: 25px; }
@@ -287,10 +290,11 @@ select { padding-right: 22px; }
 @media (max-width: 740px) {
   .app-shell { --rail-width: min(252px, 85vw); }
   .app-body { margin-left: 0; }
-  .rail { transform: translateX(-100%); visibility: hidden; pointer-events: none; transition: transform .16s, visibility .16s; }
+  .rail { transform: translateX(-100%); visibility: hidden; pointer-events: none; transition: transform .16s; }
   .rail.open { transform: none; visibility: visible; pointer-events: auto; }
-  .mobile-scrim { display: block; position: fixed; inset: 0; z-index: 9; width: 100%; background: #000a; border: 0; }
-  .menu-toggle { display: grid; place-items: center; width: 34px; height: 37px; padding: 0; border: 0; background: transparent; color: var(--text); }
+  .mobile-scrim { display: block; position: fixed; inset: 0; z-index: 9; width: 100%; background: #000a; touch-action: none; }
+  .menu-toggle { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text); }
+  .rail-header .brand { margin-bottom: 20px; }
   .topbar { min-height: 57px; padding: 6px 13px; }
   .topbar-left, .topbar-right { gap: 6px; }
   .breadcrumb { font-size: 12px; }
@@ -343,6 +347,7 @@ select { padding-right: 22px; }
   .save-actions { flex-basis: 100%; }
   .inline-note { flex-wrap: wrap; }
   .roster-row small { font-size: 10px; }
+  .result-pagination .button { padding-inline: 8px; font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
