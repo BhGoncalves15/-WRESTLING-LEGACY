@@ -1,13 +1,14 @@
 import {
-  AlertCircle, ArrowRight, Building2, CalendarDays, Check, CircleUserRound, Handshake, History,
+  AlertCircle, ArrowRight, Building2, CalendarDays, Check, CircleUserRound, Handshake, History, ListOrdered,
   LayoutDashboard, Menu, Newspaper, Plus, Save, Settings2, Swords, Trophy, X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
   advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
   registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setMatchPreference, signOffer,
 } from '../engine/career'
+import { setTournamentEntry } from '../engine/tournaments'
 import { createSave, listSaves, openSave, saveCareer, type Vault } from '../storage/indexed-db'
 import { exportCareer, importCareer } from '../storage/save-format'
 import { Contracts } from './contracts'
@@ -18,6 +19,8 @@ import { Saves, Settings } from './saves'
 import { dateText } from './shared'
 import { Calendar, Championships, Companies, Feed, Home } from './world'
 
+const Competitions = lazy(() => import('./competitions'))
+
 const NAVIGATION = [
   { route: 'inicio', label: 'Visão geral', icon: LayoutDashboard },
   { route: 'lutador', label: 'Meu lutador', icon: CircleUserRound, careerOnly: true },
@@ -26,6 +29,7 @@ const NAVIGATION = [
   { route: 'contratos', label: 'Contratos', icon: Handshake, careerOnly: true },
   { route: 'empresas', label: 'Empresas', icon: Building2 },
   { route: 'campeonatos', label: 'Campeonatos', icon: Trophy },
+  { route: 'competicoes', label: 'Competições', icon: ListOrdered, careerOnly: true },
   { route: 'noticias', label: 'Notícias', icon: Newspaper, careerOnly: true },
   { route: 'historico', label: 'Histórico', icon: History, careerOnly: true },
   { route: 'configuracoes', label: 'Configurações', icon: Settings2 },
@@ -211,6 +215,10 @@ export function App() {
         }
       }} />
     if (career) {
+      if (route === 'competicoes') return <Suspense fallback={<section className="panel loading" aria-live="polite">Carregando competições…</section>}>
+        <Competitions key={career.id} career={career} pending={pending}
+          onEntry={(id, enter) => change(current => setTournamentEntry(current, id, enter))} />
+      </Suspense>
       if (route === 'lutador') return <Player career={career} pending={pending}
         onAttribute={attribute => change(current => improveAttribute(current, attribute))}
         onMove={id => change(current => improveMove(current, id))}

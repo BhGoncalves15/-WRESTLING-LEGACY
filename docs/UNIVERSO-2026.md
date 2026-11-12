@@ -5,7 +5,7 @@ A Carreira Livre agora abre em 01/01/2026 com WWE Raw, SmackDown e NXT, AEW, NJP
 ## Como rodar
 
 ```bash
-git clone --branch feat/cinturoes-de-equipes https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
+git clone --branch feat/competicoes-carreira-livre https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
 cd ./-WRESTLING-LEGACY
 npm ci
 npm run dev
@@ -25,7 +25,7 @@ O **Calendário** inclui 14 datas anunciadas antes da abertura e 26 registros de
 
 O catálogo reúne as 72 entradas do Documento Mestre em 71 IDs. O AAA World Cruiserweight Championship tem um registro canônico e aparece nos filtros da WWE e da AAA. Cada cinturão tem formato, divisão, fonte e situação em 01/01/2026. O cinturão de Rookies da BWF começa vago. O TNA Knockouts Television Championship e o NJPW TAMASHII Openweight Championship aparecem como títulos posteriores. O estado inicial do Maremoto da BWF segue em apuração.
 
-Quarenta e dois cinturões individuais têm regras de Singles e campeão disponível para defesas simuladas. O jogador pode receber oportunidades após três vitórias e popularidade suficiente. A página **Campeonatos** apresenta o campeão atual, o reinado, as defesas e as mudanças ocorridas no save. A transferência para outra agenda libera cinturões em posse do jogador que pertenciam à agenda anterior.
+Quarenta e dois cinturões individuais têm regras de Singles e campeão disponível para defesas simuladas. O jogador pode receber oportunidades com três vitórias em Singles na carreira, popularidade de 18 ou mais e posição entre os oito primeiros da divisão. A página **Campeonatos** apresenta o campeão atual, o reinado, as defesas e as mudanças ocorridas no save. A transferência para outra agenda libera cinturões em posse do jogador que pertenciam à agenda anterior.
 
 Quinze cinturões de duplas da mesma divisão têm defesas e trocas de campeões nas sete empresas. O reinado é da dupla, independentemente de quem fez a finalização. O cinturão feminino de duplas da WWE aparece nas três brands, com disputas na agenda do Raw e nos seus eventos compartilhados. Dion Lennox e Osiris Griffin representam o DarkState na abertura. Ángel de Oro e Niebla Roja entram no elenco jogável da NJPW pela participação no cinturão STRONG, e Brian Racer entra no elenco da BWF pelo reinado com Christopher.
 
@@ -45,12 +45,26 @@ Cada lado tem um lutador legal. Em Trios, escolha qual dos dois reservas entra n
 
 A primeira queda por pinfall ou submissão encerra o combate. O resultado conta para todos os integrantes. O calendário mostra as duas formações completas e identifica quem finalizou. Os cards de trios dependem da disponibilidade de seis lutadores da divisão no dia.
 
+## Competições
+
+Em **Competições → Rankings**, filtre as nove agendas por divisão. A classificação individual usa uma janela de 90 dias. Cada vitória em Singles vale três pontos. Em torneios, a vitória vale cinco. A pontuação ajuda a escolher os desafiantes nos cards e os cabeças de chave dos torneios.
+
+Em **Rivalidades**, acompanhe o placar das séries. Uma disputa individual por cinturão ou uma vitória de cada lado abre uma rivalidade. Os cards dão preferência a revanches com pelo menos uma semana de intervalo. Duas vitórias fecham a série, e o interesse esfria após sete semanas de inatividade. Acompanhe as aberturas e os desfechos em **Notícias**. O jogador ganha oito pontos extras de XP quando luta numa rivalidade ativa.
+
+Em **Torneios**, escolha agenda, divisão e temporada. As copas eliminatórias têm quatro participantes e duas semifinais. O New Japan Cup usa essa chave. G1 Climax e Continental Classic usam dois grupos de três com todos contra todos e uma final entre os líderes. As vitórias de grupo valem dois pontos no G1 e três no Continental. Os desempates consideram os confrontos entre os empatados e depois a ordem de entrada. As páginas das edições incluem as referências oficiais para os torneios adaptados.
+
+Cada agenda tem pelo menos um torneio anual no universo simulado. As copas estão disponíveis nas divisões com elenco suficiente para preencher a chave. Use **Inscrever-se** antes do show de abertura com contrato ativo na agenda e na divisão do torneio. O contrato precisa cobrir a final. As lutas da sua inscrição são individuais e jogáveis. Os outros confrontos avançam conforme o calendário, mesmo em carreiras sem contrato. Na montagem das chaves, a empresa preserva os parceiros do jogador quando há outros participantes disponíveis. As chaves registram participantes e vencedores de cada temporada. Rodadas, resultados e finais também aparecem no calendário e nas notícias.
+
 ## Compatibilidade
 
-A versão 5 abre e importa saves das versões 1 a 4. Em carreiras anteriores, use **Meu lutador** para registrar o peso de ringue uma vez. O calendário dos novos eventos começa a avançar a partir da data corrente de cada save. Em lutas por equipes, o save guarda o lutador legal de cada lado, os recursos de todos os participantes e os salvamentos já usados.
+A versão 6 abre e importa saves das versões 1 a 5. Rankings e rivalidades usam os resultados já disputados. As edições de torneios são simuladas a partir da próxima abertura prevista no calendário do save. Em carreiras anteriores à versão 5, use **Meu lutador** para registrar o peso de ringue uma vez. Em lutas por equipes, o save guarda o lutador legal de cada lado, os recursos de todos os participantes e os salvamentos já usados.
 
 O recorte de abertura e o arquivo de 2026 estão em expansão conforme as fontes são conferidas. O catálogo atual guarda fontes ao lado dos dados. Os comandos de testes e os perfis de navegador estão no [guia do piloto](PILOTO.md#como-rodar).
 
 ## Verificação das lutas por equipes
 
 Os 57 testes do motor e do armazenamento cobrem trocas de lutador legal, salvamento, defesas, pagamento, vacância, elegibilidade, conflito de agenda e importação. Três carreiras, uma por dificuldade, simularam até janeiro de 2029. Cada uma teve 37 cards do TAMASHII, registrou disputas pelos quatro títulos desta etapa e passou pela exportação e reimportação do save. Uma carreira exportada pelo código da versão 4 preservou as 92 fichas de shows, a parceria com DOUKI e o andamento da luta ao continuar na versão 5.
+
+## Verificação das competições
+
+Os testes cobrem classificação, inscrições, confrontos das chaves, desempates, rivalidades e retomada de uma luta de torneio. As simulações de 2026 a 2028 passaram pelas nove agendas nas três dificuldades. Cada carreira fechou 51 edições de torneios e registrou disputas pelos 62 cinturões jogáveis. Um save gerado pelo código da versão 5 conservou seus 176 shows, a formação de dupla e o combate em andamento ao passar para a versão 6.

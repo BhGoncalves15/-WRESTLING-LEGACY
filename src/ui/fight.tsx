@@ -1,11 +1,13 @@
 import { ArrowRight, Crosshair, Flame, HeartPulse, Repeat2, Shield, Swords, Trophy, Zap } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, type Fighter } from '../content/catalog'
 import { MOVE_BY_ID } from '../content/moves'
+import { roundName, tournamentEdition } from '../content/tournaments'
 import { MATCH_FORMAT_LABEL, METHOD_LABEL, MOVE_KINDS, MOVE_KIND_LABEL, overall, type Actor, type BoutSide, type Career, type MoveKind, type TagBout } from '../domain/model'
 import { actionDescription, actionName, positionName, reasonUnavailable, TACTICAL_ACTIONS, telegraph } from '../engine/combat'
-import { fighterName, nextCareerShow, playerFor } from '../engine/career'
+import { PLAYER_ID, fighterName, nextCareerShow, playerFor } from '../engine/career'
 import { formatForSize } from '../engine/matches'
+import { matchRivalry, rivalryStates } from '../engine/rivalries'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagActionFor, tagActionUnavailable, tagTarget } from '../engine/tag-combat'
 import { EmptyState, Meter, PageTitle } from './shared'
 
@@ -45,6 +47,7 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
   const rival = bout ? ROSTER_BY_ID.get(bout.rivalId) : undefined
   const show = career.shows.find(item => item.id === bout?.showId)
   const player = playerFor(career)
+  const rivalries = useMemo(() => rivalryStates(career.shows), [career.shows])
   const completedBout = bout?.finish ? bout.id : undefined
   useEffect(() => {
     if (completedBout) window.scrollTo(0, 0)
@@ -60,6 +63,8 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
   </>
 
   const belt = bout.titleId ? TITLES_BY_ID.get(bout.titleId) : undefined
+  const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId) : undefined
+  const rivalry = !bout.tag ? matchRivalry(rivalries, show, PLAYER_ID, rival.id) : undefined
   const teamBout = isTagBout(bout) ? bout : null
   const playerMembers = cornerFighterIds(bout, 'player', player.id)
   const rivalMembers = cornerFighterIds(bout, 'rival', rival.id)
@@ -87,6 +92,12 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
     <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · ' + MATCH_FORMAT_LABEL[format]}
       action={<span className="chip">{finished ? 'Encerrado' : 'Turno ' + (bout.turn + 1)}</span>} />
     {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {belt.name}</span></div>}
+    {edition && <div className="inline-note"><Trophy size={19} aria-hidden /><span>
+      {edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === show.id))}
+    </span></div>}
+    {rivalry?.active && (!rivalry.winnerId || (finished && rivalry.lastMeeting === show.date)) && <div className="inline-note"><Flame size={18} aria-hidden /><span>
+      Rivalidade · {fighterName(career, rivalry.fighters[0])} {rivalry.wins[0]}–{rivalry.wins[1]} {fighterName(career, rivalry.fighters[1])}
+    </span></div>}
     {teamBout?.tag.mixed && <div className="inline-note"><Repeat2 size={18} aria-hidden /><span>Na tag, as duas duplas trocam o lutador legal.</span></div>}
     <div className="ring-grid">
       <Corner fighter={legalPlayer} side={cornerSide(bout, 'player')} tag={Boolean(teamBout)} />

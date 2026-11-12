@@ -2,13 +2,14 @@ import { z } from 'zod'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, compareShows, fitsEventRoster, nextShows, showPromotions, validLegacyShow, wrestlerAppearsIn } from '../content/catalog'
 import { validMoveset } from '../content/moves'
 import { defenseFormat } from '../content/titles'
-import { DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, type Career, type Show } from '../domain/model'
+import { DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION, TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, type Career, type Show } from '../domain/model'
 import { PLAYER_ID } from '../engine/career'
 import { validAction } from '../engine/combat'
 import { formatForSize, matchTeams, sameTeam } from '../engine/matches'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagSwapUnavailable, tagTarget } from '../engine/tag-combat'
 import { careerTeamPartners } from '../engine/tag-teams'
 import { fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../engine/titles'
+import { validateTournaments } from '../engine/tournaments'
 
 function unique(ids: string[]): boolean {
   return new Set(ids).size === ids.length
@@ -19,6 +20,8 @@ const legacySchema = z.looseObject({
 })
 const worldSchema = z.looseObject({ schemaVersion: z.literal(2), dataVersion: z.literal(WORLD_DATA_VERSION) })
 const trioSaveSchema = z.looseObject({ schemaVersion: z.literal(4), dataVersion: z.literal(TRIOS_DATA_VERSION) })
+const teamTitlesSaveSchema = z.looseObject({ schemaVersion: z.literal(5), dataVersion: z.literal(TEAM_TITLES_DATA_VERSION) })
+const competitionDefaults = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, tournamentEntries: [], tournamentFields: [] }
 const oldCornerSchema = z.object({
   partnerId: z.string(), partner: z.unknown(), partnerLegal: z.boolean(), lastTagTurn: z.number().nullable(), saveUsed: z.boolean(),
 })
@@ -36,7 +39,7 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
   })
   const tag = save.bout?.tag
   return {
-    ...save, schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, trioPartnerIds: null, mixedPartnerId: null,
+    ...save, ...competitionDefaults, trioPartnerIds: null, mixedPartnerId: null,
     preferredFormat: save.tagPartnerId ? 'tag' : 'singles',
     bout: tag ? { ...save.bout, tag: { player: corner(tag.player), rival: corner(tag.rival) } } : save.bout,
     shows: save.shows.map(show => ({
@@ -49,15 +52,19 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
 
 function migrate(input: unknown): unknown {
   if (!input || typeof input !== 'object' || !('schemaVersion' in input)) return input
+  if (input.schemaVersion === 5) {
+    const teams = teamTitlesSaveSchema.safeParse(input)
+    return teams.success ? { ...teams.data, ...competitionDefaults } : input
+  }
   if (input.schemaVersion === 4) {
     const trios = trioSaveSchema.safeParse(input)
-    return trios.success ? { ...trios.data, schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, mixedPartnerId: null } : input
+    return trios.success ? { ...trios.data, ...competitionDefaults, mixedPartnerId: null } : input
   }
   if (input.schemaVersion === 3) {
     const tag = tagSaveSchema.safeParse(input)
     return tag.success ? migrateTagSave(tag.data) : input
   }
-  const defaults = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, tagPartnerId: null, trioPartnerIds: null, mixedPartnerId: null, preferredFormat: 'singles' }
+  const defaults = { ...competitionDefaults, tagPartnerId: null, trioPartnerIds: null, mixedPartnerId: null, preferredFormat: 'singles' }
   if (input.schemaVersion === 2) {
     const world = worldSchema.safeParse(input)
     return world.success ? { ...world.data, ...defaults } : input
@@ -126,7 +133,8 @@ export function validateCareer(input: unknown): Career {
     const legacySchedule = expandedOn && show.date <= expandedOn && show.id === show.promotion + '@' + show.date && !show.series && validLegacyShow(show)
     if (
       show.date < START_DATE || show.date > career.worldThrough || (!matchesSchedule && !legacySchedule)
-      || show.matches.length > 3 || (index > 0 && compareShows(shows[index - 1], show) >= 0)
+      || show.matches.filter(match => !match.tournamentId || match.player).length > 3
+      || (index > 0 && compareShows(shows[index - 1], show) >= 0)
     ) throw new Error('Há um evento inválido no calendário.')
     const participants = bookedByDate.get(show.date) ?? new Set<string>()
     bookedByDate.set(show.date, participants)
@@ -190,7 +198,8 @@ export function validateCareer(input: unknown): Career {
       || (finish && (!result || !resultTeams || result.secondId !== bout.rivalId || !sameTeam(resultTeams[0], firstTeam)
         || !sameTeam(resultTeams[1], secondTeam) || result.tag?.mixed !== bout.tag?.mixed
         || result.winnerId !== legalFighterId(bout, finish.winner, winningStarter)
-        || result.titleId !== bout.titleId || result.method !== finish.method || result.rounds !== bout.turn || bout.xpAwarded === 0))
+        || result.titleId !== bout.titleId || result.tournamentId !== bout.tournamentId
+        || result.method !== finish.method || result.rounds !== bout.turn || bout.xpAwarded === 0))
       || (!finish && (show.date !== career.date || contract?.status !== 'active' || !showPromotions(show).includes(contract.promotion)
         || (format !== 'singles' && !sameTeam(firstTeam.slice(1), careerTeamPartners(career, format)))
         || result || bout.xpAwarded !== 0
@@ -207,13 +216,14 @@ export function validateCareer(input: unknown): Career {
       }
     }
   }
+  validateTournaments(career)
   return career
 }
 
 const envelopeSchema = z.object({
   format: z.literal('wrestling-legacy'),
-  version: z.literal([1, 2, 3, 4, SAVE_VERSION]),
-  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, SAVE_VERSION]) }),
+  version: z.literal([1, 2, 3, 4, 5, SAVE_VERSION]),
+  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, SAVE_VERSION]) }),
 })
 
 export function exportCareer(career: Career): string {

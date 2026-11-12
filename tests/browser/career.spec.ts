@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
+import { tournamentEdition } from '../../src/content/tournaments'
 import { signOffer } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
-import { careerWithOffer } from '../fixtures'
+import { careerWithOffer, signedBefore } from '../fixtures'
 
 async function navigate(page: Page, route: string) {
   const mobile = page.getByRole('button', { name: 'Abrir navegação' })
@@ -107,21 +108,23 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-async function signFirstBhCareer(page: Page) {
+async function signBhBwfCareer(page: Page) {
   await page.goto('./')
   const main = page.getByRole('main')
-  await main.getByRole('button', { name: 'Nova carreira' }).click()
-  await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
-  await main.getByRole('button', { name: 'Continuar' }).click()
-  await main.getByRole('button', { name: 'Continuar' }).click()
-  await main.getByRole('button', { name: 'Criar carreira' }).click()
-  await main.getByRole('button', { name: /^Assinar com/ }).first().click()
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: 'bwf.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(careerWithOffer('bwf'))),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  await navigate(page, 'Contratos')
+  await main.getByRole('button', { name: 'Assinar com BWF', exact: true }).click()
   await expect(main.getByRole('heading', { name: 'Calendário' })).toBeVisible()
   return main
 }
 
 test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }) => {
-  const main = await signFirstBhCareer(page)
+  const main = await signBhBwfCareer(page)
   await navigate(page, 'Meu lutador')
   const team = main.getByRole('region', { name: 'Minha dupla', exact: true })
   const partner = team.getByRole('combobox', { name: 'Parceiro de dupla' })
@@ -150,7 +153,7 @@ test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }
 })
 
 test('forma um trio, escolhe quem entra e restaura os quatro reservas do apron', async ({ page }) => {
-  const main = await signFirstBhCareer(page)
+  const main = await signBhBwfCareer(page)
   await navigate(page, 'Meu lutador')
   const team = main.getByRole('region', { name: 'Meu trio' })
   const first = team.getByRole('combobox', { name: 'Primeiro parceiro do trio' })
@@ -212,5 +215,56 @@ test('registra o peso, forma uma dupla mista e retoma a troca sincronizada da AA
   await page.reload()
   await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
   await expect(main.locator('.apron-card').last().getByText(starter, { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('inscreve BH em uma copa, abre a chave e retoma a semifinal', async ({ page }, testInfo) => {
+  const edition = tournamentEdition('nxt-cup@2026/men')!
+  const signed = signedBefore('nxt', edition.shows[0].date)
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: 'nxt.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(signed)),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+
+  await navigate(page, 'Competições')
+  const table = main.getByRole('table', { name: /Ranking individual/ })
+  await expect(table.getByRole('rowheader', { name: /^BH/ })).toBeVisible()
+  await main.getByRole('button', { name: 'Rivalidades', exact: true }).click()
+  await expect(main.getByRole('heading', { name: 'Séries de rivalidade' })).toBeVisible()
+  await main.getByRole('button', { name: 'Só minhas rivalidades' }).click()
+  await expect(main.getByText('Nenhuma rivalidade registrada neste filtro.')).toBeVisible()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  const card = main.locator('.tournament-card').filter({ hasText: edition.name })
+  await card.locator('summary').click()
+  const rounds = card.getByRole('list', { name: 'Rodadas do torneio' })
+  await expect(rounds.getByRole('listitem')).toHaveCount(3)
+  await card.getByRole('button', { name: 'Inscrever-se', exact: true }).click()
+  await expect(card.getByRole('button', { name: 'Cancelar inscrição', exact: true })).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/copa-' + testInfo.project.name + '.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await page.reload()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await expect(card.getByText('Inscrição confirmada', { exact: true })).toBeVisible()
+  await navigate(page, 'Calendário')
+  const stage = edition.name + ' · Semifinal 1'
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^Dropkick / }).click()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+
+  await navigate(page, 'Competições')
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await card.locator('summary').click()
+  await expect(card.getByText('Em andamento', { exact: true })).toBeVisible()
+  await expect(card.getByText(/× BH$|^BH ×/)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

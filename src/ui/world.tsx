@@ -6,6 +6,7 @@ import {
 import { HISTORICAL_OBSERVATIONS } from '../content/research-2026'
 import { TEAM_REFERENCES } from '../content/tag-teams'
 import { JUNIOR_WEIGHT_LIMIT, defenseFormat, type TitleRule } from '../content/titles'
+import { roundName, tournamentEdition, tournamentSlots } from '../content/tournaments'
 import { COMPANIES, DIVISION_LABEL, MATCH_FORMAT_LABEL, METHOD_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId, type ShowReport } from '../domain/model'
 import { fighterName, fighterNames, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
 import { formatForSize, matchTeams, matchWinners, sameTeam } from '../engine/matches'
@@ -78,10 +79,12 @@ function Results({ report, career }: { report: ShowReport; career: Career }) {
       const format = MATCH_FORMAT_LABEL[formatForSize(first.length, match.tag?.mixed)]
       const winner = fighterNames(career, matchWinners(match))
       const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId) : ''
+      const edition = match.tournamentId ? tournamentEdition(match.tournamentId) : undefined
       return <li className="record-row" key={match.id}>
         <div className="row-text"><strong>{fighterNames(career, first)} × {fighterNames(career, second)}</strong>
           <small>{winner} {match.tag ? 'venceram' : 'venceu'} · {METHOD_LABEL[match.method]}{finisher}</small>
           {match.titleId && <small className="belt-label">{TITLES_BY_ID.get(match.titleId)?.name}</small>}
+          {edition && <small className="belt-label">{edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === report.id))}</small>}
           {match.tag && match.player && <small>Sua luta</small>}
         </div>
         <span className="chip">{match.tag ? format : match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : format}</span>
@@ -118,9 +121,13 @@ export function Calendar({ career, pending, onAdvance, onFight }: {
     {(period === 'upcoming' || period === 'announced') && (upcoming.length ? <section className="panel">
       <ul className="rows">{upcoming.map(show => {
         const source = showEvidence(show.id)
+        const rounds = tournamentSlots(show).filter(({ edition }) => !career || edition.shows[0].date > after
+          || career.tournamentFields.some(field => field.editionId === edition.editionId))
+        const stages = [...new Set(rounds.map(({ edition, round }) => edition.name + ' · ' + roundName(edition, round)))]
         return <li className="event-row calendar-row" key={show.id}>
           <span className="date-stamp">{dateShort(show.date)}</span><div className="row-text">
             <strong>{show.name}</strong><small>{showPromotions(show).map(id => ORGANIZATIONS[id].name).join(' + ')} · {show.origin === 'announced' ? 'Data anunciada' : 'Agenda simulada'}</small>
+            {stages.map(stage => <small className="belt-label" key={stage}>{stage}</small>)}
           </div>{source && <SourceLink url={source} />}
         </li>
       })}</ul>
@@ -240,7 +247,7 @@ export function Feed({ career, history = false }: { career: Career; history?: bo
   const [filter, setFilter] = useState<CircuitFilter>('all')
   const [limit, setLimit] = useState(25)
   const records = [...career.history].reverse().filter(item => (
-    (history || ['show', 'match', 'contract', 'title', 'team'].includes(item.kind)) && (filter === 'all' || item.promotion === filter)
+    (history || ['show', 'match', 'contract', 'title', 'team', 'rivalry', 'tournament'].includes(item.kind)) && (filter === 'all' || item.promotion === filter)
   ))
   const record = recordFor(career, PLAYER_ID)
   return <>
