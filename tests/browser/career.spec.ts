@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
+import { tournamentEdition } from '../../src/content/tournaments'
 import { signOffer } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
-import { careerWithOffer } from '../fixtures'
+import { careerWithOffer, signedBefore } from '../fixtures'
 
 async function navigate(page: Page, route: string) {
   const mobile = page.getByRole('button', { name: 'Abrir navegação' })
@@ -212,5 +213,56 @@ test('registra o peso, forma uma dupla mista e retoma a troca sincronizada da AA
   await page.reload()
   await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
   await expect(main.locator('.apron-card').last().getByText(starter, { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('inscreve BH em uma copa, abre a chave e retoma a semifinal', async ({ page }, testInfo) => {
+  const edition = tournamentEdition('nxt-cup@2026/men')!
+  const signed = signedBefore('nxt', edition.shows[0].date)
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: 'nxt.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(signed)),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+
+  await navigate(page, 'Competições')
+  const table = main.getByRole('table', { name: /Ranking individual/ })
+  await expect(table.getByRole('rowheader', { name: /^BH/ })).toBeVisible()
+  await main.getByRole('button', { name: 'Rivalidades', exact: true }).click()
+  await expect(main.getByRole('heading', { name: 'Séries de rivalidade' })).toBeVisible()
+  await main.getByRole('button', { name: 'Só minhas rivalidades' }).click()
+  await expect(main.getByText('Nenhuma rivalidade registrada neste filtro.')).toBeVisible()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  const card = main.locator('.tournament-card').filter({ hasText: edition.name })
+  await card.locator('summary').click()
+  const rounds = card.getByRole('list', { name: 'Rodadas do torneio' })
+  await expect(rounds.getByRole('listitem')).toHaveCount(3)
+  await card.getByRole('button', { name: 'Inscrever-se', exact: true }).click()
+  await expect(card.getByRole('button', { name: 'Cancelar inscrição', exact: true })).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/copa-' + testInfo.project.name + '.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await page.reload()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await expect(card.getByText('Inscrição confirmada', { exact: true })).toBeVisible()
+  await navigate(page, 'Calendário')
+  const stage = edition.name + ' · Semifinal 1'
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^Dropkick / }).click()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+
+  await navigate(page, 'Competições')
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await card.locator('summary').click()
+  await expect(card.getByText('Em andamento', { exact: true })).toBeVisible()
+  await expect(card.getByText(/× BH$|^BH ×/)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

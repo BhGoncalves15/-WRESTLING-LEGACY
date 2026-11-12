@@ -5,8 +5,9 @@ export const LEGACY_DATA_VERSION = 'pilot-2026-01-01.1'
 export const WORLD_DATA_VERSION = 'world-2026-01-01.2'
 export const TAG_DATA_VERSION = 'world-2026-01-01.3'
 export const TRIOS_DATA_VERSION = 'world-2026-01-01.4'
-export const DATA_VERSION = 'world-2026-01-01.5'
-export const SAVE_VERSION = 5
+export const TEAM_TITLES_DATA_VERSION = 'world-2026-01-01.5'
+export const DATA_VERSION = 'world-2026-01-01.6'
+export const SAVE_VERSION = 6
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
@@ -180,7 +181,7 @@ const tagCornerSchema = z.object({
   saveUsed: z.boolean(),
 })
 const boutSchema = z.object({
-  id, showId: id, rivalId: id, titleId: id.optional(),
+  id, showId: id, rivalId: id, titleId: id.optional(), tournamentId: id.optional(),
   turn: safeInt,
   player: sideSchema,
   rival: sideSchema,
@@ -218,6 +219,7 @@ const matchSchema = z.object({
   rounds: safeInt,
   player: z.boolean(),
   titleId: id.optional(),
+  tournamentId: id.optional(),
   tag: z.object({
     firstPartners: z.array(id).min(1).max(2),
     secondPartners: z.array(id).min(1).max(2),
@@ -230,7 +232,7 @@ export type ShowReport = z.infer<typeof reportSchema>
 
 const historySchema = z.object({
   id, date: dateSchema,
-  kind: z.enum(['career', 'contract', 'show', 'match', 'progression', 'title', 'team']),
+  kind: z.enum(['career', 'contract', 'show', 'match', 'progression', 'title', 'team', 'rivalry', 'tournament']),
   title: z.string().min(1).max(240),
   detail: z.string().min(1).max(360),
   promotion: promotion.nullable(),
@@ -267,6 +269,8 @@ export const careerSchema = z.object({
   trioPartnerIds: z.tuple([id, id]).nullable(),
   mixedPartnerId: id.nullable(),
   preferredFormat: z.enum(MATCH_FORMATS),
+  tournamentEntries: z.array(id),
+  tournamentFields: z.array(z.object({ editionId: id, seeds: z.array(id).min(4).max(6) })),
   history: z.array(historySchema),
   ledger: z.array(ledgerSchema),
 })
