@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { nextShows } from '../src/content/catalog'
 import { editionsForSeason, tournamentEdition } from '../src/content/tournaments'
 import { PROMOTIONS, SAVE_VERSION, TEAM_TITLES_DATA_VERSION, addDays, type Career, type MatchResult } from '../src/domain/model'
-import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, resolvePlayerTurn } from '../src/engine/career'
+import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, resolvePlayerTurn, setCareerTeam } from '../src/engine/career'
 import { RANKING_DAYS, rankingsFor } from '../src/engine/rankings'
 import { matchRivalry, rematchReady, trackRivalry, type RivalryStates } from '../src/engine/rivalries'
 import { groupTable, setTournamentEntry, tournamentEntryIssue, tournamentProgress } from '../src/engine/tournaments'
@@ -79,6 +79,20 @@ describe('competições da Carreira Livre', () => {
     expect(career.history.some(item => item.kind === 'tournament' && item.title === 'BH conquistou ' + edition.name)).toBe(true)
     expect(validateCareer(career)).toEqual(career)
   })
+
+  it.each([['tag', ['acce']], ['trios', ['acce', 'adam-black']]] as const)(
+    'mantém os parceiros disponíveis para %s quando a BWF abre a copa',
+    (format, partners) => {
+      const edition = tournamentEdition('bwf-cup@2026/men')!
+      const signed = signedBefore('bwf', edition.shows[0].date)
+      const career = advanceCareer(setCareerTeam(signed, format, partners))
+      expect(career.bout?.tag?.player.partners.map(member => member.id)).toEqual(partners)
+      const field = career.tournamentFields.find(item => item.editionId === edition.editionId)!
+      expect(partners.every(id => !field.seeds.includes(id))).toBe(true)
+      expect(resultsFor(career, edition.editionId).rounds[0].result).toBeDefined()
+      expect(validateCareer(career)).toEqual(career)
+    },
+  )
 
   it('deixa BH jogar as duas rodadas de grupo e a final do Continental Classic', () => {
     const edition = tournamentEdition('continental-classic@2026/men')!

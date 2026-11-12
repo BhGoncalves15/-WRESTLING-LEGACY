@@ -108,21 +108,23 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-async function signFirstBhCareer(page: Page) {
+async function signBhBwfCareer(page: Page) {
   await page.goto('./')
   const main = page.getByRole('main')
-  await main.getByRole('button', { name: 'Nova carreira' }).click()
-  await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
-  await main.getByRole('button', { name: 'Continuar' }).click()
-  await main.getByRole('button', { name: 'Continuar' }).click()
-  await main.getByRole('button', { name: 'Criar carreira' }).click()
-  await main.getByRole('button', { name: /^Assinar com/ }).first().click()
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: 'bwf.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(careerWithOffer('bwf'))),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  await navigate(page, 'Contratos')
+  await main.getByRole('button', { name: 'Assinar com BWF', exact: true }).click()
   await expect(main.getByRole('heading', { name: 'Calendário' })).toBeVisible()
   return main
 }
 
 test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }) => {
-  const main = await signFirstBhCareer(page)
+  const main = await signBhBwfCareer(page)
   await navigate(page, 'Meu lutador')
   const team = main.getByRole('region', { name: 'Minha dupla', exact: true })
   const partner = team.getByRole('combobox', { name: 'Parceiro de dupla' })
@@ -151,7 +153,7 @@ test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }
 })
 
 test('forma um trio, escolhe quem entra e restaura os quatro reservas do apron', async ({ page }) => {
-  const main = await signFirstBhCareer(page)
+  const main = await signBhBwfCareer(page)
   await navigate(page, 'Meu lutador')
   const team = main.getByRole('region', { name: 'Meu trio' })
   const first = team.getByRole('combobox', { name: 'Primeiro parceiro do trio' })

@@ -1,8 +1,9 @@
 import {
   roundName, tournamentEdition, tournamentRoster, tournamentSize, tournamentSlots, type TournamentEdition,
 } from '../content/tournaments'
-import type { Career, MatchResult, Show, ShowReport } from '../domain/model'
+import { TEAM_FORMATS, type Career, type MatchResult, type Show, type ShowReport } from '../domain/model'
 import { rankingsFor } from './rankings'
+import { careerTeamPartners } from './tag-teams'
 import { CAREER_FIGHTER_ID } from './titles'
 
 type Pair = readonly [string, string]
@@ -104,7 +105,12 @@ export function planTournaments(career: Career, shows: readonly Show[]) {
       const size = tournamentSize(edition.format)
       const pool = new Set(tournamentRoster(edition.promotion, edition.division, show).map(fighter => fighter.id))
       const order = rankingsFor(career, edition.promotion, edition.division, show.date).map(row => row.fighterId)
-      const entrants = order.filter(id => pool.has(id)).slice(0, size - Number(registered))
+      const contract = career.contract
+      const partners = new Set(contract?.status === 'active' && contract.promotion === edition.promotion && show.date < contract.end
+        ? TEAM_FORMATS.flatMap(format => careerTeamPartners(career, format)) : [])
+      const entrants = order.filter(id => pool.has(id))
+        .sort((a, b) => Number(partners.has(a)) - Number(partners.has(b)))
+        .slice(0, size - Number(registered))
       if (registered) entrants.push(CAREER_FIGHTER_ID)
       field = { editionId: edition.editionId, seeds: order.filter(id => entrants.includes(id)) }
       fields.push(field)
