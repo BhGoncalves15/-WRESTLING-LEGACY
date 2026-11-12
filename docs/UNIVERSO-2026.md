@@ -5,7 +5,7 @@ A Carreira Livre agora abre em 01/01/2026 com WWE Raw, SmackDown e NXT, AEW, NJP
 ## Como rodar
 
 ```bash
-git clone --branch feat/combate-duplas https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
+git clone --branch feat/combate-trios https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
 cd ./-WRESTLING-LEGACY
 npm ci
 npm run dev
@@ -29,20 +29,24 @@ Quarenta e um cinturões individuais têm regras de Singles e campeão disponív
 
 Treze cinturões de duplas têm defesas e trocas de campeões nas sete empresas. O reinado é da dupla, independentemente de quem fez a finalização. O cinturão feminino de duplas da WWE aparece nas três brands, com disputas na agenda do Raw e nos seus eventos compartilhados. Dion Lennox e Osiris Griffin representam o DarkState na abertura. Ángel de Oro e Niebla Roja entram no elenco jogável da NJPW pela participação no cinturão STRONG, e Brian Racer entra no elenco da BWF pelo reinado com Christopher.
 
-O IWGP Junior Heavyweight Tag Team Championship, o NJPW TAMASHII Tag Team Championship, o cinturão misto da AAA, os trios e os formatos individuais especiais ficam disponíveis para consulta histórica. Suas disputas dependem das regras específicas de cada divisão ou circuito.
+Quatro cinturões de trios têm defesas, trocas de campeões e histórico compartilhado pelo trio inteiro. São o AEW World Trios Championship, o NEVER Openweight 6-Man Tag Team Championship da NJPW, o AAA World Trios Championship e o ROH World Six-Man Tag Team Championship. Os campeões de abertura usam a formação registrada na fonte de cada título.
 
-## Lutas de duplas
+O IWGP Junior Heavyweight Tag Team Championship, o NJPW TAMASHII Tag Team Championship, o cinturão misto da AAA e os formatos individuais especiais ficam disponíveis para consulta histórica. Suas disputas dependem das regras específicas de cada divisão ou circuito.
 
-Em **Meu lutador**, escolha um parceiro disponível da sua divisão e brand. A parceria prioriza lutas de duplas e permite desafiar os campeões depois de duas vitórias juntos e popularidade de pelo menos 14. Uma defesa individual agendada tem prioridade. A parceria fica registrada quando o contrato vence e volta aos cards se você assinar com a mesma brand. Encerrar a dupla ou mudar de brand libera os títulos em posse dos dois.
+## Lutas por equipes
 
-Cada lado tem um lutador legal. Uma tag exige que o lutador no ringue esteja em pé, stamina dos dois integrantes e dois turnos entre trocas. Quem fica no apron recupera stamina. Quando seu parceiro entra, ele luta pela IA. Você pode acompanhar, pedir para voltar ou tentar interromper um pinfall ou submissão, uma vez por dupla. A vitória e a derrota valem para os dois integrantes. O calendário registra quem finalizou.
+Em **Meu lutador**, você pode formar uma dupla e um trio com parceiros da sua divisão e brand. **Formato preferido nos cards** permite alternar entre Singles, Tag Team e Trios. As defesas de título têm prioridade sobre essa escolha. Duas vitórias com a mesma formação e popularidade de pelo menos 14 habilitam oportunidades pelo cinturão da divisão. A equipe volta aos cards se você renovar com a mesma brand. Encerrar uma formação libera seus títulos daquele formato. Mudar de brand encerra as duas parcerias.
+
+Cada lado tem um lutador legal. Em Trios, escolha qual dos dois reservas entra na sua tag. Uma troca exige que o lutador no ringue esteja em pé, stamina de quem sai e de quem entra, e dois turnos entre tags da mesma equipe. Quem espera no apron recupera stamina. A IA decide os golpes dos parceiros. No apron, você pode acompanhar a luta, pedir para voltar ou interromper uma finalização do rival. Cada equipe tem um salvamento por luta.
+
+A primeira queda por pinfall ou submissão encerra o combate. O resultado conta para todos os integrantes. O calendário mostra as duas formações completas e identifica quem finalizou. Os cards de trios dependem da disponibilidade de seis lutadores da divisão no dia.
 
 ## Compatibilidade
 
-A versão 3 abre e importa saves das versões 1 e 2. O calendário das novas empresas começa a avançar a partir da data corrente dos saves do piloto. Turno da luta, contratos, pagamentos, XP, atributos e resultados anteriores permanecem no arquivo. Em lutas de duplas, o save guarda o lutador legal de cada lado, os recursos dos quatro participantes e os salvamentos já usados.
+A versão 4 abre e importa saves das versões 1, 2 e 3. O calendário das novas empresas começa a avançar a partir da data corrente dos saves do piloto. Turno da luta, contratos, pagamentos, XP, atributos e resultados anteriores permanecem no arquivo. Em lutas por equipes, o save guarda o lutador legal de cada lado, os recursos de todos os participantes e os salvamentos já usados.
 
 O recorte de abertura e o arquivo de 2026 estão em expansão conforme as fontes são conferidas. O catálogo atual guarda fontes ao lado dos dados. Os comandos de testes e os perfis de navegador estão no [guia do piloto](PILOTO.md#como-rodar).
 
-## Verificação da etapa de duplas
+## Verificação das lutas por equipes
 
-Os 44 testes do motor e do armazenamento cobrem troca de lutador legal, salvamento do parceiro, defesas, pagamento, vacância, conflito de agenda e importação. Três carreiras, uma por dificuldade, foram simuladas até janeiro de 2029. Cada uma gerou de 357 a 373 lutas de duplas, disputou os 13 cinturões e passou pela exportação e reimportação do save.
+Os 50 testes do motor e do armazenamento cobrem troca de lutador legal, salvamento do parceiro, defesas, pagamento, vacância, conflito de agenda e importação. Três carreiras, uma por dificuldade, foram simuladas até janeiro de 2029. Cada uma gerou de 136 a 194 lutas de trios, disputou os quatro cinturões e passou pela exportação e reimportação do save. Saves gerados pelas versões 1, 2 e 3 foram retomados no mesmo turno.

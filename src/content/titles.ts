@@ -1,4 +1,4 @@
-import type { Division, PromotionId, TagTeam } from '../domain/model'
+import { TEAM_SIZE, type Division, type PromotionId, type WrestlingTeam } from '../domain/model'
 import { SOURCES } from './sources'
 
 export type TitleRule = 'singles' | 'junior' | 'cruiser' | 'pure' | 'television' | 'rookies' | 'tag' | 'trios' | 'maremoto'
@@ -13,7 +13,7 @@ export type TitleRecord = {
   status: 'active' | 'later' | 'unverified'
   holder: string | null
   holderId?: string
-  holderTeam?: TagTeam
+  holderTeam?: WrestlingTeam
   vacant?: boolean
   source: string
   note?: string
@@ -37,7 +37,7 @@ function singles(id: string, name: string, promotion: PromotionId, division: Div
 }
 
 function team(id: string, name: string, promotion: PromotionId, division: TitleRecord['division'],
-  rule: 'tag' | 'trios', holder: string, source: string, holderTeam?: TagTeam, listings: readonly PromotionId[] = [promotion]): TitleRecord {
+  rule: 'tag' | 'trios', holder: string, source: string, holderTeam?: WrestlingTeam, listings: readonly PromotionId[] = [promotion]): TitleRecord {
   return { id, name, promotion, division, rule, holder, holderTeam, source, status: 'active', listings }
 }
 
@@ -68,7 +68,7 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   singles('aew-national', 'AEW National Championship', 'aew', 'men', 'ricochet', 'Ricochet', SOURCES.aewYearEnd),
   singles('aew-tnt', 'AEW TNT Championship', 'aew', 'men', 'mark-briscoe', 'Mark Briscoe', SOURCES.aewYearEnd),
   team('aew-tag', 'AEW World Tag Team Championship', 'aew', 'men', 'tag', 'FTR · Cash Wheeler e Dax Harwood', SOURCES.aewWorldsEnd, ['cash-wheeler', 'dax-harwood']),
-  team('aew-trios', 'AEW World Trios Championship', 'aew', 'men', 'trios', 'The Opps · Samoa Joe, Katsuyori Shibata e Powerhouse Hobbs', SOURCES.aewTrios),
+  team('aew-trios', 'AEW World Trios Championship', 'aew', 'men', 'trios', 'The Opps · Samoa Joe, Katsuyori Shibata e Powerhouse Hobbs', SOURCES.aewTrios, ['samoa-joe', 'katsuyori-shibata', 'powerhouse-hobbs']),
   singles('aew-women', 'AEW Women’s World Championship', 'aew', 'women', 'kris-statlander', 'Kris Statlander', SOURCES.aewWorldsEnd),
   singles('aew-tbs', 'AEW TBS Championship', 'aew', 'women', 'willow-nightingale', 'Willow Nightingale', SOURCES.aewYearEnd),
   team('aew-women-tag', 'AEW Women’s World Tag Team Championship', 'aew', 'women', 'tag', 'Babes of Wrath · Willow Nightingale e Harley Cameron', SOURCES.aewWorldsEnd, ['willow-nightingale', 'harley-cameron']),
@@ -81,7 +81,7 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   team('njpw-junior-tag', 'IWGP Junior Heavyweight Tag Team Championship', 'njpw', 'men', 'tag', 'House of Torture · DOUKI e SHO', SOURCES.njpwSnapshot),
   singles('njpw-iwgp-women', 'IWGP Women’s Championship', 'njpw', 'women', 'syuri', 'Syuri', SOURCES.njpwWomen),
   singles('njpw-never', 'NEVER Openweight Championship', 'njpw', 'men', 'evil', 'EVIL', SOURCES.njpwWk20),
-  team('njpw-never-six', 'NEVER Openweight 6-Man Tag Team Championship', 'njpw', 'men', 'trios', 'Toru Yano, Master Wato e YOH', SOURCES.njpwTagLeague),
+  team('njpw-never-six', 'NEVER Openweight 6-Man Tag Team Championship', 'njpw', 'men', 'trios', 'Toru Yano, Master Wato e YOH', SOURCES.njpwSix, ['toru-yano', 'master-wato', 'yoh']),
   singles('njpw-tv', 'NJPW World Television Championship', 'njpw', 'men', 'el-phantasmo', 'El Phantasmo', SOURCES.njpwTv, { rule: 'television' }),
   singles('njpw-strong', 'STRONG Openweight Championship', 'njpw', 'men', 'tomohiro-ishii', 'Tomohiro Ishii', SOURCES.njpwSnapshot),
   team('njpw-strong-tag', 'STRONG Openweight Tag Team Championship', 'njpw', 'men', 'tag', 'Los Hermanos Chávez · Ángel de Oro e Niebla Roja', SOURCES.njpwStrongTag, ['angel-de-oro', 'niebla-roja']),
@@ -105,14 +105,14 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
     { rule: 'cruiser', listings: ['aaa', ...WWE_BRANDS], note: 'Título único exibido nas listas de AAA e WWE. Disputas registradas pela AAA.' }),
   singles('aaa-reina', 'AAA Reina de Reinas Championship', 'aaa', 'women', 'flammer', 'Flammer', SOURCES.aaaSnapshot),
   team('aaa-tag', 'AAA World Tag Team Championship', 'aaa', 'men', 'tag', 'Pagano e Psycho Clown', SOURCES.aaaSnapshot, ['pagano', 'psycho-clown']),
-  team('aaa-trios', 'AAA World Trios Championship', 'aaa', 'men', 'trios', 'Los Psycho Circus · Dave The Clown, Murder Clown e Panic Clown', SOURCES.aaaSnapshot),
+  team('aaa-trios', 'AAA World Trios Championship', 'aaa', 'men', 'trios', 'Los Psycho Circus · Dave The Clown, Murder Clown e Panic Clown', SOURCES.aaaTrios, ['dave-the-clown', 'murder-clown', 'panic-clown']),
   team('aaa-mixed', 'AAA World Mixed Tag Team Championship', 'aaa', 'mixed', 'tag', 'Chelsea Green e Ethan Page', SOURCES.aaaSnapshot),
   // ROH
   singles('roh-world', 'ROH World Championship', 'roh', 'men', 'bandido', 'Bandido', SOURCES.rohDecember),
   singles('roh-tv', 'ROH World Television Championship', 'roh', 'men', undefined, 'Nick Wayne', SOURCES.rohSnapshot),
   singles('roh-pure', 'ROH Pure Championship', 'roh', 'men', 'lee-moriarty', 'Lee Moriarty', SOURCES.rohDecember, { rule: 'pure' }),
   team('roh-tag', 'ROH World Tag Team Championship', 'roh', 'men', 'tag', 'La Facción Ingobernable · The Beast Mortos e Sammy Guevara', SOURCES.rohDecember, ['beast-mortos', 'sammy-guevara']),
-  team('roh-six', 'ROH World Six-Man Tag Team Championship', 'roh', 'men', 'trios', 'Shane Taylor Promotions · Shane Taylor, Carlie Bravo e Shawn Dean', SOURCES.rohDecember),
+  team('roh-six', 'ROH World Six-Man Tag Team Championship', 'roh', 'men', 'trios', 'Shane Taylor Promotions · Shane Taylor, Carlie Bravo e Shawn Dean', SOURCES.rohDecember, ['shane-taylor', 'carlie-bravo', 'shawn-dean']),
   singles('roh-women', 'ROH Women’s World Championship', 'roh', 'women', 'athena', 'Athena', SOURCES.rohDecember),
   singles('roh-women-tv', 'ROH Women’s World Television Championship', 'roh', 'women', 'red-velvet', 'Red Velvet', SOURCES.rohDecember),
   singles('roh-women-pure', 'ROH Women’s Pure Championship', 'roh', 'women', 'deonna-purrazzo', 'Deonna Purrazzo', SOURCES.rohDecember, { rule: 'pure' }),
@@ -136,5 +136,14 @@ export function supportsDefense(title: TitleRecord) {
 }
 
 export function supportsTagDefense(title: TitleRecord) {
-  return title.status === 'active' && title.rule === 'tag' && title.division !== 'mixed' && title.holderTeam !== undefined
+  return defenseSize(title) === 2
+}
+
+export function defenseSize(title: TitleRecord): 1 | 2 | 3 | undefined {
+  if (supportsDefense(title)) return 1
+  if (title.status === 'active' && title.division !== 'mixed' && (title.rule === 'tag' || title.rule === 'trios')) {
+    const size = TEAM_SIZE[title.rule]
+    if (title.holderTeam?.length === size) return size
+  }
+  return undefined
 }

@@ -86,6 +86,7 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
 
   await navigate(page, 'Campeonatos')
   await expect(main.getByText('71 títulos · Abertura em 01/01/2026')).toBeVisible()
+  await expect(main.getByText('Trios jogáveis', { exact: true })).toHaveCount(4)
   await expect(main.getByText('AAA World Cruiserweight Championship', { exact: true })).toHaveCount(1)
   await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('aew')
   await expect(main.getByText('10 títulos · Abertura em 01/01/2026')).toBeVisible()
@@ -101,7 +102,7 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }) => {
+async function signFirstBhCareer(page: Page) {
   await page.goto('./')
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Nova carreira' }).click()
@@ -111,9 +112,13 @@ test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }
   await main.getByRole('button', { name: 'Criar carreira' }).click()
   await main.getByRole('button', { name: /^Assinar com/ }).first().click()
   await expect(main.getByRole('heading', { name: 'Calendário' })).toBeVisible()
+  return main
+}
 
+test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }) => {
+  const main = await signFirstBhCareer(page)
   await navigate(page, 'Meu lutador')
-  const team = main.locator('.team-panel')
+  const team = main.getByRole('region', { name: 'Minha dupla' })
   const partner = team.getByRole('combobox', { name: 'Parceiro de dupla' })
   const partnerName = (await partner.locator('option').nth(1).textContent())!.split(' · ')[0]
   await partner.selectOption({ index: 1 })
@@ -136,5 +141,37 @@ test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }
   await expect(main.locator('.apron-card').first().getByText('BH', { exact: true })).toBeVisible()
   await main.getByRole('button', { name: /^Acompanhar o turno/ }).click()
   await expect(main.getByText('Turno 3', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('forma um trio, escolhe quem entra e restaura os quatro reservas do apron', async ({ page }) => {
+  const main = await signFirstBhCareer(page)
+  await navigate(page, 'Meu lutador')
+  const team = main.getByRole('region', { name: 'Meu trio' })
+  const first = team.getByRole('combobox', { name: 'Primeiro parceiro do trio' })
+  const second = team.getByRole('combobox', { name: 'Segundo parceiro do trio' })
+  const form = team.getByRole('button', { name: 'Formar trio' })
+  await first.selectOption({ index: 1 })
+  await expect(form).toBeDisabled()
+  const firstId = await first.inputValue()
+  await expect(second.locator('option[value="' + firstId + '"]')).toHaveCount(0)
+  const secondName = (await second.locator('option').nth(1).textContent())!.split(' · ')[0]
+  await second.selectOption({ index: 1 })
+  await form.click()
+  await expect(team.getByRole('button', { name: 'Encerrar trio' })).toBeVisible()
+  await expect(main.getByRole('combobox', { name: 'Formato preferido nos cards' })).toHaveValue('trios')
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(/ · Trios$/)).toBeVisible()
+  await expect(main.locator('.apron-members li')).toHaveCount(4)
+  const rotations = main.getByRole('button', { name: /^Fazer a tag com/ })
+  await expect(rotations).toHaveCount(2)
+  await rotations.filter({ hasText: secondName }).click()
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: secondName, exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByRole('heading', { name: 'Ações no apron' })).toBeVisible()
+  await expect(main.locator('.apron-card').first().getByText('BH', { exact: true })).toBeVisible()
+  await expect(main.locator('.apron-members li')).toHaveCount(4)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

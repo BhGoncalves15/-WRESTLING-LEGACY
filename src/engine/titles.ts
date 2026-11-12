@@ -1,5 +1,5 @@
 import { ROSTER_BY_ID, showPromotions, wrestlerAppearsIn } from '../content/catalog'
-import { OPENING_TITLES, TITLES_BY_ID, supportsDefense, supportsTagDefense, type TitleRecord } from '../content/titles'
+import { OPENING_TITLES, TITLES_BY_ID, defenseSize, type TitleRecord } from '../content/titles'
 import { START_DATE, dayDistance, type Career, type MatchResult, type Show } from '../domain/model'
 import { matchTeams, matchWinners, sameTeam } from './matches'
 
@@ -23,7 +23,7 @@ export type BeltState = {
 export type BeltStates = Map<string, BeltState>
 
 export function showSupportsTitle(show: Show, title: TitleRecord): boolean {
-  return (supportsDefense(title) || supportsTagDefense(title)) && showPromotions(show).includes(title.promotion)
+  return defenseSize(title) !== undefined && showPromotions(show).includes(title.promotion)
 }
 
 export function titleEligible(career: Career, title: TitleRecord, id: string): boolean {
@@ -39,7 +39,7 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
   const from = state?.holders ?? null
   const teams = matchTeams(match)
   if (!title || !state || !showSupportsTitle(show, title)
-    || Boolean(match.tag) !== supportsTagDefense(title)
+    || teams.some(team => team.length !== defenseSize(title))
     || !teams.flat().every(id => titleEligible(career, title, id))
     || (from && !teams.some(team => sameTeam(team, from)))) {
     throw new Error('A disputa de cinturão não corresponde à divisão, ao evento ou ao campeão vigente.')
@@ -56,7 +56,7 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
 export function titleStates(career: Career): BeltStates {
   const states: BeltStates = new Map()
   for (const title of OPENING_TITLES) {
-    if (supportsDefense(title) || supportsTagDefense(title)) states.set(title.id, {
+    if (defenseSize(title) !== undefined) states.set(title.id, {
       holders: title.holderTeam ?? (title.holderId ? [title.holderId] : null),
       heldFrom: START_DATE, lastDefense: null, defenses: 0, events: [],
     })

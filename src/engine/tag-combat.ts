@@ -1,91 +1,124 @@
 import type { Fighter } from '../content/roster-model'
-import { clamp, type Actor, type Bout, type BoutSide, type Difficulty, type Show, type TagBout } from '../domain/model'
+import { clamp, type Actor, type Bout, type BoutSide, type Difficulty, type Show, type TagBout, type WrestlingTeam } from '../domain/model'
 import { chooseAction, createBout, reasonUnavailable, resolveExchange } from './combat'
 import type { Random } from './random'
 
-export type TagLineup = Record<Actor, readonly [Fighter, Fighter]>
+export type TagLineup = Record<Actor, WrestlingTeam<Fighter>>
+type TagCorner = TagBout['tag'][Actor]
+type Slot = TagCorner['legalIndex']
 
 export const TAG_ACTIONS = {
   tag: { name: 'Fazer a tag', description: 'Coloque seu parceiro no ringue e recupere stamina no apron.' },
   'ask-tag': { name: 'Pedir a tag', description: 'Peça a troca para voltar ao ringue.' },
   watch: { name: 'Acompanhar o turno', description: 'Seu parceiro decide a ação no ringue.' },
-  'save-partner': { name: 'Salvar parceiro', description: 'Interrompa uma finalização do rival. Uma vez por dupla.' },
+  'save-partner': { name: 'Salvar parceiro', description: 'Interrompa uma finalização do rival. Uma vez por equipe.' },
 } as const
 
 const TAG_STAMINA = 8
 const SAVE_STAMINA = 14
 const CORNERS = ['player', 'rival'] as const
+const SLOTS = [0, 1, 2] as const
+const ROTATIONS = ['tag-0', 'tag-1', 'tag-2'] as const
 
 export function isTagBout(bout: Bout): bout is TagBout {
   return bout.tag !== undefined
 }
 
+export function cornerFighterIds(bout: Bout, actor: Actor, starterId: string): string[] {
+  return [starterId, ...(bout.tag?.[actor].partners.map(partner => partner.id) ?? [])]
+}
+
 export function legalFighterId(bout: Bout, actor: Actor, starterId: string): string {
-  const tag = bout.tag?.[actor]
-  return tag?.partnerLegal ? tag.partnerId : starterId
+  return cornerFighterIds(bout, actor, starterId)[bout.tag?.[actor].legalIndex ?? 0]
 }
 
-function legalSide(bout: TagBout, actor: Actor): BoutSide {
+export function cornerSide(bout: Bout, actor: Actor, slot = bout.tag?.[actor].legalIndex ?? 0): BoutSide {
+  return slot === 0 ? bout[actor] : bout.tag![actor].partners[slot - 1].side
+}
+
+export function benchSlots(bout: TagBout, actor: Actor): Slot[] {
   const corner = bout.tag[actor]
-  return corner.partnerLegal ? corner.partner : bout[actor]
+  return SLOTS.filter(slot => slot <= corner.partners.length && slot !== corner.legalIndex)
 }
 
-function apronSide(bout: TagBout, actor: Actor): BoutSide {
+export function tagActionFor(bout: TagBout, actor: Actor, slot: Slot) {
+  return bout.tag[actor].partners.length === 1 ? 'tag' : ROTATIONS[slot]
+}
+
+export function tagTarget(bout: TagBout, actor: Actor, action: string): Slot | undefined {
   const corner = bout.tag[actor]
-  return corner.partnerLegal ? bout[actor] : corner.partner
+  if (corner.partners.length === 1) return action === 'tag' ? (corner.legalIndex === 0 ? 1 : 0) : undefined
+  return SLOTS.find(slot => ROTATIONS[slot] === action)
 }
 
-function legalFighter(bout: TagBout, actor: Actor, lineup: TagLineup) {
-  return lineup[actor][bout.tag[actor].partnerLegal ? 1 : 0]
-}
-
-export function tagSwapUnavailable(bout: TagBout, actor: Actor): string | null {
-  const outgoing = legalSide(bout, actor)
-  const lastTag = bout.tag[actor].lastTagTurn
+export function tagSwapUnavailable(bout: TagBout, actor: Actor, target: Slot): string | null {
+  const corner = bout.tag[actor]
+  const outgoing = cornerSide(bout, actor)
+  if (target === corner.legalIndex || target > corner.partners.length) return 'Escolha alguém que esteja no apron.'
   if (outgoing.position !== 'standing') return 'O lutador no ringue precisa estar em pé.'
-  if (lastTag !== null && bout.turn - lastTag < 2) return 'Espere dois turnos entre trocas da mesma dupla.'
-  if (outgoing.stamina < TAG_STAMINA || apronSide(bout, actor).stamina < TAG_STAMINA) return 'A troca exige stamina dos dois lutadores.'
+  if (corner.lastTagTurn !== null && bout.turn - corner.lastTagTurn < 2) return 'Espere dois turnos entre trocas da mesma equipe.'
+  if (outgoing.stamina < TAG_STAMINA || cornerSide(bout, actor, target).stamina < TAG_STAMINA) return 'A troca exige stamina dos dois lutadores.'
   return null
 }
 
 export function tagActionUnavailable(bout: TagBout, player: Fighter, action: string): string | null {
   if (bout.finish) return 'A luta terminou.'
-  if (!bout.tag.player.partnerLegal) {
-    if (action === 'tag') return tagSwapUnavailable(bout, 'player')
+  if (bout.tag.player.legalIndex === 0) {
+    const target = tagTarget(bout, 'player', action)
+    if (target !== undefined) return tagSwapUnavailable(bout, 'player', target)
     if (Object.hasOwn(TAG_ACTIONS, action)) return 'Esta ação é para quem está no apron.'
     return reasonUnavailable(duelView(bout), 'player', player, action, bout.plan)
   }
   if (action === 'watch') return null
-  if (action === 'ask-tag') return tagSwapUnavailable(bout, 'player')
+  if (action === 'ask-tag') return tagSwapUnavailable(bout, 'player', 0)
   if (action === 'save-partner') {
-    if (bout.tag.player.saveUsed) return 'Sua dupla já usou o salvamento.'
+    if (bout.tag.player.saveUsed) return 'Sua equipe já usou o salvamento.'
     if (bout.player.stamina < SAVE_STAMINA) return 'Você precisa de 14 de stamina.'
     return bout.plan === 'pin' || bout.plan === 'submit' ? null : 'Espere o rival preparar um pinfall ou uma submissão.'
   }
   return 'Seu parceiro está no ringue. Peça a tag para voltar.'
 }
 
+function legalFighter(bout: TagBout, actor: Actor, lineup: TagLineup): Fighter {
+  return lineup[actor][bout.tag[actor].legalIndex]!
+}
+
 function duelView(bout: TagBout): TagBout {
-  return { ...bout, player: legalSide(bout, 'player'), rival: legalSide(bout, 'rival') }
+  return { ...bout, player: cornerSide(bout, 'player'), rival: cornerSide(bout, 'rival') }
 }
 
 function tagPlan(bout: TagBout, actor: Actor, lineup: TagLineup, difficulty: Difficulty, random: Random, canSwap = true) {
-  const active = legalSide(bout, actor)
-  const reserve = apronSide(bout, actor)
-  const needsTag = active.condition + 18 < reserve.condition || active.stamina + 28 < reserve.stamina
-  if (canSwap && needsTag && !tagSwapUnavailable(bout, actor) && random.next() < 0.55) return 'tag'
+  if (canSwap) {
+    const active = cornerSide(bout, actor)
+    const target = benchSlots(bout, actor).filter(slot => {
+      const reserve = cornerSide(bout, actor, slot)
+      return (active.condition + 18 < reserve.condition || active.stamina + 28 < reserve.stamina)
+        && !tagSwapUnavailable(bout, actor, slot)
+    }).sort((a, b) => {
+      const first = cornerSide(bout, actor, a)
+      const second = cornerSide(bout, actor, b)
+      return (second.condition + second.stamina) - (first.condition + first.stamina)
+    })[0]
+    if (target !== undefined && random.next() < 0.55) return tagActionFor(bout, actor, target)
+  }
   return chooseAction(duelView(bout), actor, legalFighter(bout, actor, lineup), difficulty, random)
 }
 
 export function createTagBout(show: Show, id: string, lineup: TagLineup, difficulty: Difficulty, random: Random): TagBout {
+  if (lineup.player.length !== lineup.rival.length) throw new Error('As duas equipes precisam ter o mesmo número de lutadores.')
   const bout = createBout(show, id, lineup.rival[0], difficulty, random)
-  return {
-    ...bout,
-    tag: {
-      player: { partnerId: lineup.player[1].id, partner: { ...bout.player }, partnerLegal: false, lastTagTurn: null, saveUsed: false },
-      rival: { partnerId: lineup.rival[1].id, partner: { ...bout.rival }, partnerLegal: false, lastTagTurn: null, saveUsed: false },
-    },
+  const corner = (actor: Actor): TagCorner => {
+    const [, second, third] = lineup[actor]
+    const partner = (fighter: Fighter) => ({ id: fighter.id, side: { ...bout[actor] } })
+    return { partners: third ? [partner(second), partner(third)] : [partner(second)], legalIndex: 0, lastTagTurn: null, saveUsed: false }
   }
+  return { ...bout, tag: { player: corner('player'), rival: corner('rival') } }
+}
+
+function copyCorner(corner: TagCorner): TagCorner {
+  const [first, second] = corner.partners
+  const copy = (partner: typeof first) => ({ ...partner, side: { ...partner.side } })
+  return { ...corner, partners: second ? [copy(first), copy(second)] : [copy(first)] }
 }
 
 function exchangeTag(
@@ -93,21 +126,18 @@ function exchangeTag(
 ): TagBout {
   const bout: TagBout = {
     ...source, player: { ...source.player }, rival: { ...source.rival }, log: [...source.log],
-    tag: {
-      player: { ...source.tag.player, partner: { ...source.tag.player.partner } },
-      rival: { ...source.tag.rival, partner: { ...source.tag.rival.partner } },
-    },
+    tag: { player: copyCorner(source.tag.player), rival: copyCorner(source.tag.rival) },
   }
   const playerAction = action === 'watch' || action === 'save-partner'
-    ? tagPlan(source, 'player', lineup, difficulty, random, action === 'watch')
-    : action === 'ask-tag' ? 'tag' : action
+    ? tagPlan(source, 'player', lineup, difficulty, random, action === 'watch') : action
   const actions = { player: playerAction, rival: source.plan }
 
   for (const actor of CORNERS) {
-    if (actions[actor] !== 'tag') continue
+    const target = actions[actor] === 'ask-tag' ? 0 : tagTarget(bout, actor, actions[actor])
+    if (target === undefined) continue
     const outgoing = legalFighter(bout, actor, lineup).name
-    legalSide(bout, actor).stamina -= TAG_STAMINA
-    bout.tag[actor].partnerLegal = !bout.tag[actor].partnerLegal
+    cornerSide(bout, actor).stamina -= TAG_STAMINA
+    bout.tag[actor].legalIndex = target
     bout.tag[actor].lastTagTurn = bout.turn + 1
     const incoming = legalFighter(bout, actor, lineup).name
     bout.log.push({ turn: bout.turn + 1, actor, text: outgoing + ' fez a tag. ' + incoming + ' entrou no ringue.' })
@@ -116,21 +146,28 @@ function exchangeTag(
   const result = resolveExchange({ ...duelView(bout), plan: actions.rival }, legalFighter(bout, 'player', lineup),
     legalFighter(bout, 'rival', lineup), actions.player, random, (defender, method) => {
       const corner = bout.tag[defender]
-      const rescuer = apronSide(bout, defender)
-      if (corner.saveUsed || rescuer.stamina < SAVE_STAMINA
-        || (playerControlled && defender === 'player' && corner.partnerLegal && action !== 'save-partner')) return undefined
-      rescuer.stamina -= SAVE_STAMINA
+      if (corner.saveUsed) return undefined
+      const eligible = benchSlots(bout, defender).filter(slot => cornerSide(bout, defender, slot).stamina >= SAVE_STAMINA)
+      const manual = playerControlled && defender === 'player'
+      const rescuer = manual && action === 'save-partner'
+        ? eligible.find(slot => slot === 0)
+        : eligible.find(slot => !manual || slot !== 0)
+      if (rescuer === undefined) return undefined
+      cornerSide(bout, defender, rescuer).stamina -= SAVE_STAMINA
       corner.saveUsed = true
-      const name = lineup[defender][corner.partnerLegal ? 0 : 1].name
+      const name = lineup[defender][rescuer]!.name
       return name + (method === 'pinfall' ? ' interrompeu a contagem.' : ' desfez a submissão.')
     })
 
   for (const actor of CORNERS) {
-    if (bout.tag[actor].partnerLegal) bout.tag[actor].partner = result[actor]
-    else bout[actor] = result[actor]
+    const { legalIndex, partners } = bout.tag[actor]
+    if (legalIndex === 0) bout[actor] = result[actor]
+    else partners[legalIndex - 1].side = result[actor]
     if (!result.finish) {
-      const reserve = apronSide(bout, actor)
-      reserve.stamina = clamp(reserve.stamina + 5, 0, 100)
+      for (const slot of benchSlots(bout, actor)) {
+        const reserve = cornerSide(bout, actor, slot)
+        reserve.stamina = clamp(reserve.stamina + 5, 0, 100)
+      }
     }
   }
   const next = { ...result, tag: bout.tag, player: bout.player, rival: bout.rival }
