@@ -81,7 +81,7 @@ export function App() {
   useEffect(() => {
     if (!menu) return
     const initialFocus = rail.current?.querySelector<HTMLElement>('[aria-current="page"]') ?? rail.current
-    initialFocus?.focus()
+    const focusFrame = requestAnimationFrame(() => initialFocus?.focus())
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -93,6 +93,7 @@ export function App() {
     window.addEventListener('keydown', onKey)
     narrow.addEventListener('change', onResize)
     return () => {
+      cancelAnimationFrame(focusFrame)
       window.removeEventListener('keydown', onKey)
       narrow.removeEventListener('change', onResize)
     }

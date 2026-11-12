@@ -290,7 +290,7 @@ select { padding-right: 22px; }
 @media (max-width: 740px) {
   .app-shell { --rail-width: min(252px, 85vw); }
   .app-body { margin-left: 0; }
-  .rail { transform: translateX(-100%); visibility: hidden; pointer-events: none; transition: transform .16s, visibility .16s; }
+  .rail { transform: translateX(-100%); visibility: hidden; pointer-events: none; transition: transform .16s; }
   .rail.open { transform: none; visibility: visible; pointer-events: auto; }
   .mobile-scrim { display: block; position: fixed; inset: 0; z-index: 9; width: 100%; background: #000a; touch-action: none; }
   .menu-toggle { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text); }
