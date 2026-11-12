@@ -50,3 +50,7 @@ Arte original identifica as ilustrações do piloto enquanto as autorizações d
 ## Primeira versão jogável
 
 Veja [como rodar o piloto](docs/PILOTO.md), o recorte de dados e os testes.
+
+## Expansão do Universo 2026
+
+O [Universo de 2026](docs/UNIVERSO-2026.md) inclui as sete empresas, os elencos de abertura, o catálogo de títulos, defesas Singles e as agendas da carreira.

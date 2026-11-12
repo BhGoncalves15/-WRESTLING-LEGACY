@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ANNOUNCED_SHOWS, OPENING_TITLES, ROSTER, ROSTER_BY_ID, upcomingShows } from '../src/content/catalog'
+import { ANNOUNCED_SHOWS, OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, upcomingShows } from '../src/content/catalog'
 import { defaultMoves, validMoveset } from '../src/content/moves'
 import { ATTRIBUTES, INITIAL_BUDGET, PROMOTIONS, STYLES, addDays, overall, pointsSpent, suggestedAttributes, type Career } from '../src/domain/model'
 import {
@@ -8,13 +8,14 @@ import {
 } from '../src/engine/career'
 import { reasonUnavailable } from '../src/engine/combat'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
+import { careerWithOffer } from './fixtures'
 
 const ID = 'c0a80101-beca-41da-8662-5bf96be05020'
 const COPY_ID = 'c0a80101-beca-41da-8662-5bf96be05021'
 const identity = { id: ID, seed: 123_456, createdAt: 1 }
 const fresh = () => newCareer(exampleProfile(), 'normal', identity)
 
-function startFight(career = fresh(), promotion: 'nxt' | 'tna' | 'roh' = 'nxt') {
+function startFight(career = careerWithOffer('nxt'), promotion: 'nxt' | 'tna' | 'roh' = 'nxt') {
   const offer = career.offers.find(item => item.promotion === promotion)!
   return advanceCareer(signOffer(career, offer.id))
 }
@@ -41,7 +42,8 @@ describe('criação e contratos', () => {
     expect(first).toEqual(fresh())
     expect(first.date).toBe('2026-01-01')
     expect(first.worldThrough).toBe('2025-12-31')
-    expect(first.offers.map(item => item.promotion)).toEqual(PROMOTIONS)
+    expect(first.offers).toHaveLength(3)
+    expect(new Set(first.offers.map(item => ORGANIZATIONS[item.promotion].company)).size).toBe(3)
     expect(validateCareer(first)).toEqual(first)
   })
 
@@ -72,7 +74,7 @@ describe('criação e contratos', () => {
     const renewed = renewOffers(refused)
     expect(renewed.date).toBe('2026-01-08')
     expect(renewed.offers.every(offer => offer.status === 'available')).toBe(true)
-    expect(new Set(renewed.shows.map(show => show.promotion)).size).toBe(3)
+    expect(new Set(renewed.shows.map(show => show.promotion)).size).toBeGreaterThanOrEqual(7)
     expect(renewed.offers[0].id).not.toBe(original.offers[0].id)
   })
 })
@@ -89,7 +91,7 @@ describe('combate, agenda e XP', () => {
   it('simula TNA enquanto agenda a estreia em NXT e impede avanço durante a luta', () => {
     const career = startFight()
     expect(career.date).toBe('2026-01-06')
-    expect(career.shows.map(show => show.promotion)).toEqual(['tna', 'nxt'])
+    expect(career.shows.map(show => show.promotion)).toEqual(expect.arrayContaining(['tna', 'nxt', 'aew', 'raw', 'smackdown', 'njpw']))
     expect(career.shows[0].matches).toHaveLength(2)
     expect(career.bout?.turn).toBe(0)
     expect(() => advanceCareer(career)).toThrow(/andamento/)
@@ -99,7 +101,7 @@ describe('combate, agenda e XP', () => {
   })
 
   it('usa a divisão correta para o rival da personagem', () => {
-    const career = newCareer({ ...exampleProfile(), division: 'women' }, 'normal', identity)
+    const career = careerWithOffer('tna', 'women')
     const first = startFight(career, 'tna')
     expect(ROSTER_BY_ID.get(first.bout!.rivalId)?.division).toBe('women')
     expect(first.date).toBe('2026-01-01')
@@ -124,7 +126,7 @@ describe('combate, agenda e XP', () => {
     expect(() => resolvePlayerTurn(career, 'jab')).toThrow(/show/)
     expect(validateCareer(career)).toEqual(career)
     const advanced = advanceCareer(career)
-    expect(new Set(advanced.shows.map(show => show.promotion)).size).toBe(3)
+    expect(new Set(advanced.shows.map(show => show.promotion)).size).toBeGreaterThanOrEqual(7)
     expect(advanced.shows.filter(show => show.id === first.bout?.showId)).toHaveLength(1)
     expect(career.shows).not.toEqual(advanced.shows)
     expect(career.id).not.toBe(first.id)
@@ -156,20 +158,21 @@ describe('combate, agenda e XP', () => {
     expect(enhanced.xp).toBe(upgraded.xp - 18)
   })
 
-  it('simula um ano das três empresas sem lutas nem eventos duplicados', () => {
+  it('simula um ano das sete empresas sem lutas nem eventos duplicados', () => {
     let career = fresh()
     while (career.date < '2027-01-01') career = advanceCareer(career)
-    expect(career.shows.length).toBeGreaterThan(150)
+    expect(career.shows.length).toBeGreaterThan(430)
     for (const promotion of PROMOTIONS) {
       const reports = career.shows.filter(show => show.promotion === promotion)
-      expect(reports.length).toBeGreaterThan(49)
-      expect(reports.every(show => show.matches.length === 2)).toBe(true)
+      expect(reports.length).toBeGreaterThan(promotion === 'bwf' ? 11 : 49)
+      expect(reports.every(show => show.matches.length >= 1)).toBe(true)
     }
     expect(validateCareer(career)).toEqual(career)
   })
 
   it('libera o mercado quando um contrato termina sem duplicar eventos', () => {
-    const active = signOffer(fresh(), fresh().offers[0].id)
+    const original = fresh()
+    const active = signOffer(original, original.offers[0].id)
     const date = addDays(active.contract!.end, -1)
     const nearEnd = { ...active, date, worldThrough: date }
     const expired = advanceCareer(nearEnd)

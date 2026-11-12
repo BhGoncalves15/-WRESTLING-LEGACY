@@ -1,6 +1,6 @@
 import { ArrowRight, Crosshair, Flame, HeartPulse, Shield, Swords, Trophy, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { ORGANIZATIONS, ROSTER_BY_ID, type Fighter } from '../content/catalog'
+import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, type Fighter } from '../content/catalog'
 import { MOVE_BY_ID } from '../content/moves'
 import { METHOD_LABEL, MOVE_KINDS, MOVE_KIND_LABEL, overall, type BoutSide, type Career, type MoveKind } from '../domain/model'
 import { actionDescription, actionName, positionName, reasonUnavailable, TACTICAL_ACTIONS, telegraph } from '../engine/combat'
@@ -43,6 +43,7 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
       : 'Assine um contrato para ser escalado para um show.'}</EmptyState>
   </>
 
+  const belt = bout.titleId ? TITLES_BY_ID.get(bout.titleId) : undefined
   const finished = bout.finish
   const victory = finished?.winner === 'player'
   const actions = player.moves.filter(id => MOVE_BY_ID.get(id)?.kind === kind)
@@ -55,8 +56,9 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
     </button>
   }
   return <>
-    <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · Singles'}
+    <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · ' + (belt?.name ?? 'Singles')}
       action={<span className="chip">{finished ? 'Encerrado' : 'Turno ' + (bout.turn + 1)}</span>} />
+    {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {belt.name}</span></div>}
     <div className="ring-grid"><Corner fighter={player} side={bout.player} /><Corner fighter={rival} side={bout.rival} rival /></div>
     {finished ? <section className={'panel fight-finish ' + (victory ? 'won' : '')} aria-live="polite">
       <Trophy size={28} aria-hidden /><div><h2>{victory ? 'Vitória' : 'Derrota'} por {METHOD_LABEL[finished.method].toLowerCase()}</h2>

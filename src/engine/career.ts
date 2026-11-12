@@ -1,17 +1,21 @@
 import {
-  ANNOUNCED_SHOWS, ORGANIZATIONS, ROSTER_BY_ID, compareShows, nextShows, rosterFor, upcomingShows, type Fighter,
+  ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID, compareShows, nextShowForCareer, nextShows, rosterFor,
+  showPromotions, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
 } from '../content/catalog'
 import { MOVE_BY_ID, defaultMoves, validMoveset } from '../content/moves'
 import {
   ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DATA_VERSION, DIFFICULTY_LABEL, INITIAL_BUDGET, INITIAL_LIMIT,
-  METHOD_LABEL, PROMOTIONS, SAVE_VERSION, START_DATE, addDays, clamp, overall, pointsSpent, profileSchema,
+  DIVISIONS, METHOD_LABEL, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE,
+  addDays, clamp, dayDistance, overall, pointsSpent, profileSchema,
   suggestedAttributes, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchResult,
   type Offer, type Profile, type PromotionId, type Show, type ShowReport,
 } from '../domain/model'
 import { createBout, playTurn, simulateSingles } from './combat'
 import { Random } from './random'
+import { applyTitleMatch, beltsDue, CAREER_FIGHTER_ID, titleEligible, titleStates, type BeltStates } from './titles'
 
-export const PLAYER_ID = 'career-player'
+export const PLAYER_ID = CAREER_FIGHTER_ID
+export { showEvidence } from '../content/calendar'
 
 export function exampleProfile(): Profile {
   return {
@@ -50,21 +54,33 @@ function addHistory(career: Career, kind: HistoryItem['kind'], title: string, de
   }]
 }
 
+export function canJoin(career: Career, promotion: PromotionId): boolean {
+  return rosterFor(promotion, false).some(fighter => fighter.division === career.profile.division)
+}
+
 function offersFor(career: Career, random: Random): Offer[] {
   const ovr = overall(career.profile.attributes, career.profile.style)
   const premium = career.difficulty === 'easy' ? 1.06 : career.difficulty === 'hard' ? 0.91 : 1
-  const order: PromotionId[] = ['nxt', 'tna', 'roh']
-  return order.map(promotion => {
+  const candidates = PROMOTIONS.filter(promotion => canJoin(career, promotion))
+  const result: Offer[] = []
+  for (let slot = 0; slot < OPENING_OFFER_COUNT; slot++) {
+    const remaining = candidates.filter(promotion => result.every(offer => ORGANIZATIONS[offer.promotion].company !== ORGANIZATIONS[promotion].company))
+    const promotion = random.weighted(remaining, id => {
+      const org = ORGANIZATIONS[id]
+      const appeal = ovr + career.popularity * 0.48
+      const gap = org.prestige - appeal
+      return gap > 0 ? Math.max(0.04, 1 - gap / 24) : 1 + (appeal - org.prestige) / 55
+    })
     const org = ORGANIZATIONS[promotion]
     const pay = Math.round(org.basePay * premium * (0.83 + (ovr - 55) * 0.008 + career.popularity * 0.004 + random.next() * 0.17) / 5) * 5
-    const weeks = random.pick(promotion === 'nxt' ? [16, 20, 24] : [12, 16, 20])
-    return {
+    const weeks = random.pick(org.prestige >= 61 ? [16, 20, 24] : [12, 16, 20])
+    result.push({
       id: 'offer-' + career.history.length + '-' + promotion, promotion, weeks, pay,
       winBonus: Math.round(pay * 0.25), status: 'available', response: 'pending',
-    }
-  })
+    })
+  }
+  return result
 }
-
 type CareerIdentity = { id?: string; seed?: number; createdAt?: number }
 
 export function newCareer(input: Profile, difficulty: Difficulty, identity: CareerIdentity = {}): Career {
@@ -78,7 +94,7 @@ export function newCareer(input: Profile, difficulty: Difficulty, identity: Care
     schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, id: identity.id ?? crypto.randomUUID(), revision: 0,
     createdAt: identity.createdAt ?? Date.now(), mode: 'free', profile, difficulty, rng: random.state,
     date: START_DATE, worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
-    bout: null, shows: [], history: [], ledger: [],
+    bout: null, shows: [], expandedOn: null, vacatedTitles: [], history: [], ledger: [],
   }
   career.offers = offersFor(career, random)
   career.rng = random.state
@@ -128,6 +144,13 @@ export function signOffer(career: Career, offerId: string): Career {
     ...career, offers: [],
     contract: { promotion, weeks, pay, winBonus, start: career.date, end: addDays(career.date, weeks * 7), status: 'active' },
   }
+  for (const [titleId, state] of titleStates(career)) {
+    const title = TITLES_BY_ID.get(titleId)!
+    if (state.holderId === PLAYER_ID && title.promotion !== promotion) {
+      next.vacatedTitles = [...next.vacatedTitles, { titleId, date: next.date }]
+      addHistory(next, 'title', title.name + ' ficou vago', 'Você assinou com ' + ORGANIZATIONS[promotion].name + '.', title.promotion)
+    }
+  }
   addHistory(next, 'contract', 'Contrato com ' + ORGANIZATIONS[promotion].name,
     'Acordo de ' + weeks + ' semanas, com $' + pay + ' por show disputado.', promotion)
   return next
@@ -135,8 +158,8 @@ export function signOffer(career: Career, offerId: string): Career {
 
 export function nextCareerShow(career: Career): Show | undefined {
   if (career.contract?.status !== 'active') return upcomingShows(career.worldThrough, 1)[0]
-  const show = nextShows(career.contract.promotion, career.worldThrough, 1)[0]
-  return show.date < career.contract.end ? show : undefined
+  const show = nextShowForCareer(career.contract.promotion, career.worldThrough)
+  return show && show.date < career.contract.end ? show : undefined
 }
 
 function dueShows(after: string, to: string): Show[] {
@@ -153,11 +176,13 @@ function dueShows(after: string, to: string): Show[] {
   return due.sort(compareShows)
 }
 
-function bookRival(career: Career, show: Show, random: Random) {
-  const roster = rosterFor(show.promotion).filter(fighter => fighter.division === career.profile.division)
+function bookRival(career: Career, candidates: readonly RosterEntry[], random: Random) {
   const target = overall(career.profile.attributes, career.profile.style) + Math.floor(career.popularity / 9)
-  const lastRival = [...career.shows].reverse().flatMap(report => report.matches).find(match => match.player)?.secondId
-  return random.weighted(roster, fighter => (
+  let lastRival: string | undefined
+  for (let index = career.shows.length - 1; index >= 0 && !lastRival; index--) {
+    lastRival = career.shows[index].matches.find(match => match.player)?.secondId
+  }
+  return random.weighted(candidates, fighter => (
     (fighter.id === lastRival ? 0.28 : 1) * Math.max(1, 19 - Math.abs(target - overall(fighter.attributes, fighter.style)))
   ))
 }
@@ -167,40 +192,113 @@ function matchResult(id: string, first: Fighter, second: Fighter, bout: Bout, pl
   if (!finish) throw new Error('Uma luta em andamento não tem resultado.')
   return {
     id, firstId: first.id, secondId: second.id, winnerId: finish.winner === 'player' ? first.id : second.id,
-    method: finish.method, rounds: bout.turn, player,
+    method: finish.method, rounds: bout.turn, player, ...(bout.titleId ? { titleId: bout.titleId } : {}),
   }
 }
 
-function bookShow(career: Career, show: Show, random: Random, playerBooked: boolean): ShowReport {
-  const rival = playerBooked ? bookRival(career, show, random) : null
-  const roster = rosterFor(show.promotion).filter(fighter => fighter.id !== rival?.id)
-  const matches = (['men', 'women'] as const).map((division, index) => {
-    const candidates = roster.filter(fighter => fighter.division === division)
-    const first = random.pick(candidates)
-    const second = random.pick(candidates.filter(fighter => fighter.id !== first.id))
-    const id = show.id + '/match-' + (index + 1)
-    return matchResult(id, first, second, simulateSingles(show, id, first, second, random), false)
-  })
+function addTitleHistory(career: Career, show: Show, match: MatchResult, states: BeltStates) {
+  if (!match.titleId) return
+  const title = TITLES_BY_ID.get(match.titleId)!
+  const previous = states.get(match.titleId)?.holderId
+  applyTitleMatch(states, career, show, match)
+  const winner = fighterName(career, match.winnerId)
+  addHistory(career, 'title', winner + (previous === match.winnerId ? ' reteve ' : ' conquistou ') + title.name,
+    show.name + ' · ' + METHOD_LABEL[match.method], title.promotion)
+}
+
+function playerTitleOpportunity(career: Career, show: Show, states: BeltStates, occupied: Set<string>, random: Random) {
+  const contract = career.contract
+  if (!contract) return undefined
+  const due = beltsDue(show, states, 21).filter(title => (
+    title.promotion === contract.promotion && title.division === career.profile.division
+  ))
+  const defense = due.find(title => states.get(title.id)?.holderId === PLAYER_ID)
+  const contenders = rosterFor(contract.promotion, false).filter(fighter => fighter.division === career.profile.division && !occupied.has(fighter.id))
+  if (defense && contenders.length) return { title: defense, rival: bookRival(career, contenders, random) }
+
+  if (career.popularity < 18 || recordFor(career, PLAYER_ID).wins < 3) return undefined
+  for (const title of due) {
+    const holder = states.get(title.id)?.holderId
+    if (holder === null && contenders.length) return { title, rival: bookRival(career, contenders, random) }
+    const rival = holder ? ROSTER_BY_ID.get(holder) : undefined
+    if (rival && !occupied.has(rival.id)) return { title, rival }
+  }
+  return undefined
+}
+
+function bookShow(career: Career, show: Show, random: Random, playerBooked: boolean, occupied: Set<string>, states: BeltStates): ShowReport {
+  const circuits = showPromotions(show)
+  const eligible = ROSTER.filter(fighter => (
+    !occupied.has(fighter.id) && (circuits.includes(fighter.promotion) || (show.special && circuits.some(circuit => wrestlerAppearsIn(fighter, circuit))))
+  ))
+  const playerCandidates = eligible.filter(fighter => fighter.division === career.profile.division)
+  const opportunity = playerBooked ? playerTitleOpportunity(career, show, states, occupied, random) : undefined
+  const rival = opportunity?.rival ?? (playerBooked && playerCandidates.length ? bookRival(career, playerCandidates, random) : undefined)
+  if (rival) occupied.add(rival.id)
+  const matches: MatchResult[] = []
+  const titleNight = show.special || show.promotion === 'bwf' || dayDistance(START_DATE, show.date) % 28 < 7
+  const titlesDue = titleNight ? beltsDue(show, states, 35) : []
+  const form = new Map<string, number>()
+  for (const report of career.shows.slice(-24)) {
+    for (const result of report.matches) form.set(result.winnerId, (form.get(result.winnerId) ?? 0) + 1)
+  }
+
+  for (const division of DIVISIONS) {
+    const pool = eligible.filter(fighter => fighter.division === division && !occupied.has(fighter.id))
+    const title = titlesDue.find(belt => {
+      if (belt.division !== division || belt.id === opportunity?.title.id || (hasLiveBout(career) && belt.id === career.bout?.titleId)) return false
+      const holder = states.get(belt.id)?.holderId
+      if (holder === PLAYER_ID || (holder && occupied.has(holder))) return false
+      return pool.filter(fighter => fighter.id !== holder && titleEligible(career, belt, fighter.id)).length >= (holder ? 1 : 2)
+    })
+    if (pool.length < 2 && !title) continue
+    const state = title ? states.get(title.id) : undefined
+    const champion = state?.holderId ? ROSTER_BY_ID.get(state.holderId) : undefined
+    const titlePool = title ? pool.filter(fighter => titleEligible(career, title, fighter.id)) : pool
+    const first = champion ?? random.pick(titlePool)
+    const contenders = titlePool.filter(fighter => fighter.id !== first.id)
+    const second = title
+      ? random.weighted(contenders, fighter => 1 + (form.get(fighter.id) ?? 0) * 2 + overall(fighter.attributes, fighter.style) / 45)
+      : random.pick(contenders)
+    occupied.add(first.id)
+    occupied.add(second.id)
+    const id = show.id + '/match-' + (matches.length + 1)
+    const bout = simulateSingles(show, id, first, second, random)
+    if (title) bout.titleId = title.id
+    const result = matchResult(id, first, second, bout, false)
+    matches.push(result)
+    addTitleHistory(career, show, result, states)
+  }
+
   if (rival) {
     career.bout = createBout(show, show.id + '/career', rival, career.difficulty, random)
-    addHistory(career, 'match', 'Luta marcada contra ' + rival.name, show.name + ' · Singles', show.promotion)
-  } else {
+    if (opportunity) career.bout.titleId = opportunity.title.id
+    addHistory(career, 'match', 'Luta marcada contra ' + rival.name,
+      show.name + ' · ' + (opportunity?.title.name ?? 'Singles'), show.promotion)
+  } else if (matches.length) {
     const mainEvent = matches.at(-1)!
     addHistory(career, 'show', show.name, fighterName(career, mainEvent.winnerId) + ' venceu por ' + METHOD_LABEL[mainEvent.method] + '.', show.promotion)
+  } else {
+    addHistory(career, 'show', show.name, 'O card foi adiado por disponibilidade do elenco.', show.promotion)
   }
   return { ...show, matches }
 }
-
 function advanceThrough(career: Career, target: string): Career {
   const random = new Random(career.rng)
   const shows = dueShows(career.worldThrough, target)
   const next: Career = { ...career, shows: [...career.shows], date: target, worldThrough: target }
+  const states = titleStates(career)
+  let date = ''
+  let occupied = new Set<string>()
   for (const show of shows) {
+    if (date !== show.date) {
+      date = show.date
+      occupied = new Set()
+    }
     next.date = show.date
-    const playerBooked = next.contract?.status === 'active' && next.contract.promotion === show.promotion
+    const playerBooked = !hasLiveBout(next) && next.contract?.status === 'active' && showPromotions(show).includes(next.contract.promotion)
       && show.date >= next.contract.start && show.date < next.contract.end
-    if (playerBooked && hasLiveBout(next)) throw new Error('Finalize a luta em andamento para seguir o calendário.')
-    next.shows.push(bookShow(next, show, random, playerBooked))
+    next.shows.push(bookShow(next, show, random, playerBooked, occupied, states))
   }
   next.date = target
   next.rng = random.state
@@ -249,11 +347,12 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
 
   const won = bout.finish.winner === 'player'
   const variety = new Set(bout.used).size
-  const xp = 24 + (won ? 24 : 0) + Math.min(14, variety * 2) + (show.special ? 10 : 0)
+  const xp = 24 + (won ? 24 : 0) + Math.min(14, variety * 2) + (show.special ? 10 : 0) + (bout.titleId ? 15 : 0)
   bout.xpAwarded = xp
   next.xp += xp
   next.popularity = clamp(next.popularity + (won ? 4 : 1) + (show.special ? 2 : 0), 0, 100)
   const result = matchResult(bout.id, fighter, rival, bout, true)
+  addTitleHistory(next, show, result, titleStates(career))
   next.shows = career.shows.map(report => report.id === show.id ? { ...report, matches: [...report.matches, result] } : report)
   next.ledger = [...career.ledger, { id: bout.id, date: show.date, label: show.name + (won ? ' · participação e vitória' : ' · participação'), amount: contract.pay + (won ? contract.winBonus : 0) }]
   addHistory(next, 'match', (won ? 'Vitória sobre ' : 'Derrota para ') + rival.name,
@@ -297,8 +396,4 @@ export function setDifficulty(career: Career, difficulty: Difficulty): Career {
   const next = { ...career, difficulty }
   addHistory(next, 'career', 'Dificuldade ' + DIFFICULTY_LABEL[difficulty], 'Alteração nas decisões táticas e negociações.')
   return next
-}
-
-export function showEvidence(id: string): string | undefined {
-  return ANNOUNCED_SHOWS.find(show => show.id === id)?.source
 }
