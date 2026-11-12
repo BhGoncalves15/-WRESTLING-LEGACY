@@ -4,7 +4,7 @@ import { validMoveset } from '../content/moves'
 import { defenseFormat } from '../content/titles'
 import {
   COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
-  TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, isTeamFormat, type Career, type DuelBout, type Fall,
+  TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, isTeamFormat, newCareerId, type Career, type DuelBout, type Fall,
   type MatchResult, type MultiBout, type Show,
 } from '../domain/model'
 import { PLAYER_ID } from '../engine/career'
@@ -264,7 +264,7 @@ export function exportCareer(career: Career): string {
   return JSON.stringify({ format: 'wrestling-legacy', version: SAVE_VERSION, career }, null, 2)
 }
 
-export function importCareer(text: string, id = crypto.randomUUID()): Career {
+export function importCareer(text: string, id = newCareerId()): Career {
   let content: unknown
   try {
     content = JSON.parse(text)

@@ -1,4 +1,4 @@
-name: Testes do piloto
+name: Testes da Carreira Livre
 
 on:
   push:
@@ -28,3 +28,22 @@ jobs:
         env:
           PLAYWRIGHT_WEBKIT: '1'
           PLAYWRIGHT_BUILD: '1'
+          QA_SCREENSHOTS: 'qa-screenshots'
+      - name: Guardar capturas dos navegadores
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verificacao-visual
+          path: qa-screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Preparar o pacote da beta
+        run: |
+          mkdir -p pacote-beta/-WRESTLING-LEGACY
+          cp -R dist/. pacote-beta/-WRESTLING-LEGACY/
+          cp docs/BETA-CARREIRA-LIVRE.md pacote-beta/COMO-TESTAR.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wrestling-legacy-beta
+          path: pacote-beta/
+          if-no-files-found: error

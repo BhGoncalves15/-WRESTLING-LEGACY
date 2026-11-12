@@ -14,6 +14,7 @@ import { titleStates } from '../engine/titles'
 import { dateShort, dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
 
 type CircuitFilter = PromotionId | 'all'
+const RESULTS_PER_PAGE = 20
 
 function CircuitSelect({ value, onChange }: { value: CircuitFilter; onChange: (value: CircuitFilter) => void }) {
   return <label>Empresa ou brand<select value={value} onChange={event => onChange(event.target.value as CircuitFilter)}>
@@ -99,10 +100,15 @@ export function Calendar({ career, pending, onAdvance, onFight }: {
 }) {
   const [filter, setFilter] = useState<CircuitFilter>('all')
   const [period, setPeriod] = useState<'upcoming' | 'announced' | 'completed' | 'archive'>('upcoming')
+  const [resultPage, setResultPage] = useState(0)
   const after = career?.worldThrough ?? addDays(START_DATE, -1)
   const upcoming = (period === 'announced' ? ANNOUNCED_SHOWS.filter(show => show.date > after) : upcomingShows(after, 6))
     .filter(show => filter === 'all' || showPromotions(show).includes(filter))
-  const reports = [...(career?.shows ?? [])].reverse().filter(show => filter === 'all' || showPromotions(show).includes(filter))
+  const reports = useMemo(() => period === 'completed'
+    ? (career?.shows ?? []).filter(show => filter === 'all' || showPromotions(show).includes(filter)).reverse() : [], [career?.shows, filter, period])
+  const pageCount = Math.ceil(reports.length / RESULTS_PER_PAGE)
+  const currentPage = Math.min(resultPage, Math.max(0, pageCount - 1))
+  const firstResult = currentPage * RESULTS_PER_PAGE
   const archive = ARCHIVE_2026.filter(show => filter === 'all' || filter === show.promotion)
   const live = career && hasLiveBout(career)
   const next = career && nextCareerShow(career)
@@ -117,7 +123,7 @@ export function Calendar({ career, pending, onAdvance, onFight }: {
         {([['upcoming', 'Próximos'], ['announced', 'Anunciados'], ['completed', 'Resultados'], ['archive', 'Arquivo real 2026']] as const)
           .map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</button>)}
       </div>
-      <CircuitSelect value={filter} onChange={setFilter} />
+      <CircuitSelect value={filter} onChange={value => { setFilter(value); setResultPage(0) }} />
     </div>
     {(period === 'upcoming' || period === 'announced') && (upcoming.length ? <section className="panel">
       <ul className="rows">{upcoming.map(show => {
@@ -134,7 +140,14 @@ export function Calendar({ career, pending, onAdvance, onFight }: {
       })}</ul>
     </section> : <EmptyState title="Nenhum evento neste filtro">Consulte as outras empresas ou a agenda simulada.</EmptyState>)}
     {period === 'completed' && (career && reports.length ? <div className="stack">
-      {reports.map(report => <details className="panel report" key={report.id}>
+      {pageCount > 1 && <nav className="result-pagination" aria-label="Páginas de resultados">
+        <button type="button" className="button secondary" disabled={currentPage === 0}
+          onClick={() => setResultPage(currentPage - 1)}>Página anterior</button>
+        <span aria-live="polite">Página {currentPage + 1} de {pageCount}</span>
+        <button type="button" className="button secondary" disabled={currentPage >= pageCount - 1}
+          onClick={() => setResultPage(currentPage + 1)}>Próxima página</button>
+      </nav>}
+      {reports.slice(firstResult, firstResult + RESULTS_PER_PAGE).map(report => <details className="panel report" key={report.id}>
         <summary><OrgMark id={report.promotion} small /><div className="row-text"><strong>{report.name}</strong>
           <small>{dateText(report.date)} · {report.matches.length} resultados{live && career.bout?.showId === report.id ? ' · sua luta em andamento' : ''}</small>
         </div><ChevronDown size={19} aria-hidden /></summary><Results report={report} career={career} />
@@ -150,6 +163,8 @@ export function Calendar({ career, pending, onAdvance, onFight }: {
   </>
 }
 
+const searchKey = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR')
+
 export function Companies({ career }: { career: Career | null }) {
   const [selected, setSelected] = useState<PromotionId>(career?.contract?.promotion ?? 'nxt')
   const [search, setSearch] = useState('')
@@ -157,7 +172,8 @@ export function Companies({ career }: { career: Career | null }) {
   const roster = rosterFor(selected)
   const teams = TEAM_REFERENCES.filter(team => team.promotion === selected)
   const observations = HISTORICAL_OBSERVATIONS.filter(entry => entry.promotion === selected)
-  const filtered = roster.filter(fighter => [fighter.name, ...(fighter.aliases ?? [])].some(value => value.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))))
+  const query = searchKey(search.trim())
+  const filtered = roster.filter(fighter => [fighter.name, ...(fighter.aliases ?? [])].some(value => searchKey(value).includes(query)))
   return <>
     <PageTitle title="Empresas" intro="Sete empresas e nove agendas. Elencos de abertura em 1º de janeiro de 2026." />
     <div className="org-grid" role="group" aria-label="Escolha uma empresa ou brand">

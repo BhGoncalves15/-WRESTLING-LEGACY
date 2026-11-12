@@ -8,7 +8,7 @@ import { roundName, tournamentEdition } from '../content/tournaments'
 import {
   ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DATA_VERSION, DIFFICULTY_LABEL, INITIAL_BUDGET, INITIAL_LIMIT,
   DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, MULTI_SIZE, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_FORMATS, TEAM_SIZE,
-  addDays, clamp, dayDistance, isMultiFormat, isTeamFormat, overall, pointsSpent, profileSchema, ringWeightSchema,
+  addDays, clamp, dayDistance, isMultiFormat, isTeamFormat, newCareerId, overall, pointsSpent, profileSchema, ringWeightSchema,
   suggestedAttributes, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
   type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type WrestlingTeam,
 } from '../domain/model'
@@ -107,7 +107,7 @@ export function newCareer(input: Profile, difficulty: Difficulty, identity: Care
   if (!validMoveset(profile.moves) || Object.keys(profile.moveLevels).length) throw new Error('Revise os 20 espaços do moveset.')
   const random = new Random(identity.seed ?? crypto.getRandomValues(new Uint32Array(1))[0])
   const career: Career = {
-    schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, id: identity.id ?? crypto.randomUUID(), revision: 0,
+    schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, id: identity.id ?? newCareerId(), revision: 0,
     createdAt: identity.createdAt ?? Date.now(), mode: 'free', profile, difficulty, rng: random.state,
     date: START_DATE, worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
     bout: null, shows: [], expandedOn: null, vacatedTitles: [], tagPartnerId: null, trioPartnerIds: null,
