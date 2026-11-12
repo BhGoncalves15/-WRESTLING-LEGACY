@@ -19,7 +19,7 @@ test('cria BH, negocia, retoma o combate e importa o save em outra carreira', as
   await main.getByRole('button', { name: 'Nova carreira' }).click()
   await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
   await expect(main.getByLabel('Nome de ringue')).toHaveValue('BH')
-  await expect(main.getByLabel('Estilo', { exact: true })).toHaveValue('Highflyer')
+  await expect(main.getByRole('combobox', { name: /^Estilo\b/ })).toHaveValue('Highflyer')
   await main.getByRole('button', { name: 'Continuar' }).click()
   await expect(main.getByText(/0 de 180 pontos disponíveis/)).toBeVisible()
   await main.getByRole('button', { name: 'Continuar' }).click()
