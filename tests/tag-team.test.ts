@@ -181,13 +181,14 @@ describe('Tag Team', () => {
     expect(() => applyTitleMatch(states, career, show, { ...match, tag: { ...match.tag, firstPartners: ['saquon-shugars'] } })).toThrow(/campeão vigente/)
   })
 
-  it('simula os 13 títulos de duplas nas sete empresas com quatro nomes por luta', () => {
+  it('simula os 15 títulos de duplas da mesma divisão nas sete empresas', () => {
     let career = newCareer(exampleProfile(), 'normal', { seed: 4402 })
     const belts = OPENING_TITLES.filter(supportsTagDefense)
-    expect(belts).toHaveLength(13)
+    expect(belts).toHaveLength(15)
     for (const title of belts) expect(title.holderTeam?.every(id => titleEligible(career, title, id))).toBe(true)
     while (career.date < '2026-07-01') career = advanceCareer(career)
-    const results = career.shows.flatMap(show => show.matches.filter(match => match.tag?.firstPartners.length === 1 && match.titleId).map(match => ({ match, show })))
+    const results = career.shows.flatMap(show => show.matches.filter(match => match.tag?.firstPartners.length === 1 && !match.tag.mixed && match.titleId)
+      .map(match => ({ match, show })))
     expect(new Set(results.map(({ match }) => match.titleId))).toEqual(new Set(belts.map(title => title.id)))
     expect(new Set(results.map(({ show }) => ORGANIZATIONS[show.promotion].company))).toEqual(new Set(COMPANIES))
     expect(results.every(({ match }) => new Set(matchTeams(match).flat()).size === 4)).toBe(true)

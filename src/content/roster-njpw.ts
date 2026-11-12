@@ -1,7 +1,30 @@
 import { rosterGroup } from './roster-model'
 import { SOURCES } from './sources'
 
+const TAMASHII_ROSTER = rosterGroup('njpw', '2025-07-04', SOURCES.njpwTamashiiColdWar, 'men', [
+  ['magic-mark', 'Magic Mark', 'Brawler', 7, 'Face'],
+  ['pretty-richie', 'Pretty Richie', 'Highflyer', 6, 'Face'],
+  ['trent-hooper', 'Trent Hooper', 'Powerhouse', 5, 'Heel'],
+  ['tj-illes', 'TJ Illes', 'Technician', 5, 'Heel'],
+  ['finn-grant', 'Finn Grant', 'Technician', 3, 'Face'],
+  ['sean-tohi', 'Sean Tohi', 'Brawler', 3, 'Face'],
+])
+
+export const TAMASHII_REGIONAL_IDS = new Set(TAMASHII_ROSTER.map(fighter => fighter.id))
+export const TAMASHII_IDS = new Set([...TAMASHII_REGIONAL_IDS, 'oskar', 'yuto-ice', 'don-fale'])
+
+// Entrants documented in the 2025 Super Jr. Tag League. The list describes this roster snapshot.
+export const NJPW_JUNIOR_IDS = new Set([
+  'douki', 'sho', 'master-wato', 'yoh', 'hiromu-takahashi', 'gedo', 'daiki-nagai', 'ryusuke-taguchi', 'jakob-austin-young',
+  'tiger-mask-iv', 'yoshinobu-kanemaru', 'el-desperado', 'taiji-ishimori', 'kosei-fujita', 'robbie-eagles', 'robbie-x',
+])
+
 export const NJPW_ROSTER = [
+  ...TAMASHII_ROSTER,
+  ...rosterGroup('njpw', '2025-11-01', SOURCES.njpwJuniorBlockB, 'men', [
+    ['robbie-eagles', 'Robbie Eagles', 'Highflyer', 12, 'Face'],
+    ['robbie-x', 'Robbie X', 'Highflyer', 8, 'Heel'],
+  ]),
   ...rosterGroup('njpw', '2025-11-14', SOURCES.njpwStrongTag, 'men', [
     ['angel-de-oro', 'Ángel de Oro', 'Highflyer', 12, 'Face'],
     ['niebla-roja', 'Niebla Roja', 'Technician', 10, 'Face'],

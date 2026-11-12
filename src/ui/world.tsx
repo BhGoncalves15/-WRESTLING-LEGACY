@@ -5,7 +5,7 @@ import {
 } from '../content/catalog'
 import { HISTORICAL_OBSERVATIONS } from '../content/research-2026'
 import { TEAM_REFERENCES } from '../content/tag-teams'
-import { defenseSize, type TitleRule } from '../content/titles'
+import { JUNIOR_WEIGHT_LIMIT, defenseFormat, type TitleRule } from '../content/titles'
 import { COMPANIES, DIVISION_LABEL, MATCH_FORMAT_LABEL, METHOD_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId, type ShowReport } from '../domain/model'
 import { fighterName, fighterNames, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
 import { formatForSize, matchTeams, matchWinners, sameTeam } from '../engine/matches'
@@ -75,7 +75,7 @@ function Results({ report, career }: { report: ShowReport; career: Career }) {
   return <ul className="rows match-results">
     {report.matches.map(match => {
       const [first, second] = matchTeams(match)
-      const format = MATCH_FORMAT_LABEL[formatForSize(first.length)]
+      const format = MATCH_FORMAT_LABEL[formatForSize(first.length, match.tag?.mixed)]
       const winner = fighterNames(career, matchWinners(match))
       const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId) : ''
       return <li className="record-row" key={match.id}>
@@ -206,16 +206,19 @@ export function Championships({ career }: { career: Career | null }) {
       const opening = title.holder ?? (title.vacant ? 'Vago' : 'A confirmar')
       const openingTeam = state?.holders && title.holderTeam && sameTeam(state.holders, title.holderTeam)
       const current = state && career && !openingTeam ? state.holders ? fighterNames(career, state.holders) : 'Vago' : opening
-      const size = defenseSize(title)
+      const format = defenseFormat(title)
       const status = title.status === 'later' ? 'Surge depois' : title.status === 'unverified' ? 'A verificar'
-        : size === 3 ? 'Trios jogáveis' : size === 2 ? 'Tag Team jogável' : size === 1 ? 'Disputa jogável' : 'Registro histórico'
+        : format === 'mixed' ? 'Duplas mistas jogáveis' : format === 'trios' ? 'Trios jogáveis' : format === 'tag' ? 'Tag Team jogável'
+          : format === 'singles' ? 'Disputa jogável' : 'Registro histórico'
       return <details className="panel report title-row" key={title.id}>
         <summary><OrgMark id={title.promotion} small /><div className="row-text"><strong>{title.name}</strong>
           <small>{title.status === 'later' ? 'Estreia posterior a janeiro' : current}</small></div>
           <span className="chip">{status}</span><ChevronDown size={18} aria-hidden /></summary>
         <div className="title-detail">
           <div className="title-meta"><span>{ruleLabel[title.rule]} · {title.division === 'mixed' ? 'Mista' : DIVISION_LABEL[title.division]}</span><SourceLink url={title.source} /></div>
-          {size && title.holderTeam && title.listings.length > 1 && <p>Disputas na agenda de {ORGANIZATIONS[title.promotion].name} e nos eventos compartilhados dessa brand.</p>}
+          {format && title.holderTeam && title.listings.length > 1 && <p>Disputas na agenda de {ORGANIZATIONS[title.promotion].name} e nos eventos compartilhados dessa brand.</p>}
+          {title.qualification === 'junior' && <p>Limite de {JUNIOR_WEIGHT_LIMIT} kg por lutador.</p>}
+          {title.qualification === 'tamashii' && <p>Disputas nos cards do circuito TAMASHII.</p>}
           {title.note && <p>{title.note}</p>}
           {title.status === 'active' && <p>Abertura em 01/01/2026 · {opening}</p>}
           {state?.holders && <p>Reinado na carreira desde {dateText(state.heldFrom)} · {state.defenses} defesas bem-sucedidas</p>}

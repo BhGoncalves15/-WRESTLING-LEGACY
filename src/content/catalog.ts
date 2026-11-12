@@ -1,6 +1,6 @@
 export { ORGANIZATIONS, COMPANY_NAMES } from './organizations'
 export { SOURCES } from './sources'
-export { ROSTER, ROSTER_BY_ID, rosterFor, wrestlerAppearsIn, evidenceFor } from './roster'
+export { ROSTER, ROSTER_BY_ID, rosterFor, wrestlerAppearsIn, evidenceFor, fitsEventRoster } from './roster'
 export type { Fighter, RosterEntry } from './roster-model'
 export { OPENING_TITLES, TITLES_BY_ID } from './titles'
 export { ANNOUNCED_SHOWS, ARCHIVE_2026, compareShows, nextShows, upcomingShows, nextShowForCareer, showEvidence, showPromotions, validLegacyShow } from './calendar'

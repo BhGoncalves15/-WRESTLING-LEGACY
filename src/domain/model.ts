@@ -4,8 +4,9 @@ export const START_DATE = '2026-01-01'
 export const LEGACY_DATA_VERSION = 'pilot-2026-01-01.1'
 export const WORLD_DATA_VERSION = 'world-2026-01-01.2'
 export const TAG_DATA_VERSION = 'world-2026-01-01.3'
-export const DATA_VERSION = 'world-2026-01-01.4'
-export const SAVE_VERSION = 4
+export const TRIOS_DATA_VERSION = 'world-2026-01-01.4'
+export const DATA_VERSION = 'world-2026-01-01.5'
+export const SAVE_VERSION = 5
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
@@ -31,10 +32,12 @@ export const DIFFICULTIES = ['easy', 'normal', 'hard'] as const
 export const DIVISIONS = ['men', 'women'] as const
 export const COMPANIES = ['wwe', 'aew', 'njpw', 'tna', 'aaa', 'roh', 'bwf'] as const
 export const PROMOTIONS = ['raw', 'smackdown', 'nxt', 'aew', 'njpw', 'tna', 'aaa', 'roh', 'bwf'] as const
-export const TEAM_FORMATS = ['tag', 'trios'] as const
+export const TEAM_FORMATS = ['tag', 'trios', 'mixed'] as const
 export const MATCH_FORMATS = ['singles', ...TEAM_FORMATS] as const
-export const TEAM_SIZE = { tag: 2, trios: 3 } as const
-export const MATCH_FORMAT_LABEL = { singles: 'Singles', tag: 'Tag Team', trios: 'Trios' } as const
+export const TEAM_SIZE = { tag: 2, trios: 3, mixed: 2 } as const
+export const MATCH_FORMAT_LABEL = { singles: 'Singles', tag: 'Tag Team', trios: 'Trios', mixed: 'Duplas mistas' } as const
+export const MIN_RING_WEIGHT_KG = 35
+export const MAX_RING_WEIGHT_KG = 300
 export const OPENING_OFFER_COUNT = 3
 export const MOVE_KINDS = ['quick', 'heavy', 'technical', 'aerial', 'counter', 'signature', 'finisher'] as const
 export const MOVE_SLOTS = { quick: 4, heavy: 4, technical: 3, aerial: 2, counter: 3, signature: 2, finisher: 2 } as const
@@ -109,6 +112,7 @@ export function dayDistance(from: string, to: string): number {
 }
 
 export const dateSchema = z.iso.date()
+export const ringWeightSchema = z.number().int().min(MIN_RING_WEIGHT_KG).max(MAX_RING_WEIGHT_KG)
 const safeInt = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 const rngSchema = z.number().int().min(1).max(0xffffffff)
 const id = z.string().min(1).max(150)
@@ -121,6 +125,7 @@ export const profileSchema = z.object({
   country: shortText.min(2),
   city: shortText,
   age: z.number().int().min(16).max(80),
+  ringWeightKg: ringWeightSchema.nullable().default(null),
   division: z.enum(DIVISIONS),
   alignment: z.enum(ALIGNMENTS),
   style: z.enum(STYLES),
@@ -184,7 +189,7 @@ const boutSchema = z.object({
   used: z.array(id),
   finish: finishSchema.nullable(),
   xpAwarded: safeInt,
-  tag: z.object({ player: tagCornerSchema, rival: tagCornerSchema }).optional(),
+  tag: z.object({ player: tagCornerSchema, rival: tagCornerSchema, mixed: z.literal(true).optional() }).optional(),
 })
 export type Bout = z.infer<typeof boutSchema>
 export type BoutSide = z.infer<typeof sideSchema>
@@ -199,6 +204,7 @@ export const showSchema = z.object({
   name: z.string().min(1).max(100),
   origin: z.enum(['announced', 'generated']),
   special: z.boolean(),
+  series: z.literal('tamashii').optional(),
   guestPromotions: z.array(promotion).optional(),
 })
 export type Show = z.infer<typeof showSchema>
@@ -215,6 +221,7 @@ const matchSchema = z.object({
   tag: z.object({
     firstPartners: z.array(id).min(1).max(2),
     secondPartners: z.array(id).min(1).max(2),
+    mixed: z.literal(true).optional(),
   }).optional(),
 })
 export type MatchResult = z.infer<typeof matchSchema>
@@ -258,6 +265,7 @@ export const careerSchema = z.object({
   vacatedTitles: z.array(z.object({ titleId: id, date: dateSchema })),
   tagPartnerId: id.nullable(),
   trioPartnerIds: z.tuple([id, id]).nullable(),
+  mixedPartnerId: id.nullable(),
   preferredFormat: z.enum(MATCH_FORMATS),
   history: z.array(historySchema),
   ledger: z.array(ledgerSchema),

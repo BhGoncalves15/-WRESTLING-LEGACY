@@ -1,13 +1,16 @@
 import { PROMOTIONS, addDays, dayDistance, type PromotionId, type Show } from '../domain/model'
 import { SOURCES } from './sources'
 
-type Cadence = { start: string; days: number; name: string }
+type Cadence = { start: string; days: number; name: string; series?: Show['series'] }
 const SCHEDULE: Record<PromotionId, readonly Cadence[]> = {
   raw: [{ start: '2026-01-05', days: 7, name: 'WWE Raw' }],
   smackdown: [{ start: '2026-01-02', days: 7, name: 'WWE SmackDown' }],
   nxt: [{ start: '2026-01-06', days: 7, name: 'WWE NXT' }],
   aew: [{ start: '2026-01-07', days: 7, name: 'AEW Dynamite' }, { start: '2026-01-03', days: 7, name: 'AEW Collision' }],
-  njpw: [{ start: '2026-01-10', days: 7, name: 'NJPW Road To' }],
+  njpw: [
+    { start: '2026-01-25', days: 28, name: 'NJPW TAMASHII', series: 'tamashii' },
+    { start: '2026-01-10', days: 7, name: 'NJPW Road To' },
+  ],
   tna: [{ start: '2026-01-01', days: 7, name: 'TNA iMPACT!' }],
   aaa: [{ start: '2026-01-17', days: 7, name: 'Lucha Libre AAA' }],
   roh: [{ start: '2026-01-08', days: 7, name: 'ROH on HonorClub' }],
@@ -80,6 +83,7 @@ export const ARCHIVE_2026: readonly ArchiveEvent[] = [
   { promotion: 'aew', date: '2026-10-17', name: 'AEW WrestleDream', source: SOURCES.aewWrestleDream },
   { promotion: 'njpw', date: '2026-01-04', name: 'Wrestle Kingdom 20', source: SOURCES.njpwWk20 },
   { promotion: 'njpw', date: '2026-01-05', name: 'NJPW New Year Dash', source: SOURCES.njpwDash },
+  { promotion: 'njpw', date: '2026-05-16', name: 'NJPW TAMASHII · disputa de duplas', source: SOURCES.njpwTamashiiMay },
   { promotion: 'njpw', date: '2026-11-03', name: 'NJPW Power Struggle', source: 'https://www.njpw1972.com/tornament/result/662785' },
   { promotion: 'tna', date: '2026-01-17', name: 'TNA Genesis', source: 'https://tnawrestling.com/news/tna-genesis-2026-on-payperview-live-results' },
   { promotion: 'tna', date: '2026-08-27', name: 'TNA iMPACT! · final do Knockouts TV', source: SOURCES.tnaTv },
@@ -112,7 +116,8 @@ export function nextShows(promotion: PromotionId, after: string, count: number):
     const offset = Math.max(0, Math.floor(dayDistance(cadence.start, after) / cadence.days) + 1)
     for (let index = 0; index < count; index++) {
       const date = addDays(cadence.start, (offset + index) * cadence.days)
-      events.set(date, createShow(promotion, date, cadence.name, 'generated'))
+      const show = createShow(promotion, date, cadence.name, 'generated', Boolean(cadence.series))
+      events.set(date, cadence.series ? { ...show, series: cadence.series } : show)
     }
   }
   const cutoff = [...events.keys()].sort().at(-1)!
