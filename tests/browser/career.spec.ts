@@ -304,7 +304,7 @@ for (const format of ['triple-threat', 'fatal-4-way'] as const) {
 test('reabre um save com a queda em curso e interrompe o pinfall no navegador', async ({ page }) => {
   const signed = setMatchPreference(signedBefore('nxt', '2026-01-01'), 'triple-threat')
   const main = await importFixture(page, pauseForRivalFall(advanceCareer(signed)), 'finalizacao.json')
-  await navigate(page, 'Combates')
+  await main.getByRole('button', { name: 'Abrir carreira', exact: true }).click()
   const reaction = main.getByRole('region', { name: 'Interromper a finalização' })
   await expect(reaction).toBeVisible()
   await page.reload()
