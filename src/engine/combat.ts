@@ -1,6 +1,6 @@
 import { MOVE_BY_ID, type Move } from '../content/moves'
 import type { Fighter } from '../content/catalog'
-import { clamp, type Actor, type Attribute, type Bout, type BoutSide, type Difficulty, type Method, type Show, type TurnLog } from '../domain/model'
+import { clamp, type Actor, type Attribute, type BoutSide, type Difficulty, type DuelBout, type Method, type Show, type TurnLog } from '../domain/model'
 import { Random } from './random'
 
 export const SIGNATURE_MOMENTUM = 38
@@ -50,7 +50,7 @@ export function telegraph(action: string): string {
 }
 
 const other = (actor: Actor): Actor => actor === 'player' ? 'rival' : 'player'
-const initialSide = (): BoutSide => ({ condition: 100, stamina: 100, momentum: 8, position: 'standing' })
+export const initialSide = (): BoutSide => ({ condition: 100, stamina: 100, momentum: 8, position: 'standing' })
 
 function moveCost(move: Move, fighter: Fighter) {
   const proficiency = fighter.moveLevels[move.id] ?? 0
@@ -58,11 +58,13 @@ function moveCost(move: Move, fighter: Fighter) {
 }
 
 export function reasonUnavailable(
-  bout: Bout, actor: Actor, fighter: Fighter, action: string, enemyPlan?: string,
+  bout: DuelBout, actor: Actor, fighter: Fighter, action: string, enemyPlan?: string,
 ): string | null {
   if (bout.finish) return 'A luta terminou.'
-  const side = bout[actor]
-  const target = bout[other(actor)]
+  return fighterActionIssue(bout[actor], bout[other(actor)], fighter, action, enemyPlan)
+}
+
+export function fighterActionIssue(side: BoutSide, target: BoutSide, fighter: Fighter, action: string, enemyPlan?: string): string | null {
   if (action === 'guard' || action === 'breathe') return null
   if (side.position === 'grounded') return 'Recupere o fôlego para levantar.'
   if (action === 'climb') return side.position !== 'standing' ? 'Você já está no corner.' : side.stamina < 8 ? 'Precisa de 8 de stamina.' : null
@@ -90,12 +92,13 @@ const controlAttribute: Record<Move['kind'], Attribute> = {
   counter: 'defense', signature: 'psychology', finisher: 'finishing',
 }
 
-export function chooseAction(bout: Bout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
-  const side = bout[actor]
-  const opponent = bout[other(actor)]
-  const predicted = actor === 'rival' ? bout.used.at(-1) : undefined
+export function chooseAction(bout: DuelBout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
+  return chooseFighterAction(bout[actor], bout[other(actor)], fighter, difficulty, random, actor === 'rival' ? bout.used.at(-1) : undefined)
+}
+
+export function chooseFighterAction(side: BoutSide, opponent: BoutSide, fighter: Fighter, difficulty: Difficulty, random: Random, predicted?: string): string {
   const choices = [...fighter.moves, ...TACTICAL_ACTIONS].filter(action => (
-    !reasonUnavailable(bout, actor, fighter, action, action === 'guard' ? undefined : predicted)
+    !fighterActionIssue(side, opponent, fighter, action, predicted)
   ))
   const tactical = difficulty === 'hard' ? 1.45 : difficulty === 'easy' ? 0.55 : 1
   return random.weighted(choices, action => {
@@ -113,8 +116,8 @@ export function chooseAction(bout: Bout, actor: Actor, fighter: Fighter, difficu
   })
 }
 
-export function createBout(show: Show, id: string, rival: Fighter, difficulty: Difficulty, random: Random): Bout {
-  const bout: Bout = {
+export function createBout(show: Show, id: string, rival: Fighter, difficulty: Difficulty, random: Random): DuelBout {
+  const bout: DuelBout = {
     id, showId: show.id, rivalId: rival.id, player: initialSide(), rival: initialSide(), turn: 0,
     plan: 'guard', log: [], used: [], finish: null, xpAwarded: 0,
   }
@@ -125,7 +128,7 @@ export function createBout(show: Show, id: string, rival: Fighter, difficulty: D
 const tempo: Record<Move['kind'], number> = { quick: 37, heavy: 13, technical: 24, aerial: 24, counter: 65, signature: 28, finisher: 27 }
 const setupTempo: Record<string, number> = { guard: 80, breathe: 21, climb: 18, pin: 53, submit: 52 }
 
-function initiative(fighter: Fighter, action: string, random: Random): number {
+export function actionInitiative(fighter: Fighter, action: string, random: Random): number {
   const move = MOVE_BY_ID.get(action)
   return (move ? tempo[move.kind] : setupTempo[action]) + fighter.attributes.agility / 5 + random.next() * 12
 }
@@ -140,132 +143,141 @@ function finishChance(side: BoutSide, target: BoutSide, fighter: Fighter, enemy:
   )
 }
 
+export type Combatant = { fighter: Fighter; side: BoutSide }
+
+type ActionEffect = { text: string; referee?: true; guarding?: true; interrupts?: true } | { fall: Method }
+
+export function recoverStamina({ side, fighter }: Combatant) {
+  side.stamina = clamp(side.stamina + 2 + fighter.attributes.stamina / 20, 0, 100)
+}
+
+export function escapeFinish(target: BoutSide) {
+  target.position = 'standing'
+  target.stamina = clamp(target.stamina - 6, 0, 100)
+  target.momentum = clamp(target.momentum + 6, 0, 100)
+}
+
+export function announceFall(fighter: Fighter, defeated: Fighter, method: Method) {
+  return method === 'pinfall' ? 'Um, dois, três! ' + fighter.name + ' vence por pinfall.'
+    : defeated.name + ' bateu. ' + fighter.name + ' vence por submissão.'
+}
+
+export function resolveFighterAction(
+  { side, fighter }: Combatant, { side: target, fighter: enemy }: Combatant,
+  action: string, incoming: string, cover: boolean, random: Random,
+): ActionEffect {
+  if (fighterActionIssue(side, target, fighter, action, incoming)) {
+    return { text: fighter.name + ' perdeu a abertura para ' + actionName(action).toLowerCase() + '.' }
+  }
+  if (action === 'guard') {
+    side.stamina = clamp(side.stamina + 4, 0, 100)
+    return { text: fighter.name + ' fechou a guarda.', guarding: true }
+  }
+  if (action === 'breathe') {
+    side.position = 'standing'
+    side.stamina = clamp(side.stamina + 13 + fighter.attributes.stamina / 9, 0, 100)
+    side.momentum = clamp(side.momentum + 3, 0, 100)
+    return { text: fighter.name + ' recuperou o fôlego e ficou em pé.' }
+  }
+  if (action === 'climb') {
+    side.position = 'corner'
+    side.stamina -= 8
+    return { text: fighter.name + ' subiu no corner.' }
+  }
+  if (action === 'pin' || action === 'submit') {
+    const method = action === 'pin' ? 'pinfall' : 'submission'
+    side.stamina -= action === 'pin' ? 3 : 8
+    if (random.next() < finishChance(side, target, fighter, enemy, method)) return { fall: method }
+    escapeFinish(target)
+    return { referee: true, text: method === 'pinfall' ? enemy.name + ' escapou da contagem antes do três.' : enemy.name + ' escapou da chave.' }
+  }
+
+  const move = MOVE_BY_ID.get(action)!
+  const skill = fighter.attributes[controlAttribute[move.kind]]
+  const level = fighter.moveLevels[move.id] ?? 0
+  const tired = side.stamina < 30 ? (30 - side.stamina) * 0.006 : 0
+  const base = move.kind === 'counter' ? 0.72 : move.topRope ? 0.76 : 0.9
+  side.stamina -= moveCost(move, fighter)
+  side.position = 'standing'
+  if (move.kind === 'signature') side.momentum -= SIGNATURE_MOMENTUM
+  if (move.kind === 'finisher') side.momentum -= FINISHER_MOMENTUM
+  const chance = clamp(base + (skill - enemy.attributes.defense) * 0.004 + level * 0.02 - tired - (cover ? 0.11 : 0), 0.32, 0.98)
+  if (random.next() >= chance) {
+    side.momentum = clamp(side.momentum - 6, 0, 100)
+    return { text: enemy.name + ' evitou ' + move.name + ' de ' + fighter.name + '.' }
+  }
+
+  const raw = move.impact * (0.78 + skill / 210) + (random.next() * 4 - 2) + level * 1.5
+  const damage = Math.max(2, Math.round((raw - (enemy.attributes.endurance - 50) * 0.12) * (cover ? 0.54 : 1)))
+  target.condition = clamp(target.condition - damage, 0, 100)
+  target.stamina = clamp(target.stamina - Math.floor(damage / 4), 0, 100)
+  target.momentum = clamp(target.momentum - 5, 0, 100)
+  side.momentum = clamp(side.momentum + (move.counters ? 19 : move.kind === 'quick' ? 12 : 16), 0, 100)
+  const drops = target.condition === 0 || (!cover && move.knockdown && (target.condition <= 64 || move.kind === 'counter' || move.kind === 'aerial' || random.next() < 0.32))
+  if (drops) target.position = 'grounded'
+  else if (target.position === 'corner') target.position = 'standing'
+  return {
+    text: fighter.name + ' acertou ' + move.name + (drops ? ' e derrubou ' + enemy.name + '.' : ' em ' + enemy.name + '.'),
+    ...(move.counters ? { interrupts: true as const } : {}),
+  }
+}
+
 export function resolveExchange(
-  source: Bout, player: Fighter, rival: Fighter, playerAction: string, random: Random,
+  source: DuelBout, player: Fighter, rival: Fighter, playerAction: string, random: Random,
   saveFromFinish?: (defender: Actor, method: Method) => string | undefined,
-): Bout {
+): DuelBout {
   const turn = source.turn + 1
-  const bout: Bout = {
+  const bout: DuelBout = {
     ...source, turn, player: { ...source.player }, rival: { ...source.rival },
     log: [...source.log], used: [...source.used, playerAction],
   }
-  const fighters = { player, rival }
+  const actors = { player: { fighter: player, side: bout.player }, rival: { fighter: rival, side: bout.rival } }
   const actions = { player: playerAction, rival: source.plan }
   const guarded = new Set<Actor>()
   const interrupted = new Set<Actor>()
-  const log = (actor: TurnLog['actor'], message: string) => bout.log.push({ turn, actor, text: message })
-  const order: Actor[] = initiative(player, playerAction, random) >= initiative(rival, source.plan, random)
+  const log = (actor: TurnLog['actor'], text: string) => bout.log.push({ turn, actor, text })
+  const order: Actor[] = actionInitiative(player, playerAction, random) >= actionInitiative(rival, source.plan, random)
     ? ['player', 'rival'] : ['rival', 'player']
 
   for (const actor of order) {
     if (bout.finish || interrupted.has(actor)) continue
-    const targetActor = other(actor)
-    const side = bout[actor]
-    const target = bout[targetActor]
-    const fighter = fighters[actor]
-    const enemy = fighters[targetActor]
-    const action = actions[actor]
-    const move = MOVE_BY_ID.get(action)
-    const unavailable = reasonUnavailable(bout, actor, fighter, action, actions[targetActor])
-    if (unavailable) {
-      log(actor, fighter.name + ' perdeu a abertura para ' + actionName(action).toLowerCase() + '.')
-      continue
-    }
-
-    if (action === 'guard') {
-      guarded.add(actor)
-      side.stamina = clamp(side.stamina + 4, 0, 100)
-      log(actor, fighter.name + ' fechou a guarda.')
-      continue
-    }
-    if (action === 'breathe') {
-      side.position = 'standing'
-      side.stamina = clamp(side.stamina + 13 + fighter.attributes.stamina / 9, 0, 100)
-      side.momentum = clamp(side.momentum + 3, 0, 100)
-      log(actor, fighter.name + ' recuperou o fôlego e ficou em pé.')
-      continue
-    }
-    if (action === 'climb') {
-      side.position = 'corner'
-      side.stamina -= 8
-      log(actor, fighter.name + ' subiu no corner.')
-      continue
-    }
-    if (action === 'pin' || action === 'submit') {
-      const method = action === 'pin' ? 'pinfall' : 'submission'
-      side.stamina -= action === 'pin' ? 3 : 8
-      if (random.next() < finishChance(side, target, fighter, enemy, method)) {
-        const save = saveFromFinish?.(targetActor, method)
-        if (!save) {
-          bout.finish = { winner: actor, method }
-          log('referee', method === 'pinfall' ? 'Um, dois, três! ' + fighter.name + ' vence por pinfall.' : enemy.name + ' bateu. ' + fighter.name + ' vence por submissão.')
-          continue
-        }
+    const enemy = other(actor)
+    const result = resolveFighterAction(actors[actor], actors[enemy], actions[actor], actions[enemy], guarded.has(enemy), random)
+    if ('fall' in result) {
+      const save = saveFromFinish?.(enemy, result.fall)
+      if (save) {
         log('referee', save)
+        escapeFinish(bout[enemy])
       } else {
-        log('referee', method === 'pinfall' ? enemy.name + ' escapou da contagem antes do três.' : enemy.name + ' escapou da chave.')
+        bout.finish = { winner: actor, method: result.fall }
+        log('referee', announceFall(actors[actor].fighter, actors[enemy].fighter, result.fall))
       }
-      target.position = 'standing'
-      target.stamina = clamp(target.stamina - 6, 0, 100)
-      target.momentum = clamp(target.momentum + 6, 0, 100)
-      continue
-    }
-    if (!move) continue
-
-    const skill = fighter.attributes[controlAttribute[move.kind]]
-    const level = fighter.moveLevels[move.id] ?? 0
-    const tired = side.stamina < 30 ? (30 - side.stamina) * 0.006 : 0
-    const base = move.kind === 'counter' ? 0.72 : move.topRope ? 0.76 : 0.9
-    const cover = guarded.has(targetActor)
-    side.stamina -= moveCost(move, fighter)
-    side.position = 'standing'
-    if (move.kind === 'signature') side.momentum -= SIGNATURE_MOMENTUM
-    if (move.kind === 'finisher') side.momentum -= FINISHER_MOMENTUM
-
-    const chance = clamp(base + (skill - enemy.attributes.defense) * 0.004 + level * 0.02 - tired - (cover ? 0.11 : 0), 0.32, 0.98)
-    if (random.next() >= chance) {
-      side.momentum = clamp(side.momentum - 6, 0, 100)
-      log(actor, enemy.name + ' evitou ' + move.name + ' de ' + fighter.name + '.')
-      continue
-    }
-
-    if (move.counters) interrupted.add(targetActor)
-    const raw = move.impact * (0.78 + skill / 210) + (random.next() * 4 - 2) + level * 1.5
-    const damage = Math.max(2, Math.round((raw - (enemy.attributes.endurance - 50) * 0.12) * (cover ? 0.54 : 1)))
-    target.condition = clamp(target.condition - damage, 0, 100)
-    target.stamina = clamp(target.stamina - Math.floor(damage / 4), 0, 100)
-    target.momentum = clamp(target.momentum - 5, 0, 100)
-    side.momentum = clamp(side.momentum + (move.counters ? 19 : move.kind === 'quick' ? 12 : 16), 0, 100)
-    const drops = target.condition === 0 || (!cover && move.knockdown && (target.condition <= 64 || move.kind === 'counter' || move.kind === 'aerial' || random.next() < 0.32))
-    if (drops) target.position = 'grounded'
-    else if (target.position === 'corner') target.position = 'standing'
-    log(actor, fighter.name + ' acertou ' + move.name + (drops ? ' e derrubou ' + enemy.name + '.' : ' em ' + enemy.name + '.'))
-  }
-
-  if (!bout.finish) {
-    for (const actor of order) {
-      const side = bout[actor]
-      side.stamina = clamp(side.stamina + 2 + fighters[actor].attributes.stamina / 20, 0, 100)
+    } else {
+      if (result.guarding) guarded.add(actor)
+      if (result.interrupts) interrupted.add(enemy)
+      log(result.referee ? 'referee' : actor, result.text)
     }
   }
+
+  if (!bout.finish) for (const actor of order) recoverStamina(actors[actor])
   return bout
 }
 
 function nextExchange(
-  source: Bout, player: Fighter, rival: Fighter, difficulty: Difficulty, action: string, random: Random,
-): Bout {
+  source: DuelBout, player: Fighter, rival: Fighter, difficulty: Difficulty, action: string, random: Random,
+): DuelBout {
   const bout = resolveExchange(source, player, rival, action, random)
   if (!bout.finish) bout.plan = chooseAction(bout, 'rival', rival, difficulty, random)
   return bout
 }
 
-export function playTurn(bout: Bout, player: Fighter, rival: Fighter, difficulty: Difficulty, action: string, random: Random): Bout {
+export function playTurn(bout: DuelBout, player: Fighter, rival: Fighter, difficulty: Difficulty, action: string, random: Random): DuelBout {
   const reason = reasonUnavailable(bout, 'player', player, action, bout.plan)
   if (reason) throw new Error(reason)
   return nextExchange(bout, player, rival, difficulty, action, random)
 }
 
-export function simulateSingles(show: Show, id: string, first: Fighter, second: Fighter, random: Random): Bout {
+export function simulateSingles(show: Show, id: string, first: Fighter, second: Fighter, random: Random): DuelBout {
   let bout = createBout(show, id, second, 'normal', random)
   while (!bout.finish) {
     const action = chooseAction(bout, 'player', first, 'normal', random)

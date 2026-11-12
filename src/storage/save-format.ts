@@ -2,10 +2,15 @@ import { z } from 'zod'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, compareShows, fitsEventRoster, nextShows, showPromotions, validLegacyShow, wrestlerAppearsIn } from '../content/catalog'
 import { validMoveset } from '../content/moves'
 import { defenseFormat } from '../content/titles'
-import { DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION, TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, type Career, type Show } from '../domain/model'
+import {
+  COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
+  TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, isTeamFormat, type Career, type DuelBout, type Fall,
+  type MatchResult, type MultiBout, type Show,
+} from '../domain/model'
 import { PLAYER_ID } from '../engine/career'
 import { validAction } from '../engine/combat'
 import { formatForSize, matchTeams, sameTeam } from '../engine/matches'
+import { canBreakFall } from '../engine/multi-combat'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagSwapUnavailable, tagTarget } from '../engine/tag-combat'
 import { careerTeamPartners } from '../engine/tag-teams'
 import { fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../engine/titles'
@@ -21,7 +26,9 @@ const legacySchema = z.looseObject({
 const worldSchema = z.looseObject({ schemaVersion: z.literal(2), dataVersion: z.literal(WORLD_DATA_VERSION) })
 const trioSaveSchema = z.looseObject({ schemaVersion: z.literal(4), dataVersion: z.literal(TRIOS_DATA_VERSION) })
 const teamTitlesSaveSchema = z.looseObject({ schemaVersion: z.literal(5), dataVersion: z.literal(TEAM_TITLES_DATA_VERSION) })
-const competitionDefaults = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, tournamentEntries: [], tournamentFields: [] }
+const competitionsSaveSchema = z.looseObject({ schemaVersion: z.literal(6), dataVersion: z.literal(COMPETITIONS_DATA_VERSION) })
+const currentVersion = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION }
+const competitionDefaults = { ...currentVersion, tournamentEntries: [], tournamentFields: [] }
 const oldCornerSchema = z.object({
   partnerId: z.string(), partner: z.unknown(), partnerLegal: z.boolean(), lastTagTurn: z.number().nullable(), saveUsed: z.boolean(),
 })
@@ -52,6 +59,10 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
 
 function migrate(input: unknown): unknown {
   if (!input || typeof input !== 'object' || !('schemaVersion' in input)) return input
+  if (input.schemaVersion === 6) {
+    const competitions = competitionsSaveSchema.safeParse(input)
+    return competitions.success ? { ...competitions.data, ...currentVersion } : input
+  }
   if (input.schemaVersion === 5) {
     const teams = teamTitlesSaveSchema.safeParse(input)
     return teams.success ? { ...teams.data, ...competitionDefaults } : input
@@ -75,21 +86,65 @@ function migrate(input: unknown): unknown {
   return { ...legacy.data, ...defaults, expandedOn: legacy.data.date, vacatedTitles: [] }
 }
 
-function validLineup(career: Career, show: Show, teams: readonly [string[], string[]], player: boolean, mixed?: true): boolean {
-  const [first, second] = teams
-  const participants = [...first, ...second]
-  if (first.length !== second.length || !unique(participants) || player !== (first[0] === PLAYER_ID)) return false
+function validLineup(career: Career, show: Show, teams: readonly string[][], player: boolean, mixed?: true): boolean {
+  const [first, ...opponents] = teams
+  const participants = teams.flat()
+  if (!unique(participants) || player !== (first[0] === PLAYER_ID) || (opponents.length > 1 && first.length !== 1)) return false
   const divisions = first.map(id => fighterDivision(career, id))
   if (mixed) {
     if (show.promotion !== 'aaa' || first.length !== 2 || divisions[0] === divisions[1]) return false
   } else if (divisions.some(division => division !== divisions[0])) return false
-  if (second.some((id, index) => fighterDivision(career, id) !== divisions[index])) return false
+  if (opponents.some(team => team.length !== first.length || team.some((id, index) => fighterDivision(career, id) !== divisions[index]))) return false
   const circuits = showPromotions(show)
   return participants.every((id, index) => {
     if (player && index === 0) return true
     const fighter = ROSTER_BY_ID.get(id)
     return Boolean(fighter && fitsEventRoster(show, id) && circuits.some(promotion => wrestlerAppearsIn(fighter, promotion)))
   })
+}
+
+function validDuel(career: Career, bout: DuelBout, teams: readonly string[][], result: MatchResult | undefined): boolean {
+  const [first, second] = teams
+  const format = formatForSize(first.length, bout.tag?.mixed)
+  const teamBout = isTagBout(bout) ? bout : null
+  const { finish } = bout
+  const invalidCorner = teamBout && (['player', 'rival'] as const).some(actor => {
+    const corner = teamBout.tag[actor]
+    return corner.legalIndex > corner.partners.length || (corner.lastTagTurn ?? 0) > bout.turn
+      || (corner.legalIndex > 0 && corner.lastTagTurn === null) || (corner.saveUsed && bout.turn === 0)
+      || benchSlots(teamBout, actor).some(slot => cornerSide(teamBout, actor, slot).position !== 'standing')
+  })
+  const plannedTag = teamBout ? tagTarget(teamBout, 'rival', bout.plan) : undefined
+  const tagPlan = teamBout && !invalidCorner && plannedTag !== undefined && (finish || !tagSwapUnavailable(teamBout, 'rival', plannedTag))
+  if (invalidCorner || (bout.tag?.mixed && bout.tag.player.legalIndex !== bout.tag.rival.legalIndex)
+    || (!tagPlan && !validAction(bout.plan)) || bout.used.some(action => !validAction(action) && !(teamBout && (
+      (action !== 'tag' && Object.hasOwn(TAG_ACTIONS, action)) || tagTarget(teamBout, 'player', action) !== undefined
+    )))) return false
+  if (!finish) return format === 'singles' || sameTeam(first.slice(1), careerTeamPartners(career, format))
+  const resultTeams = result && matchTeams(result)
+  const starter = finish.winner === 'player' ? PLAYER_ID : bout.rivalId
+  return Boolean(result && resultTeams && !result.multi && result.secondId === bout.rivalId
+    && sameTeam(resultTeams[0], first) && sameTeam(resultTeams[1], second) && result.tag?.mixed === bout.tag?.mixed
+    && result.winnerId === legalFighterId(bout, finish.winner, starter) && result.tournamentId === bout.tournamentId)
+}
+
+function validMulti(bout: MultiBout, members: readonly string[], result: MatchResult | undefined): boolean {
+  const { opponents, targetId, pendingFall } = bout.multi
+  if (targetId === PLAYER_ID || !members.includes(targetId) || bout.used.some(action => !validAction(action))
+    || opponents.some(entry => entry.targetId === entry.id || !members.includes(entry.targetId) || !validAction(entry.action))) return false
+  const validFall = (fall: Fall) => members.includes(fall.winnerId) && members.includes(fall.defeatedId) && fall.winnerId !== fall.defeatedId
+  if (pendingFall) {
+    const attacker = opponents.find(entry => entry.id === pendingFall.winnerId)
+    const defender = opponents.find(entry => entry.id === pendingFall.defeatedId)
+    return Boolean(!bout.finish && bout.turn > 0 && validFall(pendingFall) && canBreakFall(bout.player)
+      && attacker?.side.position === 'standing' && defender?.side.position === 'grounded'
+      && attacker.targetId === defender.id && attacker.action === (pendingFall.method === 'pinfall' ? 'pin' : 'submit'))
+  }
+  const { finish } = bout
+  if (!finish) return true
+  if (!validFall(finish) || !result?.multi || result.winnerId !== finish.winnerId || result.multi.defeatedId !== finish.defeatedId) return false
+  const participants = matchTeams(result).flat()
+  return participants.length === members.length && members.every((id, index) => participants[index] === id)
 }
 
 export function validateCareer(input: unknown): Career {
@@ -115,7 +170,7 @@ export function validateCareer(input: unknown): Career {
     || (contract?.status === 'active' && career.offers.length > 0)
     || (trioPartnerIds && !unique(trioPartnerIds))
     || (mixedPartnerId && (contract?.promotion !== 'aaa' || !mixedPartner || mixedPartner.division === profile.division || !wrestlerAppearsIn(mixedPartner, 'aaa')))
-    || (preferredFormat !== 'singles' && !careerTeamPartners(career, preferredFormat).length)
+    || (isTeamFormat(preferredFormat) && !careerTeamPartners(career, preferredFormat).length)
     || partners.some(id => {
       const fighter = ROSTER_BY_ID.get(id)
       return !contract || !fighter || fighter.division !== profile.division || fighter.promotion !== contract.promotion
@@ -139,11 +194,12 @@ export function validateCareer(input: unknown): Career {
     const participants = bookedByDate.get(show.date) ?? new Set<string>()
     bookedByDate.set(show.date, participants)
     for (const match of show.matches) {
-      const [first, second] = matchTeams(match)
-      const members = [...first, ...second]
+      const teams = matchTeams(match)
+      const members = teams.flat()
       if (
-        !validLineup(career, show, [first, second], match.player, match.tag?.mixed)
+        !validLineup(career, show, teams, match.player, match.tag?.mixed)
         || !members.includes(match.winnerId) || match.rounds < 1
+        || (match.multi && (match.tag || match.tournamentId || !members.includes(match.multi.defeatedId) || match.winnerId === match.multi.defeatedId))
         || matchIds.has(match.id) || members.some(id => participants.has(id))
         || !match.id.startsWith(show.id + '/') || (match.player !== (match.id === show.id + '/career'))
       ) throw new Error('Há uma luta inválida, duplicada ou com conflito de agenda no save.')
@@ -169,49 +225,27 @@ export function validateCareer(input: unknown): Career {
   }
   if (bout) {
     const show = shows.find(item => item.id === bout.showId)
-    const teamBout = isTagBout(bout) ? bout : null
-    const firstTeam = cornerFighterIds(bout, 'player', PLAYER_ID)
-    const secondTeam = cornerFighterIds(bout, 'rival', bout.rivalId)
-    const format = formatForSize(firstTeam.length, bout.tag?.mixed)
-    const members = [...firstTeam, ...secondTeam]
+    const teams = bout.multi ? [[PLAYER_ID], ...bout.multi.opponents.map(entry => [entry.id])]
+      : [cornerFighterIds(bout, 'player', PLAYER_ID), cornerFighterIds(bout, 'rival', bout.rivalId)]
+    const members = teams.flat()
     const result = show?.matches.find(item => item.id === bout.id)
-    const resultTeams = result && matchTeams(result)
     const finish = bout.finish
-    const winningStarter = finish?.winner === 'player' ? PLAYER_ID : bout.rivalId
-    const invalidCorner = teamBout && (['player', 'rival'] as const).some(actor => {
-      const corner = teamBout.tag[actor]
-      return corner.legalIndex > corner.partners.length || (corner.lastTagTurn ?? 0) > bout.turn
-        || (corner.legalIndex > 0 && corner.lastTagTurn === null) || (corner.saveUsed && bout.turn === 0)
-        || benchSlots(teamBout, actor).some(slot => cornerSide(teamBout, actor, slot).position !== 'standing')
-    })
-    const plannedTag = teamBout ? tagTarget(teamBout, 'rival', bout.plan) : undefined
-    const tagPlan = teamBout && !invalidCorner && plannedTag !== undefined && (finish || !tagSwapUnavailable(teamBout, 'rival', plannedTag))
     if (
-      !show || !validLineup(career, show, [firstTeam, secondTeam], true, bout.tag?.mixed) || bout.id !== show.id + '/career'
-      || (bout.tag?.mixed && bout.tag.player.legalIndex !== bout.tag.rival.legalIndex)
-      || (!tagPlan && !validAction(bout.plan)) || bout.used.length !== bout.turn
-      || bout.used.some(action => !validAction(action) && !(teamBout && (
-        (action !== 'tag' && Object.hasOwn(TAG_ACTIONS, action)) || tagTarget(teamBout, 'player', action) !== undefined
-      )))
-      || bout.log.some(item => item.turn > bout.turn)
-      || invalidCorner
-      || (finish && (!result || !resultTeams || result.secondId !== bout.rivalId || !sameTeam(resultTeams[0], firstTeam)
-        || !sameTeam(resultTeams[1], secondTeam) || result.tag?.mixed !== bout.tag?.mixed
-        || result.winnerId !== legalFighterId(bout, finish.winner, winningStarter)
-        || result.titleId !== bout.titleId || result.tournamentId !== bout.tournamentId
-        || result.method !== finish.method || result.rounds !== bout.turn || bout.xpAwarded === 0))
+      !show || !validLineup(career, show, teams, true, bout.tag?.mixed) || bout.id !== show.id + '/career'
+      || bout.used.length !== bout.turn || bout.log.some(item => item.turn > bout.turn)
+      || (finish && (!result || result.titleId !== bout.titleId || result.method !== finish.method || result.rounds !== bout.turn || bout.xpAwarded === 0))
       || (!finish && (show.date !== career.date || contract?.status !== 'active' || !showPromotions(show).includes(contract.promotion)
-        || (format !== 'singles' && !sameTeam(firstTeam.slice(1), careerTeamPartners(career, format)))
         || result || bout.xpAwarded !== 0
         || members.some(id => bookedByDate.get(show.date)?.has(id))))
+      || !(bout.multi ? validMulti(bout, members, result) : validDuel(career, bout, teams, result))
     ) throw new Error('O estado da luta não corresponde ao calendário.')
     if (!finish && bout.titleId) {
       const title = TITLES_BY_ID.get(bout.titleId)
       const belt = belts.get(bout.titleId)
       const holders = belt?.holders
       if (!title || !belt || title.promotion !== contract?.promotion || !showSupportsTitle(show, title)
-        || format !== defenseFormat(title) || !titleTeamEligible(career, title, firstTeam) || !titleTeamEligible(career, title, secondTeam)
-        || (holders && !sameTeam(holders, firstTeam) && !sameTeam(holders, secondTeam))) {
+        || formatForSize(teams[0].length, bout.tag?.mixed) !== defenseFormat(title)
+        || teams.some(team => !titleTeamEligible(career, title, team)) || (holders && !teams.some(team => sameTeam(holders, team)))) {
         throw new Error('A disputa de cinturão em andamento é inválida.')
       }
     }
@@ -222,8 +256,8 @@ export function validateCareer(input: unknown): Career {
 
 const envelopeSchema = z.object({
   format: z.literal('wrestling-legacy'),
-  version: z.literal([1, 2, 3, 4, 5, SAVE_VERSION]),
-  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, SAVE_VERSION]) }),
+  version: z.literal([1, 2, 3, 4, 5, 6, SAVE_VERSION]),
+  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, 6, SAVE_VERSION]) }),
 })
 
 export function exportCareer(career: Career): string {

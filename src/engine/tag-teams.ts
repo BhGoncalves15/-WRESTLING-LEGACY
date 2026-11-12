@@ -2,7 +2,7 @@ import { ROSTER_BY_ID, fitsEventRoster, rosterFor } from '../content/roster'
 import type { RosterEntry } from '../content/roster-model'
 import { TEAM_REFERENCES } from '../content/tag-teams'
 import { TITLES_BY_ID, defenseFormat, type TitleRecord } from '../content/titles'
-import { DIVISIONS, TEAM_SIZE, overall, type Career, type Division, type Show, type TeamFormat, type WrestlingTeam } from '../domain/model'
+import { DIVISIONS, TEAM_SIZE, isTeamFormat, overall, type Career, type Division, type Show, type TeamFormat, type WrestlingTeam } from '../domain/model'
 import { matchWinners, sameTeam } from './matches'
 import type { Random } from './random'
 import { beltsDue, CAREER_FIGHTER_ID, titleEligible, titleStates, titleTeamEligible, type BeltStates } from './titles'
@@ -117,7 +117,7 @@ export function playerTeamBooking(
   }
 
   const format = career.preferredFormat
-  if (format === 'singles') return undefined
+  if (!isTeamFormat(format)) return undefined
   const team = lineup(format)
   if (!team) return undefined
   const { ids, partners, opponents } = team

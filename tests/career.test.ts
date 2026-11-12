@@ -8,7 +8,7 @@ import {
 } from '../src/engine/career'
 import { reasonUnavailable } from '../src/engine/combat'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
-import { careerWithOffer } from './fixtures'
+import { careerWithOffer, duelBoutFor } from './fixtures'
 
 const ID = 'c0a80101-beca-41da-8662-5bf96be05020'
 const COPY_ID = 'c0a80101-beca-41da-8662-5bf96be05021'
@@ -21,7 +21,7 @@ function startFight(career = careerWithOffer('nxt'), promotion: 'nxt' | 'tna' | 
 }
 
 function actionFor(career: Career) {
-  const bout = career.bout!
+  const bout = duelBoutFor(career)
   const player = playerFor(career)
   if (bout.player.position === 'grounded') return 'breathe'
   const eligible = (id: string) => !reasonUnavailable(bout, 'player', player, id, bout.plan)
@@ -103,7 +103,7 @@ describe('combate, agenda e XP', () => {
   it('usa a divisão correta para o rival da personagem', () => {
     const career = careerWithOffer('tna', 'women')
     const first = startFight(career, 'tna')
-    expect(ROSTER_BY_ID.get(first.bout!.rivalId)?.division).toBe('women')
+    expect(ROSTER_BY_ID.get(duelBoutFor(first).rivalId)?.division).toBe('women')
     expect(first.date).toBe('2026-01-01')
     expect(validateCareer(first)).toEqual(first)
   })
@@ -134,7 +134,8 @@ describe('combate, agenda e XP', () => {
 
   it('permite finais legítimos por pinfall e submissão e preserva os atributos em cada dificuldade', () => {
     const career = startFight()
-    const bout = { ...career.bout!, rival: { ...career.bout!.rival, condition: 0, position: 'grounded' as const }, plan: 'guard' }
+    const duel = duelBoutFor(career)
+    const bout = { ...duel, rival: { ...duel.rival, condition: 0, position: 'grounded' as const }, plan: 'guard' }
     for (const [action, method] of [['pin', 'pinfall'], ['submit', 'submission']] as const) {
       const result = resolvePlayerTurn({ ...career, bout }, action)
       expect(result.bout?.finish).toEqual({ winner: 'player', method })

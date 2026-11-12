@@ -1,4 +1,4 @@
-import { TEAM_SIZE, type Division, type MatchFormat, type PromotionId, type WrestlingTeam } from '../domain/model'
+import { TEAM_SIZE, type Division, type PromotionId, type TeamFormat, type WrestlingTeam } from '../domain/model'
 import { SOURCES } from './sources'
 
 export type TitleRule = 'singles' | 'junior' | 'cruiser' | 'pure' | 'television' | 'rookies' | 'tag' | 'trios' | 'maremoto'
@@ -146,7 +146,7 @@ export function supportsTagDefense(title: TitleRecord) {
   return defenseFormat(title) === 'tag'
 }
 
-export function defenseFormat(title: TitleRecord): MatchFormat | undefined {
+export function defenseFormat(title: TitleRecord): 'singles' | TeamFormat | undefined {
   if (supportsDefense(title)) return 'singles'
   if (title.status === 'active' && title.rule === 'tag' && title.holderTeam?.length === 2) {
     return title.division === 'mixed' ? 'mixed' : 'tag'

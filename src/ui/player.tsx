@@ -5,7 +5,7 @@ import { MOVE_BY_ID } from '../content/moves'
 import { NJPW_JUNIOR_IDS, TAMASHII_IDS } from '../content/roster-njpw'
 import { JUNIOR_WEIGHT_LIMIT, defenseFormat } from '../content/titles'
 import { ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DIVISION_LABEL, MATCH_FORMAT_LABEL, MATCH_FORMATS, MAX_RING_WEIGHT_KG, MIN_RING_WEIGHT_KG, MOVE_KIND_LABEL, TEAM_SIZE,
-  overall, type Attribute, type Career, type MatchFormat, type TeamFormat } from '../domain/model'
+  isTeamFormat, overall, type Attribute, type Career, type MatchFormat, type TeamFormat } from '../domain/model'
 import { attributeCost, balanceFor, fighterNames, hasLiveBout, moveCost, PLAYER_ID, recordFor } from '../engine/career'
 import { availableTeamPartners, careerTeamPartners, teamRecordFor } from '../engine/tag-teams'
 import { titleStates, type BeltStates } from '../engine/titles'
@@ -69,7 +69,7 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
   const locked = pending || hasLiveBout(career)
   const states = titleStates(career)
   const belts = [...states].filter(([, state]) => state.holders?.includes(PLAYER_ID))
-  const formats = MATCH_FORMATS.filter(format => format === 'singles' || careerTeamPartners(career, format).length > 0)
+  const formats = MATCH_FORMATS.filter(format => !isTeamFormat(format) || careerTeamPartners(career, format).length > 0)
   return <>
     <PageTitle title="Meu lutador" />
     <section className="panel profile-card">
@@ -106,14 +106,14 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
         <span className="chip">{state.defenses} defesas</span>
       </li>)}</ul>
     </section>}
-    {formats.length > 1 && <div className="panel team-preference">
+    <div className="panel team-preference">
       <label>Formato preferido nos cards
         <select disabled={pending} value={career.preferredFormat} onChange={event => onFormat(event.target.value as MatchFormat)}>
           {formats.map(format => <option key={format} value={format}>{MATCH_FORMAT_LABEL[format]}</option>)}
         </select>
       </label>
-      <small>Defesas de título têm prioridade.</small>
-    </div>}
+      <small>A escalação depende do elenco disponível. Torneios e defesas de título têm prioridade.</small>
+    </div>
     <TeamPanel career={career} format="tag" locked={locked} states={states} onTeam={ids => onTeam('tag', ids)} />
     <TeamPanel career={career} format="trios" locked={locked} states={states} onTeam={ids => onTeam('trios', ids)} />
     {contract?.promotion === 'aaa' && <TeamPanel career={career} format="mixed" locked={locked} states={states} onTeam={ids => onTeam('mixed', ids)} />}

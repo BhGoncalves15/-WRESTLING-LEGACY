@@ -7,7 +7,7 @@ import { RANKING_DAYS, rankingsFor } from '../src/engine/rankings'
 import { matchRivalry, rematchReady, trackRivalry, type RivalryStates } from '../src/engine/rivalries'
 import { groupTable, setTournamentEntry, tournamentEntryIssue, tournamentProgress } from '../src/engine/tournaments'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
-import { signedBefore } from './fixtures'
+import { duelBoutFor, signedBefore } from './fixtures'
 
 function resultsFor(career: Career, editionId: string) {
   const edition = tournamentEdition(editionId)!
@@ -16,11 +16,11 @@ function resultsFor(career: Career, editionId: string) {
 }
 
 function finishByPinfall(career: Career): Career {
-  const bout = career.bout!
+  const bout = duelBoutFor(career)
   const next = resolvePlayerTurn({
     ...career, bout: { ...bout, rival: { ...bout.rival, condition: 0, position: 'grounded' }, plan: 'guard' },
   }, 'pin')
-  expect(next.bout?.finish?.winner).toBe('player')
+  expect(duelBoutFor(next).finish?.winner).toBe('player')
   return next
 }
 

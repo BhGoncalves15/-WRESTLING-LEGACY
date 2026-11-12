@@ -9,7 +9,7 @@ import { isTagBout, legalFighterId } from '../src/engine/tag-combat'
 import { availableTeamPartners } from '../src/engine/tag-teams'
 import { fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../src/engine/titles'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
-import { careerWithOffer } from './fixtures'
+import { careerWithOffer, duelBoutFor } from './fixtures'
 
 function signed(promotion: PromotionId, division: Division = 'men') {
   const career = careerWithOffer(promotion, division)
@@ -17,7 +17,7 @@ function signed(promotion: PromotionId, division: Division = 'men') {
 }
 
 function pin(career: Career) {
-  const bout = career.bout!
+  const bout = duelBoutFor(career)
   const rival = { ...bout.rival, condition: 0, position: 'grounded' as const }
   if (!isTagBout(bout)) return resolvePlayerTurn({ ...career, bout: { ...bout, rival, plan: 'guard' } }, 'pin')
   const [first, second] = bout.tag.rival.partners
@@ -46,13 +46,13 @@ describe('cinturões de duplas especiais', () => {
       expect(() => setCareerTeam(career, 'mixed', [sameDivision])).toThrow(/disponíveis/)
       expect(availableTeamPartners(career, 'mixed').map(fighter => fighter.id)).toContain(partner)
       const debut = advanceCareer(setCareerTeam(career, 'mixed', [partner]))
-      const bout = debut.bout!
+      const bout = duelBoutFor(debut)
       expect(bout.tag?.mixed).toBe(true)
       expect(fighterDivision(debut, bout.rivalId)).toBe(division)
       const tagged = resolvePlayerTurn({ ...debut, bout: { ...bout, plan: 'guard' } }, 'tag')
       expect(tagged.bout?.tag?.player.legalIndex).toBe(1)
       expect(tagged.bout?.tag?.rival.legalIndex).toBe(1)
-      expect(legalFighterId(tagged.bout!, 'player', PLAYER_ID)).toBe(partner)
+      expect(legalFighterId(duelBoutFor(tagged), 'player', PLAYER_ID)).toBe(partner)
       expect(tagged.bout?.log.some(entry => entry.text.includes('entrou após a tag da outra dupla'))).toBe(true)
       expect(importCareer(exportCareer(tagged)).bout).toEqual(tagged.bout)
       const rivalTag = resolvePlayerTurn({ ...debut, bout: { ...bout, plan: 'tag' } }, 'guard')

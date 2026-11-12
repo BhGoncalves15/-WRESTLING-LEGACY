@@ -2,7 +2,7 @@ import { ROSTER_BY_ID, showPromotions, wrestlerAppearsIn } from '../content/cata
 import { NJPW_JUNIOR_IDS, TAMASHII_IDS } from '../content/roster-njpw'
 import { JUNIOR_WEIGHT_LIMIT, OPENING_TITLES, TITLES_BY_ID, defenseFormat, defenseSize, type TitleRecord } from '../content/titles'
 import { START_DATE, dayDistance, type Career, type MatchResult, type Show } from '../domain/model'
-import { formatForSize, matchTeams, matchWinners, sameTeam } from './matches'
+import { matchFormat, matchTeams, matchWinners, sameTeam, titleMatchFormat } from './matches'
 
 export const CAREER_FIGHTER_ID = 'career-player'
 
@@ -57,7 +57,7 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
   const from = state?.holders ?? null
   const teams = matchTeams(match)
   if (!title || !state || !showSupportsTitle(show, title)
-    || formatForSize(teams[0].length, match.tag?.mixed) !== defenseFormat(title)
+    || titleMatchFormat(matchFormat(match)) !== defenseFormat(title)
     || teams.some(team => !titleTeamEligible(career, title, team))
     || (from && !teams.some(team => sameTeam(team, from)))) {
     throw new Error('A disputa de cinturão não corresponde à divisão, ao evento ou ao campeão vigente.')

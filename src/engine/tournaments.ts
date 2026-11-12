@@ -136,7 +136,7 @@ export function validateTournaments(career: Career) {
   }
   const shows = new Map(career.shows.map(show => [show.id, show]))
   const resultIds = new Set(career.shows.flatMap(show => show.matches.filter(match => match.tournamentId).map(match => match.id)))
-  const live = career.bout && !career.bout.finish && career.bout.tournamentId ? career.bout : undefined
+  const live = career.bout && !career.bout.multi && !career.bout.finish && career.bout.tournamentId ? career.bout : undefined
   let validLive = !live
   for (const field of fields.values()) {
     const edition = tournamentEdition(field.editionId)
@@ -149,7 +149,7 @@ export function validateTournaments(career: Career) {
       const open = live?.showId === show.id && live.tournamentId === edition.editionId ? live : undefined
       if (!fighters || Boolean(result) === Boolean(open)) throw error()
       const participants = result ? [result.firstId, result.secondId] : [CAREER_FIGHTER_ID, open!.rivalId]
-      if (participants.some(id => !fighters.includes(id)) || (result && (result.tag || result.titleId))
+      if (participants.some(id => !fighters.includes(id)) || (result && (result.tag || result.multi || result.titleId))
         || (open && (open.tag || open.titleId || career.contract?.promotion !== edition.promotion))) throw error()
       if (result) resultIds.delete(result.id)
       else validLive = true

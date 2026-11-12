@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { tournamentEdition } from '../../src/content/tournaments'
-import { signOffer } from '../../src/engine/career'
+import { MATCH_FORMAT_LABEL, MULTI_SIZE, type Career } from '../../src/domain/model'
+import { advanceCareer, setMatchPreference, signOffer } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
-import { careerWithOffer, signedBefore } from '../fixtures'
+import { careerWithOffer, pauseForRivalFall, signedBefore } from '../fixtures'
 
 async function navigate(page: Page, route: string) {
   const mobile = page.getByRole('button', { name: 'Abrir navegação' })
@@ -108,15 +109,20 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-async function signBhBwfCareer(page: Page) {
+async function importFixture(page: Page, career: Career, fileName: string) {
   await page.goto('./')
   const main = page.getByRole('main')
   await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
   await navigate(page, 'Salvamentos')
   await main.getByLabel('Arquivo de carreira').setInputFiles({
-    name: 'bwf.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(careerWithOffer('bwf'))),
+    name: fileName, mimeType: 'application/json', buffer: Buffer.from(exportCareer(career)),
   })
   await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  return main
+}
+
+async function signBhBwfCareer(page: Page) {
+  const main = await importFixture(page, careerWithOffer('bwf'), 'bwf.json')
   await navigate(page, 'Contratos')
   await main.getByRole('button', { name: 'Assinar com BWF', exact: true }).click()
   await expect(main.getByRole('heading', { name: 'Calendário' })).toBeVisible()
@@ -266,5 +272,49 @@ test('inscreve BH em uma copa, abre a chave e retoma a semifinal', async ({ page
   await card.locator('summary').click()
   await expect(card.getByText('Em andamento', { exact: true })).toBeVisible()
   await expect(card.getByText(/× BH$|^BH ×/)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+for (const format of ['triple-threat', 'fatal-4-way'] as const) {
+  const name = MATCH_FORMAT_LABEL[format]
+  test('escala ' + name + ' pelo perfil e salva a troca de alvo', async ({ page }, testInfo) => {
+    const main = await importFixture(page, signedBefore('nxt', '2026-01-01'), 'nxt.json')
+    await navigate(page, 'Meu lutador')
+    await main.getByRole('combobox', { name: 'Formato preferido nos cards' }).selectOption(format)
+    await expect(main.getByRole('combobox', { name: 'Formato preferido nos cards' })).toHaveValue(format)
+    await navigate(page, 'Calendário')
+    await main.getByRole('button', { name: 'Avançar calendário' }).click()
+    await expect(main.getByText('WWE NXT · ' + name, { exact: true })).toBeVisible()
+    await expect(main.locator('.ring-corner')).toHaveCount(MULTI_SIZE[format])
+    const target = main.getByRole('combobox', { name: 'Alvo da sua ação' })
+    const chosen = (await target.locator('option').last().getAttribute('value'))!
+    await target.selectOption(chosen)
+    await expect(target).toHaveValue(chosen)
+    await expect(main.getByText('Turno 1', { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(target).toHaveValue(chosen)
+    await expect(main.getByText('Turno 1', { exact: true })).toBeVisible()
+    await main.getByRole('button', { name: /^Fechar a guarda/ }).click()
+    await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/' + format + '-' + testInfo.project.name + '.png', fullPage: true })
+  })
+}
+
+test('reabre um save com a queda em curso e interrompe o pinfall no navegador', async ({ page }) => {
+  const signed = setMatchPreference(signedBefore('nxt', '2026-01-01'), 'triple-threat')
+  const main = await importFixture(page, pauseForRivalFall(advanceCareer(signed)), 'finalizacao.json')
+  await navigate(page, 'Combates')
+  const reaction = main.getByRole('region', { name: 'Interromper a finalização' })
+  await expect(reaction).toBeVisible()
+  await page.reload()
+  await expect(reaction).toBeVisible()
+  await reaction.getByRole('button', { name: /^Interromper · 12 de stamina/ }).click()
+  await expect(reaction).toHaveCount(0)
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByText(/^BH interrompeu a contagem de /)).toBeVisible()
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByText(/^BH interrompeu a contagem de /)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

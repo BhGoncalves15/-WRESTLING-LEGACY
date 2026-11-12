@@ -8,7 +8,7 @@ import { benchSlots, isTagBout, legalFighterId } from '../src/engine/tag-combat'
 import { teamRecordFor } from '../src/engine/tag-teams'
 import { applyTitleMatch, titleEligible, titleStates } from '../src/engine/titles'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
-import { careerWithOffer } from './fixtures'
+import { careerWithOffer, duelBoutFor } from './fixtures'
 
 const PARTNERS = ['jon-moxley', 'wheeler-yuta'] as const
 
@@ -33,7 +33,7 @@ function actionAgainstGuard(career: Career, action: string) {
 }
 
 function atPinfall(career: Career): Career {
-  const bout = career.bout!
+  const bout = duelBoutFor(career)
   const tag = bout.tag
   const rival = { ...bout.rival, condition: 0, position: 'grounded' as const }
   if (!tag) return { ...career, bout: { ...bout, rival, plan: 'guard' } }

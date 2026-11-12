@@ -409,3 +409,30 @@ select { padding-right: 22px; }
   .tournament-card summary .chip { max-width: 90px; font-size: 10px; }
   .rivalry-row { flex-wrap: wrap; }
 }
+
+.multi-ring .corner-header { flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.multi-ring .corner-header > div:nth-child(2) { flex-basis: 100%; order: 3; }
+.multi-ring .corner-header h2 { font-size: clamp(24px, 2.1vw, 31px); }
+.multi-ring .corner-header .fighter-avatar { flex-basis: 36px; height: 36px; font-size: 22px; }
+.multi-ring .corner-header .rating strong { font-size: 31px; }
+.targeted-corner { border-color: var(--lime); }
+.multi-intent { border-top: 1px solid var(--line); margin-top: 11px; padding-top: 8px; font-size: 12px; }
+.multi-intent::first-letter { text-transform: uppercase; }
+.multi-target > div { flex: 1; min-width: 0; }
+.multi-target label { width: min(100%, 355px); }
+.multi-target select { min-width: 0; }
+.fall-reaction { display: flex; flex-wrap: wrap; gap: 13px; align-items: center; justify-content: space-between;
+  border-color: #a97a50; background: #31241a; padding: 14px; margin-bottom: 14px; }
+.fall-reaction h2 { font-size: 29px; color: #ffcca0; }
+.fall-reaction p { margin-top: 5px; color: var(--text); }
+.reaction-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+@media (min-width: 1080px) {
+  .multi-ring-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .multi-ring-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+  .multi-ring .corner-header { gap: 5px; }
+  .multi-intent { font-size: 11px; }
+  .reaction-buttons { width: 100%; }
+  .reaction-buttons .button { flex: 1 1 auto; }
+}
