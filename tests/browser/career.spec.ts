@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { signOffer } from '../../src/engine/career'
+import { exportCareer } from '../../src/storage/save-format'
+import { careerWithOffer } from '../fixtures'
 
 async function navigate(page: Page, route: string) {
   const mobile = page.getByRole('button', { name: 'Abrir navegação' })
@@ -19,6 +22,7 @@ test('cria BH, negocia, retoma o combate e importa o save em outra carreira', as
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Nova carreira' }).click()
   await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
+  await expect(main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' })).toHaveValue('80')
   await expect(main.getByLabel('Nome de ringue')).toHaveValue('BH')
   await expect(main.getByRole('combobox', { name: /^Estilo\b/ })).toHaveValue('Highflyer')
   await main.getByRole('button', { name: 'Continuar' }).click()
@@ -87,6 +91,7 @@ test('consulta elencos, cinturões e as duas agendas do universo', async ({ page
   await navigate(page, 'Campeonatos')
   await expect(main.getByText('71 títulos · Abertura em 01/01/2026')).toBeVisible()
   await expect(main.getByText('Trios jogáveis', { exact: true })).toHaveCount(4)
+  await expect(main.getByText('Duplas mistas jogáveis', { exact: true })).toHaveCount(1)
   await expect(main.getByText('AAA World Cruiserweight Championship', { exact: true })).toHaveCount(1)
   await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('aew')
   await expect(main.getByText('10 títulos · Abertura em 01/01/2026')).toBeVisible()
@@ -173,5 +178,36 @@ test('forma um trio, escolhe quem entra e restaura os quatro reservas do apron',
   await expect(main.getByRole('heading', { name: 'Ações no apron' })).toBeVisible()
   await expect(main.locator('.apron-card').first().getByText('BH', { exact: true })).toBeVisible()
   await expect(main.locator('.apron-members li')).toHaveCount(4)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('registra o peso, forma uma dupla mista e retoma a troca sincronizada da AAA', async ({ page }) => {
+  const opening = careerWithOffer('aaa')
+  const signed = signOffer(opening, opening.offers.find(offer => offer.promotion === 'aaa')!.id)
+  const saved = exportCareer({ ...signed, profile: { ...signed.profile, ringWeightKg: null } })
+  await page.goto('./')
+  await navigate(page, 'Salvamentos')
+  const main = page.getByRole('main')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({ name: 'aaa.json', mimeType: 'application/json', buffer: Buffer.from(saved) })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  await navigate(page, 'Meu lutador')
+  await main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' }).fill('100')
+  await main.getByRole('button', { name: 'Registrar peso' }).click()
+  await expect(main.getByText(/100 kg · Competitivo/)).toBeVisible()
+  const panel = main.getByRole('region', { name: 'Minha dupla mista' })
+  await panel.getByRole('combobox', { name: 'Parceiro da dupla mista' }).selectOption('faby-apache')
+  await panel.getByRole('button', { name: 'Formar dupla mista' }).click()
+  await expect(panel.getByRole('button', { name: 'Encerrar dupla mista' })).toBeVisible()
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(/ · Duplas mistas$/)).toBeVisible()
+  const opponent = main.locator('.rival-corner h2')
+  const starter = await opponent.innerText()
+  await main.getByRole('button', { name: /^Fazer a tag/ }).click()
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: 'Faby Apache', exact: true })).toBeVisible()
+  await expect(opponent).not.toHaveText(starter)
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.locator('.apron-card').last().getByText(starter, { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

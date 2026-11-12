@@ -1,7 +1,7 @@
-import type { PromotionId } from '../domain/model'
+import type { PromotionId, Show } from '../domain/model'
 import { AEW_ROSTER } from './roster-aew'
 import { type Appearance, type RosterEntry } from './roster-model'
-import { NJPW_ROSTER } from './roster-njpw'
+import { NJPW_ROSTER, TAMASHII_IDS, TAMASHII_REGIONAL_IDS } from './roster-njpw'
 import { PILOT_ROSTER } from './roster-pilot'
 import { REGIONAL_ROSTER } from './roster-regional'
 import { WWE_ROSTER } from './roster-wwe'
@@ -51,4 +51,8 @@ export function wrestlerAppearsIn(fighter: RosterEntry, promotion: PromotionId) 
 
 export function rosterFor(promotion: PromotionId, includeGuests = true) {
   return ROSTER.filter(fighter => fighter.promotion === promotion || (includeGuests && wrestlerAppearsIn(fighter, promotion)))
+}
+
+export function fitsEventRoster(show: Show, fighterId: string) {
+  return show.series === 'tamashii' ? TAMASHII_IDS.has(fighterId) : !TAMASHII_REGIONAL_IDS.has(fighterId)
 }

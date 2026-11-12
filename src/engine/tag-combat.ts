@@ -106,13 +106,20 @@ function tagPlan(bout: TagBout, actor: Actor, lineup: TagLineup, difficulty: Dif
 
 export function createTagBout(show: Show, id: string, lineup: TagLineup, difficulty: Difficulty, random: Random): TagBout {
   if (lineup.player.length !== lineup.rival.length) throw new Error('As duas equipes precisam ter o mesmo número de lutadores.')
+  const division = lineup.player[0].division
+  const mixed = lineup.player.length === 2 && lineup.player[1].division !== division
+  if (lineup.rival[0].division !== division || (mixed
+    ? lineup.rival[1].division !== lineup.player[1].division
+    : CORNERS.some(actor => lineup[actor].some(fighter => fighter.division !== division)))) {
+    throw new Error('A formação não corresponde à divisão da luta.')
+  }
   const bout = createBout(show, id, lineup.rival[0], difficulty, random)
   const corner = (actor: Actor): TagCorner => {
     const [, second, third] = lineup[actor]
     const partner = (fighter: Fighter) => ({ id: fighter.id, side: { ...bout[actor] } })
     return { partners: third ? [partner(second), partner(third)] : [partner(second)], legalIndex: 0, lastTagTurn: null, saveUsed: false }
   }
-  return { ...bout, tag: { player: corner('player'), rival: corner('rival') } }
+  return { ...bout, tag: { player: corner('player'), rival: corner('rival'), ...(mixed ? { mixed: true } : {}) } }
 }
 
 function copyCorner(corner: TagCorner): TagCorner {
@@ -126,21 +133,31 @@ function exchangeTag(
 ): TagBout {
   const bout: TagBout = {
     ...source, player: { ...source.player }, rival: { ...source.rival }, log: [...source.log],
-    tag: { player: copyCorner(source.tag.player), rival: copyCorner(source.tag.rival) },
+    tag: { ...source.tag, player: copyCorner(source.tag.player), rival: copyCorner(source.tag.rival) },
   }
   const playerAction = action === 'watch' || action === 'save-partner'
     ? tagPlan(source, 'player', lineup, difficulty, random, action === 'watch') : action
   const actions = { player: playerAction, rival: source.plan }
+  const selected = {
+    player: playerAction === 'ask-tag' ? 0 as const : tagTarget(source, 'player', playerAction),
+    rival: tagTarget(source, 'rival', source.plan),
+  }
+  const mirrored = bout.tag.mixed && (selected.player !== undefined || selected.rival !== undefined)
 
   for (const actor of CORNERS) {
-    const target = actions[actor] === 'ask-tag' ? 0 : tagTarget(bout, actor, actions[actor])
+    const requested = selected[actor]
+    const target = requested ?? (mirrored ? (bout.tag[actor].legalIndex === 0 ? 1 : 0) : undefined)
     if (target === undefined) continue
     const outgoing = legalFighter(bout, actor, lineup).name
-    cornerSide(bout, actor).stamina -= TAG_STAMINA
+    const side = cornerSide(bout, actor)
+    if (requested !== undefined) side.stamina -= TAG_STAMINA
+    else side.position = 'standing'
     bout.tag[actor].legalIndex = target
     bout.tag[actor].lastTagTurn = bout.turn + 1
     const incoming = legalFighter(bout, actor, lineup).name
-    bout.log.push({ turn: bout.turn + 1, actor, text: outgoing + ' fez a tag. ' + incoming + ' entrou no ringue.' })
+    bout.log.push({ turn: bout.turn + 1, actor, text: requested === undefined
+      ? incoming + ' entrou após a tag da outra dupla.'
+      : outgoing + ' fez a tag. ' + incoming + ' entrou no ringue.' })
     actions[actor] = 'guard'
   }
   const result = resolveExchange({ ...duelView(bout), plan: actions.rival }, legalFighter(bout, 'player', lineup),

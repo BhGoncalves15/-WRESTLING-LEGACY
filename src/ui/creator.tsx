@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronRight, Minus, Plus, Sparkles } fro
 import { useState, type FormEvent } from 'react'
 import {
   ALIGNMENTS, ATTRIBUTES, ATTRIBUTE_NAMES, DIFFICULTIES, DIFFICULTY_LABEL, DIVISIONS, DIVISION_LABEL, INITIAL_ATTRIBUTE, INITIAL_BUDGET,
-  INITIAL_LIMIT, MOVE_KINDS, MOVE_KIND_LABEL, MOVE_SLOTS, STYLES, clamp, overall, pointsSpent, startingAttributes,
+  INITIAL_LIMIT, MAX_RING_WEIGHT_KG, MIN_RING_WEIGHT_KG, MOVE_KINDS, MOVE_KIND_LABEL, MOVE_SLOTS, STYLES, clamp, overall, pointsSpent, startingAttributes,
   suggestedAttributes, type Attribute, type Difficulty, type Profile,
 } from '../domain/model'
 import { defaultMoves, MOVES, MOVE_BY_ID } from '../content/moves'
@@ -13,7 +13,7 @@ const steps = ['Identidade', 'Atributos', 'Golpes'] as const
 
 function blankProfile(): Profile {
   return {
-    name: '', nickname: '', country: 'Brasil', city: '', age: 23, division: 'men', alignment: 'Face',
+    name: '', nickname: '', country: 'Brasil', city: '', age: 23, ringWeightKg: 80, division: 'men', alignment: 'Face',
     style: 'All-Rounder', personality: 'Competitivo', appearance: '', gear: '', entrance: '',
     attributes: startingAttributes(), moves: defaultMoves('All-Rounder'), moveLevels: {},
   }
@@ -62,6 +62,8 @@ export function Creator({ initialDifficulty, pending, onCancel, onCreate }: {
           {textField('country', 'País', true)}
           {textField('city', 'Cidade')}
           <label>Idade<input name="age" type="number" min={16} max={80} value={profile.age || ''} required onChange={event => update('age', Number(event.target.value))} /></label>
+          <label>Peso de ringue (kg)<input name="ringWeightKg" type="number" min={MIN_RING_WEIGHT_KG} max={MAX_RING_WEIGHT_KG}
+            value={profile.ringWeightKg ?? ''} required onChange={event => update('ringWeightKg', event.target.value === '' ? null : Number(event.target.value))} /></label>
           <label>Divisão<select value={profile.division} onChange={event => update('division', event.target.value as Profile['division'])}>
             {DIVISIONS.map(division => <option key={division} value={division}>{DIVISION_LABEL[division]}</option>)}</select></label>
           <label>Estilo<select value={profile.style} onChange={event => {

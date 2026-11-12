@@ -1,7 +1,8 @@
 import { ROSTER_BY_ID, showPromotions, wrestlerAppearsIn } from '../content/catalog'
-import { OPENING_TITLES, TITLES_BY_ID, defenseSize, type TitleRecord } from '../content/titles'
+import { NJPW_JUNIOR_IDS, TAMASHII_IDS } from '../content/roster-njpw'
+import { JUNIOR_WEIGHT_LIMIT, OPENING_TITLES, TITLES_BY_ID, defenseFormat, defenseSize, type TitleRecord } from '../content/titles'
 import { START_DATE, dayDistance, type Career, type MatchResult, type Show } from '../domain/model'
-import { matchTeams, matchWinners, sameTeam } from './matches'
+import { formatForSize, matchTeams, matchWinners, sameTeam } from './matches'
 
 export const CAREER_FIGHTER_ID = 'career-player'
 
@@ -23,13 +24,30 @@ export type BeltState = {
 export type BeltStates = Map<string, BeltState>
 
 export function showSupportsTitle(show: Show, title: TitleRecord): boolean {
-  return defenseSize(title) !== undefined && showPromotions(show).includes(title.promotion)
+  return defenseFormat(title) !== undefined && showPromotions(show).includes(title.promotion)
+    && (title.qualification === 'tamashii') === (show.series === 'tamashii')
+}
+
+export function fighterDivision(career: Career, id: string) {
+  return id === CAREER_FIGHTER_ID ? career.profile.division : ROSTER_BY_ID.get(id)?.division
 }
 
 export function titleEligible(career: Career, title: TitleRecord, id: string): boolean {
-  if (id === CAREER_FIGHTER_ID) return career.profile.division === title.division
-  const fighter = ROSTER_BY_ID.get(id)
-  return Boolean(fighter && fighter.division === title.division && wrestlerAppearsIn(fighter, title.promotion))
+  const division = fighterDivision(career, id)
+  if (!division || (title.division !== 'mixed' && division !== title.division)) return false
+  const player = id === CAREER_FIGHTER_ID
+  if (!player && !wrestlerAppearsIn(ROSTER_BY_ID.get(id)!, title.promotion)) return false
+  if (title.qualification === 'tamashii') return player || TAMASHII_IDS.has(id)
+  if (title.qualification === 'junior') {
+    const weight = career.profile.ringWeightKg
+    return player ? weight !== null && weight <= JUNIOR_WEIGHT_LIMIT : NJPW_JUNIOR_IDS.has(id)
+  }
+  return true
+}
+
+export function titleTeamEligible(career: Career, title: TitleRecord, ids: readonly string[]) {
+  return ids.length === defenseSize(title) && ids.every(id => titleEligible(career, title, id))
+    && (title.division !== 'mixed' || fighterDivision(career, ids[0]) !== fighterDivision(career, ids[1]))
 }
 
 export function applyTitleMatch(states: BeltStates, career: Career, show: Show, match: MatchResult) {
@@ -39,8 +57,8 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
   const from = state?.holders ?? null
   const teams = matchTeams(match)
   if (!title || !state || !showSupportsTitle(show, title)
-    || teams.some(team => team.length !== defenseSize(title))
-    || !teams.flat().every(id => titleEligible(career, title, id))
+    || formatForSize(teams[0].length, match.tag?.mixed) !== defenseFormat(title)
+    || teams.some(team => !titleTeamEligible(career, title, team))
     || (from && !teams.some(team => sameTeam(team, from)))) {
     throw new Error('A disputa de cinturão não corresponde à divisão, ao evento ou ao campeão vigente.')
   }

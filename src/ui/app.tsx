@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
   advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
-  renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setMatchPreference, signOffer,
+  registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setMatchPreference, signOffer,
 } from '../engine/career'
 import { createSave, listSaves, openSave, saveCareer, type Vault } from '../storage/indexed-db'
 import { exportCareer, importCareer } from '../storage/save-format'
@@ -215,6 +215,7 @@ export function App() {
         onAttribute={attribute => change(current => improveAttribute(current, attribute))}
         onMove={id => change(current => improveMove(current, id))}
         onTeam={(format, ids) => change(current => setCareerTeam(current, format, ids))}
+        onWeight={weight => change(current => registerRingWeight(current, weight))}
         onFormat={format => change(current => setMatchPreference(current, format))} />
       if (route === 'contratos') return <Contracts career={career} pending={pending}
         onSign={id => change(current => signOffer(current, id), openCalendar)}

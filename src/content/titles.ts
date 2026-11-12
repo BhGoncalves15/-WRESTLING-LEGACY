@@ -1,7 +1,8 @@
-import { TEAM_SIZE, type Division, type PromotionId, type WrestlingTeam } from '../domain/model'
+import { TEAM_SIZE, type Division, type MatchFormat, type PromotionId, type WrestlingTeam } from '../domain/model'
 import { SOURCES } from './sources'
 
 export type TitleRule = 'singles' | 'junior' | 'cruiser' | 'pure' | 'television' | 'rookies' | 'tag' | 'trios' | 'maremoto'
+export const JUNIOR_WEIGHT_LIMIT = 100
 
 export type TitleRecord = {
   id: string
@@ -10,6 +11,7 @@ export type TitleRecord = {
   listings: readonly PromotionId[]
   division: Division | 'mixed'
   rule: TitleRule
+  qualification?: 'junior' | 'tamashii'
   status: 'active' | 'later' | 'unverified'
   holder: string | null
   holderId?: string
@@ -21,6 +23,7 @@ export type TitleRecord = {
 
 type SinglesSettings = {
   rule?: TitleRule
+  qualification?: TitleRecord['qualification']
   listings?: readonly PromotionId[]
   vacant?: boolean
   status?: TitleRecord['status']
@@ -32,13 +35,16 @@ function singles(id: string, name: string, promotion: PromotionId, division: Div
   return {
     id, name, promotion, division, holderId, holder, source,
     status: settings.status ?? 'active', listings: settings.listings ?? [promotion], rule: settings.rule ?? 'singles',
+    qualification: settings.qualification,
     vacant: settings.vacant, note: settings.note,
   }
 }
 
 function team(id: string, name: string, promotion: PromotionId, division: TitleRecord['division'],
-  rule: 'tag' | 'trios', holder: string, source: string, holderTeam?: WrestlingTeam, listings: readonly PromotionId[] = [promotion]): TitleRecord {
-  return { id, name, promotion, division, rule, holder, holderTeam, source, status: 'active', listings }
+  rule: 'tag' | 'trios', holder: string, source: string, holderTeam?: WrestlingTeam,
+  settings: Pick<SinglesSettings, 'listings' | 'qualification'> = {}): TitleRecord {
+  return { id, name, promotion, division, rule, holder, holderTeam, source, status: 'active',
+    listings: settings.listings ?? [promotion], qualification: settings.qualification }
 }
 
 const WWE_BRANDS = ['raw', 'smackdown', 'nxt'] as const
@@ -55,7 +61,7 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   singles('sd-us', 'WWE United States Championship', 'smackdown', 'men', 'carmelo-hayes', 'Carmelo Hayes', SOURCES.sd26),
   singles('sd-women-us', 'WWE Women’s United States Championship', 'smackdown', 'women', 'chelsea-green', 'Chelsea Green', SOURCES.wweWomenUS),
   team('sd-tag', 'WWE Tag Team Championship', 'smackdown', 'men', 'tag', 'The Wyatt Sicks · Dexter Lumis e Joe Gacy', SOURCES.sd19, ['dexter-lumis', 'joe-gacy']),
-  team('wwe-women-tag', 'WWE Women’s Tag Team Championship', 'raw', 'women', 'tag', 'The Kabuki Warriors · Asuka e Kairi Sane', SOURCES.wweWomenTag, ['asuka', 'kairi-sane'], WWE_BRANDS),
+  team('wwe-women-tag', 'WWE Women’s Tag Team Championship', 'raw', 'women', 'tag', 'The Kabuki Warriors · Asuka e Kairi Sane', SOURCES.wweWomenTag, ['asuka', 'kairi-sane'], { listings: WWE_BRANDS }),
   singles('nxt-men', 'NXT Championship', 'nxt', 'men', 'oba-femi', 'Oba Femi', SOURCES.nxtTitle),
   singles('nxt-women', 'NXT Women’s Championship', 'nxt', 'women', 'jacy-jayne', 'Jacy Jayne', SOURCES.nxtWomen),
   singles('nxt-na', 'NXT North American Championship', 'nxt', 'men', 'ethan-page', 'Ethan Page', SOURCES.nxtDecember),
@@ -76,9 +82,9 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   singles('njpw-iwgp', 'IWGP World Heavyweight Championship', 'njpw', 'men', 'konosuke-takeshita', 'Konosuke Takeshita', SOURCES.njpwWk20,
     { note: 'O IWGP Heavyweight Championship foi reativado no mundo real depois do Wrestle Kingdom 20.' }),
   singles('njpw-global', 'IWGP Global Heavyweight Championship', 'njpw', 'men', 'yota-tsuji', 'Yota Tsuji', SOURCES.njpwSnapshot),
-  singles('njpw-junior', 'IWGP Junior Heavyweight Championship', 'njpw', 'men', 'douki', 'DOUKI', SOURCES.njpwSnapshot, { rule: 'junior' }),
+  singles('njpw-junior', 'IWGP Junior Heavyweight Championship', 'njpw', 'men', 'douki', 'DOUKI', SOURCES.njpwJunior, { rule: 'junior', qualification: 'junior' }),
   team('njpw-tag', 'IWGP Tag Team Championship', 'njpw', 'men', 'tag', 'Knockout Brothers · OSKAR e Yuto-Ice', SOURCES.njpwSnapshot, ['oskar', 'yuto-ice']),
-  team('njpw-junior-tag', 'IWGP Junior Heavyweight Tag Team Championship', 'njpw', 'men', 'tag', 'House of Torture · DOUKI e SHO', SOURCES.njpwSnapshot),
+  team('njpw-junior-tag', 'IWGP Junior Heavyweight Tag Team Championship', 'njpw', 'men', 'tag', 'House of Torture · DOUKI e SHO', SOURCES.njpwJuniorTag, ['douki', 'sho'], { qualification: 'junior' }),
   singles('njpw-iwgp-women', 'IWGP Women’s Championship', 'njpw', 'women', 'syuri', 'Syuri', SOURCES.njpwWomen),
   singles('njpw-never', 'NEVER Openweight Championship', 'njpw', 'men', 'evil', 'EVIL', SOURCES.njpwWk20),
   team('njpw-never-six', 'NEVER Openweight 6-Man Tag Team Championship', 'njpw', 'men', 'trios', 'Toru Yano, Master Wato e YOH', SOURCES.njpwSix, ['toru-yano', 'master-wato', 'yoh']),
@@ -88,7 +94,7 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   singles('njpw-strong-women', 'STRONG Women’s Championship', 'njpw', 'women', 'saya-kamitani', 'Saya Kamitani', SOURCES.njpwWomen),
   singles('njpw-tamashii', 'NJPW TAMASHII Openweight Championship', 'njpw', 'men', undefined, null, SOURCES.njpwTamashii,
     { status: 'later', note: 'Don Fale tornou-se campeão inaugural em 10/10/2026.' }),
-  team('njpw-tamashii-tag', 'NJPW TAMASHII Tag Team Championship', 'njpw', 'men', 'tag', 'The Pretty Boys · Magic Mark e Pretty Richie', SOURCES.njpwSnapshot),
+  team('njpw-tamashii-tag', 'NJPW TAMASHII Tag Team Championship', 'njpw', 'men', 'tag', 'The Pretty Boys · Magic Mark e Pretty Richie', SOURCES.njpwTamashiiColdWar, ['magic-mark', 'pretty-richie'], { qualification: 'tamashii' }),
   // TNA
   singles('tna-world', 'TNA World Championship', 'tna', 'men', 'frankie-kazarian', 'Frankie Kazarian', SOURCES.tnaDallas),
   singles('tna-international', 'TNA International Championship', 'tna', 'men', 'stacks', 'Stacks', SOURCES.tnaFinal),
@@ -106,7 +112,7 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
   singles('aaa-reina', 'AAA Reina de Reinas Championship', 'aaa', 'women', 'flammer', 'Flammer', SOURCES.aaaSnapshot),
   team('aaa-tag', 'AAA World Tag Team Championship', 'aaa', 'men', 'tag', 'Pagano e Psycho Clown', SOURCES.aaaSnapshot, ['pagano', 'psycho-clown']),
   team('aaa-trios', 'AAA World Trios Championship', 'aaa', 'men', 'trios', 'Los Psycho Circus · Dave The Clown, Murder Clown e Panic Clown', SOURCES.aaaTrios, ['dave-the-clown', 'murder-clown', 'panic-clown']),
-  team('aaa-mixed', 'AAA World Mixed Tag Team Championship', 'aaa', 'mixed', 'tag', 'Chelsea Green e Ethan Page', SOURCES.aaaSnapshot),
+  team('aaa-mixed', 'AAA World Mixed Tag Team Championship', 'aaa', 'mixed', 'tag', 'Chelsea Green e Ethan Page', SOURCES.aaaMixed, ['chelsea-green', 'ethan-page']),
   // ROH
   singles('roh-world', 'ROH World Championship', 'roh', 'men', 'bandido', 'Bandido', SOURCES.rohDecember),
   singles('roh-tv', 'ROH World Television Championship', 'roh', 'men', undefined, 'Nick Wayne', SOURCES.rohSnapshot),
@@ -132,18 +138,24 @@ export const OPENING_TITLES: readonly TitleRecord[] = [
 export const TITLES_BY_ID = new Map(OPENING_TITLES.map(title => [title.id, title]))
 
 export function supportsDefense(title: TitleRecord) {
-  return title.status === 'active' && title.rule === 'singles' && (title.holderId !== undefined || title.vacant === true)
+  return title.status === 'active' && (title.rule === 'singles' || title.rule === 'junior')
+    && (title.holderId !== undefined || title.vacant === true)
 }
 
 export function supportsTagDefense(title: TitleRecord) {
-  return defenseSize(title) === 2
+  return defenseFormat(title) === 'tag'
+}
+
+export function defenseFormat(title: TitleRecord): MatchFormat | undefined {
+  if (supportsDefense(title)) return 'singles'
+  if (title.status === 'active' && title.rule === 'tag' && title.holderTeam?.length === 2) {
+    return title.division === 'mixed' ? 'mixed' : 'tag'
+  }
+  if (title.status === 'active' && title.rule === 'trios' && title.division !== 'mixed' && title.holderTeam?.length === 3) return 'trios'
+  return undefined
 }
 
 export function defenseSize(title: TitleRecord): 1 | 2 | 3 | undefined {
-  if (supportsDefense(title)) return 1
-  if (title.status === 'active' && title.division !== 'mixed' && (title.rule === 'tag' || title.rule === 'trios')) {
-    const size = TEAM_SIZE[title.rule]
-    if (title.holderTeam?.length === size) return size
-  }
-  return undefined
+  const format = defenseFormat(title)
+  return format === 'singles' ? 1 : format ? TEAM_SIZE[format] : undefined
 }

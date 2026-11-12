@@ -1,21 +1,21 @@
 import {
   OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID, compareShows, nextShowForCareer, nextShows, rosterFor,
-  showPromotions, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
+  fitsEventRoster, showPromotions, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
 } from '../content/catalog'
 import { MOVE_BY_ID, defaultMoves, validMoveset } from '../content/moves'
-import { defenseSize, type TitleRecord } from '../content/titles'
+import { defenseFormat, type TitleRecord } from '../content/titles'
 import {
   ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DATA_VERSION, DIFFICULTY_LABEL, INITIAL_BUDGET, INITIAL_LIMIT,
-  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_SIZE,
-  addDays, clamp, dayDistance, overall, pointsSpent, profileSchema,
+  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_FORMATS, TEAM_SIZE,
+  addDays, clamp, dayDistance, overall, pointsSpent, profileSchema, ringWeightSchema,
   suggestedAttributes, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
-  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type TeamSize, type WrestlingTeam,
+  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type WrestlingTeam,
 } from '../domain/model'
 import { createBout, playTurn, simulateSingles } from './combat'
-import { formatForSize, matchTeams, matchWinners, sameTeam } from './matches'
+import { matchTeams, matchWinners, sameTeam } from './matches'
 import { Random } from './random'
 import { cornerFighterIds, createTagBout, isTagBout, legalFighterId, playTagTurn, simulateTag } from './tag-combat'
-import { availableTeamPartners, careerTeamPartners, pickRosterTeam, playerTeamBooking, rosterTeam } from './tag-teams'
+import { availableTeamPartners, careerTeamPartners, hasMixedTeams, pickRosterTeam, playerTeamBooking, rosterTeam } from './tag-teams'
 import { applyTitleMatch, beltsDue, CAREER_FIGHTER_ID, titleEligible, titleStates, type BeltStates } from './titles'
 
 export const PLAYER_ID = CAREER_FIGHTER_ID
@@ -24,7 +24,7 @@ const namesList = new Intl.ListFormat('pt-BR')
 
 export function exampleProfile(): Profile {
   return {
-    name: 'BH', nickname: '', country: 'Brasil', city: '', age: 23, division: 'men',
+    name: 'BH', nickname: '', country: 'Brasil', city: '', age: 23, ringWeightKg: 80, division: 'men',
     alignment: 'Face', style: 'Highflyer', personality: 'Competitivo', appearance: '', gear: '', entrance: '',
     attributes: suggestedAttributes('Highflyer'), moves: defaultMoves('Highflyer'), moveLevels: {},
   }
@@ -106,7 +106,7 @@ export function newCareer(input: Profile, difficulty: Difficulty, identity: Care
     createdAt: identity.createdAt ?? Date.now(), mode: 'free', profile, difficulty, rng: random.state,
     date: START_DATE, worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
     bout: null, shows: [], expandedOn: null, vacatedTitles: [], tagPartnerId: null, trioPartnerIds: null,
-    preferredFormat: 'singles', history: [], ledger: [],
+    mixedPartnerId: null, preferredFormat: 'singles', history: [], ledger: [],
   }
   career.offers = offersFor(career, random)
   career.rng = random.state
@@ -166,20 +166,28 @@ export function setMatchPreference(career: Career, format: MatchFormat): Career 
   return { ...career, preferredFormat: format }
 }
 
+export function registerRingWeight(career: Career, weight: number): Career {
+  if (career.profile.ringWeightKg !== null) throw new Error('O peso de ringue já foi registrado nesta carreira.')
+  const parsed = ringWeightSchema.safeParse(weight)
+  if (!parsed.success) throw new Error('Informe um peso de ringue válido em quilos.')
+  return { ...career, profile: { ...career.profile, ringWeightKg: parsed.data } }
+}
+
 export function setCareerTeam(career: Career, format: TeamFormat, partners: readonly string[] | null): Career {
   if (hasLiveBout(career)) throw new Error('Finalize a luta em andamento antes de alterar sua equipe.')
   const promotion = career.contract?.promotion
-  const label = format === 'tag' ? 'dupla' : 'trio'
+  const label = { tag: 'dupla', trios: 'trio', mixed: 'dupla mista' }[format]
   const current = careerTeamPartners(career, format)
   const size = TEAM_SIZE[format]
   const next = { ...career }
   if (partners === null) {
     if (!current.length) throw new Error('Você ainda não formou essa equipe.')
-    if (format === 'tag') next.tagPartnerId = null
+    if (format === 'mixed') next.mixedPartnerId = null
+    else if (format === 'tag') next.tagPartnerId = null
     else next.trioPartnerIds = null
-    if (next.preferredFormat === format) next.preferredFormat = next.trioPartnerIds ? 'trios' : next.tagPartnerId ? 'tag' : 'singles'
+    if (next.preferredFormat === format) next.preferredFormat = TEAM_FORMATS.find(option => careerTeamPartners(next, option).length) ?? 'singles'
     const name = fighterNames(career, [PLAYER_ID, ...current])
-    vacatePlayerTitles(next, title => defenseSize(title) === size, 'A equipe de ' + name + ' foi encerrada.')
+    vacatePlayerTitles(next, title => defenseFormat(title) === format, 'A equipe de ' + name + ' foi encerrada.')
     addHistory(next, 'team', 'Fim da equipe', name + ' encerraram a formação de ' + label + '.', promotion)
     return next
   }
@@ -188,10 +196,11 @@ export function setCareerTeam(career: Career, format: TeamFormat, partners: read
   if (partners.length !== size - 1 || new Set(partners).size !== partners.length || partners.some(id => !available.some(fighter => fighter.id === id))) {
     throw new Error('Selecione lutadores diferentes e disponíveis para esta equipe.')
   }
-  if (format === 'tag') next.tagPartnerId = partners[0]
+  if (format === 'mixed') next.mixedPartnerId = partners[0]
+  else if (format === 'tag') next.tagPartnerId = partners[0]
   else next.trioPartnerIds = [partners[0], partners[1]]
   next.preferredFormat = format
-  addHistory(next, 'team', format === 'tag' ? 'Nova dupla' : 'Novo trio',
+  addHistory(next, 'team', format === 'trios' ? 'Novo trio' : 'Nova ' + label,
     fighterNames(next, [PLAYER_ID, ...partners]) + ' formaram uma equipe.', promotion)
   return next
 }
@@ -203,9 +212,10 @@ export function signOffer(career: Career, offerId: string): Career {
     ...career, offers: [],
     contract: { promotion, weeks, pay, winBonus, start: career.date, end: addDays(career.date, weeks * 7), status: 'active' },
   }
-  if ((career.tagPartnerId || career.trioPartnerIds) && career.contract?.promotion !== promotion) {
+  if ((career.tagPartnerId || career.trioPartnerIds || career.mixedPartnerId) && career.contract?.promotion !== promotion) {
     next.tagPartnerId = null
     next.trioPartnerIds = null
+    next.mixedPartnerId = null
     next.preferredFormat = 'singles'
     addHistory(next, 'team', 'Fim das parcerias', 'Sua mudança de empresa ou brand encerrou as equipes anteriores.', career.contract?.promotion)
   }
@@ -217,7 +227,10 @@ export function signOffer(career: Career, offerId: string): Career {
 
 export function nextCareerShow(career: Career): Show | undefined {
   if (career.contract?.status !== 'active') return upcomingShows(career.worldThrough, 1)[0]
-  const show = nextShowForCareer(career.contract.promotion, career.worldThrough)
+  let show = nextShowForCareer(career.contract.promotion, career.worldThrough)
+  if (show?.series === 'tamashii' && career.profile.division === 'women') {
+    show = nextShowForCareer(career.contract.promotion, show.date)
+  }
   return show && show.date < career.contract.end ? show : undefined
 }
 
@@ -256,6 +269,7 @@ function matchResult(id: string, first: Fighter, second: Fighter, bout: Bout, pl
     ...(bout.tag ? { tag: {
       firstPartners: bout.tag.player.partners.map(partner => partner.id),
       secondPartners: bout.tag.rival.partners.map(partner => partner.id),
+      ...(bout.tag.mixed ? { mixed: true as const } : {}),
     } } : {}),
   }
 }
@@ -275,19 +289,25 @@ function playerTitleOpportunity(career: Career, show: Show, states: BeltStates, 
   const contract = career.contract
   if (!contract) return undefined
   const due = beltsDue(show, states, 21).filter(title => (
-    title.rule === 'singles' && title.promotion === contract.promotion && title.division === career.profile.division
+    defenseFormat(title) === 'singles' && title.promotion === contract.promotion && titleEligible(career, title, PLAYER_ID)
   ))
   const defense = due.find(title => states.get(title.id)?.holders?.includes(PLAYER_ID))
   const contenders = rosterFor(contract.promotion, false).filter(fighter => (
     fighter.division === career.profile.division && fighter.id !== career.tagPartnerId
-    && !career.trioPartnerIds?.includes(fighter.id) && !occupied.has(fighter.id)
+    && !career.trioPartnerIds?.includes(fighter.id) && !occupied.has(fighter.id) && fitsEventRoster(show, fighter.id)
   ))
-  if (defense && contenders.length) return { title: defense, rival: bookRival(career, contenders, random) }
+  if (defense) {
+    const challengers = contenders.filter(fighter => titleEligible(career, defense, fighter.id))
+    if (challengers.length) return { title: defense, rival: bookRival(career, challengers, random) }
+  }
 
   if (defensesOnly || career.popularity < 18 || recordFor(career, PLAYER_ID, true).wins < 3) return undefined
   for (const title of due) {
     const holders = states.get(title.id)?.holders
-    if (holders === null && contenders.length) return { title, rival: bookRival(career, contenders, random) }
+    if (holders === null) {
+      const challengers = contenders.filter(fighter => titleEligible(career, title, fighter.id))
+      if (challengers.length) return { title, rival: bookRival(career, challengers, random) }
+    }
     const rival = holders ? ROSTER_BY_ID.get(holders[0]) : undefined
     if (rival && !occupied.has(rival.id)) return { title, rival }
   }
@@ -299,21 +319,22 @@ function playerLineup(player: Fighter, partners: readonly RosterEntry[]): Wrestl
   return second ? [player, first, second] : [player, first]
 }
 
-function npcTeamPool(career: Career, pool: readonly RosterEntry[], size: TeamSize) {
-  const reserved = careerTeamPartners(career, size === 3 ? 'trios' : 'tag')
+function npcTeamPool(career: Career, pool: readonly RosterEntry[], format: TeamFormat) {
+  const reserved = careerTeamPartners(career, format)
   return pool.filter(fighter => !reserved.includes(fighter.id))
 }
 
 function bookShow(career: Career, show: Show, random: Random, playerBooked: boolean, occupied: Set<string>, states: BeltStates): ShowReport {
   const circuits = showPromotions(show)
   const eligible = ROSTER.filter(fighter => (
-    !occupied.has(fighter.id) && (circuits.includes(fighter.promotion) || (show.special && circuits.some(circuit => wrestlerAppearsIn(fighter, circuit))))
+    fitsEventRoster(show, fighter.id) && !occupied.has(fighter.id)
+      && (circuits.includes(fighter.promotion) || (show.special && circuits.some(circuit => wrestlerAppearsIn(fighter, circuit))))
   ))
   const playerCandidates = eligible.filter(fighter => fighter.division === career.profile.division)
   const soloCandidates = playerCandidates.filter(fighter => fighter.id !== career.tagPartnerId && !career.trioPartnerIds?.includes(fighter.id))
   const soloDefense = playerBooked ? playerTitleOpportunity(career, show, states, occupied, random, true) : undefined
-  const team = playerBooked && !soloDefense && (career.tagPartnerId || career.trioPartnerIds)
-    ? playerTeamBooking(career, show, states, playerCandidates, occupied, random) : undefined
+  const team = playerBooked && !soloDefense && (career.tagPartnerId || career.trioPartnerIds || career.mixedPartnerId)
+    ? playerTeamBooking(career, show, states, eligible, occupied, random) : undefined
   const opportunity = soloDefense ?? (playerBooked && !team && career.preferredFormat === 'singles'
     ? playerTitleOpportunity(career, show, states, occupied, random, false) : undefined)
   const rival = team?.opponents[0] ?? opportunity?.rival ?? (playerBooked && soloCandidates.length ? bookRival(career, soloCandidates, random) : undefined)
@@ -331,34 +352,38 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
   }
 
   for (const division of DIVISIONS) {
-    const pool = eligible.filter(fighter => fighter.division === division && !occupied.has(fighter.id))
+    const open = eligible.filter(fighter => !occupied.has(fighter.id))
+    const pool = open.filter(fighter => fighter.division === division)
     const title = titlesDue.find(belt => {
-      if (belt.division !== division || belt.id === playerTitle?.id || (hasLiveBout(career) && belt.id === career.bout?.titleId)) return false
+      const format = defenseFormat(belt)!
+      if ((belt.division !== division && !(format === 'mixed' && division === 'men'))
+        || belt.id === playerTitle?.id || (hasLiveBout(career) && belt.id === career.bout?.titleId)) return false
       const holders = states.get(belt.id)?.holders ?? []
-      const size = defenseSize(belt)!
       if (holders.some(id => id === PLAYER_ID || occupied.has(id))) return false
-      const titlePool = size === 1 ? pool : npcTeamPool(career, pool, size)
+      const titlePool = format === 'singles' ? pool : npcTeamPool(career, format === 'mixed' ? open : pool, format)
       const contenders = titlePool.filter(fighter => !holders.includes(fighter.id) && titleEligible(career, belt, fighter.id))
+      if (format === 'mixed') return hasMixedTeams(contenders, holders.length ? 1 : 2)
+      const size = format === 'singles' ? 1 : TEAM_SIZE[format]
       return contenders.length >= 2 * size - holders.length
     })
     if (pool.length < 2 && !title) continue
     const holders = title ? states.get(title.id)?.holders : undefined
-    const titlePool = title ? pool.filter(fighter => titleEligible(career, title, fighter.id)) : pool
-    let size = title ? defenseSize(title)! : 1
+    let format = title ? defenseFormat(title)! : 'singles'
+    const titlePool = title ? (format === 'mixed' ? open : pool).filter(fighter => titleEligible(career, title, fighter.id)) : pool
     if (!title && show.special) {
-      const hasTrios = OPENING_TITLES.some(belt => circuits.includes(belt.promotion) && defenseSize(belt) === 3)
-      if (hasTrios && npcTeamPool(career, titlePool, 3).length >= 6) size = 3
-      else if (npcTeamPool(career, titlePool, 2).length >= 4) size = 2
+      const hasTrios = !show.series && OPENING_TITLES.some(belt => circuits.includes(belt.promotion) && defenseFormat(belt) === 'trios')
+      if (hasTrios && npcTeamPool(career, titlePool, 'trios').length >= 6) format = 'trios'
+      else if (npcTeamPool(career, titlePool, 'tag').length >= 4) format = 'tag'
     }
     const id = show.id + '/match-' + (matches.length + 1)
     let first: RosterEntry
     let second: RosterEntry
     let bout: Bout
-    if (size !== 1) {
-      const teamPool = npcTeamPool(career, titlePool, size)
-      const home = holders ? rosterTeam(holders) : pickRosterTeam(size, teamPool, random, form)
+    if (format !== 'singles') {
+      const teamPool = npcTeamPool(career, titlePool, format)
+      const home = holders ? rosterTeam(holders) : pickRosterTeam(format, teamPool, random, form)
       const challengers = teamPool.filter(fighter => home.every(member => member.id !== fighter.id))
-      const opposing = pickRosterTeam(size, challengers, random, form)
+      const opposing = pickRosterTeam(format, challengers, random, form, home[0].division)
       first = home[0]
       second = opposing[0]
       bout = simulateTag(show, id, { player: home, rival: opposing }, random)
@@ -384,7 +409,7 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
       : createBout(show, id, rival, career.difficulty, random)
     if (playerTitle) career.bout.titleId = playerTitle.id
     const opponents = team ? namesList.format(team.opponents.map(fighter => fighter.name)) : rival.name
-    const format = formatForSize(team?.opponents.length ?? 1)
+    const format = team?.format ?? 'singles'
     addHistory(career, 'match', 'Luta marcada contra ' + opponents, show.name + ' · ' + (playerTitle?.name ?? MATCH_FORMAT_LABEL[format]), show.promotion)
   } else if (matches.length) {
     const mainEvent = matches.at(-1)!
@@ -409,6 +434,7 @@ function advanceThrough(career: Career, target: string): Career {
     }
     next.date = show.date
     const playerBooked = !hasLiveBout(next) && next.contract?.status === 'active' && showPromotions(show).includes(next.contract.promotion)
+      && (!show.series || next.profile.division === 'men')
       && show.date >= next.contract.start && show.date < next.contract.end
     next.shows.push(bookShow(next, show, random, playerBooked, occupied, states))
   }

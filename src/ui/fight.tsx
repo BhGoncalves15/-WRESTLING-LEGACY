@@ -81,12 +81,13 @@ export function Fight({ career, pending, onTurn, onAdvance, onContracts }: {
       <span><strong>{command?.name ?? actionName(id)}</strong><small>{reason ?? command?.description ?? actionDescription(id)}</small></span>
     </button>
   }
-  const format = formatForSize(playerMembers.length)
+  const format = formatForSize(playerMembers.length, teamBout?.tag.mixed)
   const rivalTag = teamBout && tagTarget(teamBout, 'rival', bout.plan) !== undefined
   return <>
     <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · ' + MATCH_FORMAT_LABEL[format]}
       action={<span className="chip">{finished ? 'Encerrado' : 'Turno ' + (bout.turn + 1)}</span>} />
     {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {belt.name}</span></div>}
+    {teamBout?.tag.mixed && <div className="inline-note"><Repeat2 size={18} aria-hidden /><span>Na tag, as duas duplas trocam o lutador legal.</span></div>}
     <div className="ring-grid">
       <Corner fighter={legalPlayer} side={cornerSide(bout, 'player')} tag={Boolean(teamBout)} />
       <Corner fighter={legalRival} side={cornerSide(bout, 'rival')} tag={Boolean(teamBout)} rival />
