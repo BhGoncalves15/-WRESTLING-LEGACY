@@ -2,8 +2,9 @@ import { z } from 'zod'
 
 export const START_DATE = '2026-01-01'
 export const LEGACY_DATA_VERSION = 'pilot-2026-01-01.1'
-export const DATA_VERSION = 'world-2026-01-01.2'
-export const SAVE_VERSION = 2
+export const WORLD_DATA_VERSION = 'world-2026-01-01.2'
+export const DATA_VERSION = 'world-2026-01-01.3'
+export const SAVE_VERSION = 3
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
@@ -41,6 +42,7 @@ export type PromotionId = typeof PROMOTIONS[number]
 export type CompanyId = typeof COMPANIES[number]
 export type MoveKind = typeof MOVE_KINDS[number]
 export type Attributes = Record<Attribute, number>
+export type TagTeam = readonly [string, string]
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'Fácil', normal: 'Normal', hard: 'Difícil' }
 export const DIVISION_LABEL: Record<Division, string> = { men: 'Masculina', women: 'Feminina' }
@@ -157,6 +159,13 @@ const sideSchema = z.object({
 })
 const turnLogSchema = z.object({ turn: safeInt, actor: z.enum(['player', 'rival', 'referee']), text: z.string().min(1).max(300) })
 const finishSchema = z.object({ winner: z.enum(['player', 'rival']), method })
+const tagCornerSchema = z.object({
+  partnerId: id,
+  partner: sideSchema,
+  partnerLegal: z.boolean(),
+  lastTagTurn: safeInt.positive().nullable(),
+  saveUsed: z.boolean(),
+})
 const boutSchema = z.object({
   id, showId: id, rivalId: id, titleId: id.optional(),
   turn: safeInt,
@@ -167,9 +176,11 @@ const boutSchema = z.object({
   used: z.array(id),
   finish: finishSchema.nullable(),
   xpAwarded: safeInt,
+  tag: z.object({ player: tagCornerSchema, rival: tagCornerSchema }).optional(),
 })
 export type Bout = z.infer<typeof boutSchema>
 export type BoutSide = z.infer<typeof sideSchema>
+export type TagBout = Bout & { tag: NonNullable<Bout['tag']> }
 export type Actor = 'player' | 'rival'
 export type TurnLog = z.infer<typeof turnLogSchema>
 
@@ -193,6 +204,7 @@ const matchSchema = z.object({
   rounds: safeInt,
   player: z.boolean(),
   titleId: id.optional(),
+  tag: z.object({ firstPartnerId: id, secondPartnerId: id }).optional(),
 })
 export type MatchResult = z.infer<typeof matchSchema>
 const reportSchema = showSchema.extend({ matches: z.array(matchSchema) })
@@ -200,7 +212,7 @@ export type ShowReport = z.infer<typeof reportSchema>
 
 const historySchema = z.object({
   id, date: dateSchema,
-  kind: z.enum(['career', 'contract', 'show', 'match', 'progression', 'title']),
+  kind: z.enum(['career', 'contract', 'show', 'match', 'progression', 'title', 'team']),
   title: z.string().min(1).max(180),
   detail: z.string().min(1).max(360),
   promotion: promotion.nullable(),
@@ -233,6 +245,7 @@ export const careerSchema = z.object({
   shows: z.array(reportSchema),
   expandedOn: dateSchema.nullable(),
   vacatedTitles: z.array(z.object({ titleId: id, date: dateSchema })),
+  tagPartnerId: id.nullable(),
   history: z.array(historySchema),
   ledger: z.array(ledgerSchema),
 })

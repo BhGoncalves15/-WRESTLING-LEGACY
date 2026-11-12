@@ -90,7 +90,7 @@ const controlAttribute: Record<Move['kind'], Attribute> = {
   counter: 'defense', signature: 'psychology', finisher: 'finishing',
 }
 
-function chooseAction(bout: Bout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
+export function chooseAction(bout: Bout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
   const side = bout[actor]
   const opponent = bout[other(actor)]
   const predicted = actor === 'rival' ? bout.used.at(-1) : undefined
@@ -140,8 +140,9 @@ function finishChance(side: BoutSide, target: BoutSide, fighter: Fighter, enemy:
   )
 }
 
-function nextExchange(
-  source: Bout, player: Fighter, rival: Fighter, difficulty: Difficulty, playerAction: string, random: Random,
+export function resolveExchange(
+  source: Bout, player: Fighter, rival: Fighter, playerAction: string, random: Random,
+  saveFromFinish?: (defender: Actor, method: Method) => string | undefined,
 ): Bout {
   const turn = source.turn + 1
   const bout: Bout = {
@@ -194,14 +195,19 @@ function nextExchange(
       const method = action === 'pin' ? 'pinfall' : 'submission'
       side.stamina -= action === 'pin' ? 3 : 8
       if (random.next() < finishChance(side, target, fighter, enemy, method)) {
-        bout.finish = { winner: actor, method }
-        log('referee', method === 'pinfall' ? 'Um, dois, três! ' + fighter.name + ' vence por pinfall.' : enemy.name + ' bateu. ' + fighter.name + ' vence por submissão.')
+        const save = saveFromFinish?.(targetActor, method)
+        if (!save) {
+          bout.finish = { winner: actor, method }
+          log('referee', method === 'pinfall' ? 'Um, dois, três! ' + fighter.name + ' vence por pinfall.' : enemy.name + ' bateu. ' + fighter.name + ' vence por submissão.')
+          continue
+        }
+        log('referee', save)
       } else {
-        target.position = 'standing'
-        target.stamina = clamp(target.stamina - 6, 0, 100)
-        target.momentum = clamp(target.momentum + 6, 0, 100)
         log('referee', method === 'pinfall' ? enemy.name + ' escapou da contagem antes do três.' : enemy.name + ' escapou da chave.')
       }
+      target.position = 'standing'
+      target.stamina = clamp(target.stamina - 6, 0, 100)
+      target.momentum = clamp(target.momentum + 6, 0, 100)
       continue
     }
     if (!move) continue
@@ -241,8 +247,15 @@ function nextExchange(
       const side = bout[actor]
       side.stamina = clamp(side.stamina + 2 + fighters[actor].attributes.stamina / 20, 0, 100)
     }
-    bout.plan = chooseAction(bout, 'rival', rival, difficulty, random)
   }
+  return bout
+}
+
+function nextExchange(
+  source: Bout, player: Fighter, rival: Fighter, difficulty: Difficulty, action: string, random: Random,
+): Bout {
+  const bout = resolveExchange(source, player, rival, action, random)
+  if (!bout.finish) bout.plan = chooseAction(bout, 'rival', rival, difficulty, random)
   return bout
 }
 

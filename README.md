@@ -8,7 +8,7 @@ Simulador de carreira de wrestling profissional para computador e celular. Você
 - Escopo final com WWE Raw, SmackDown e NXT, AEW, NJPW, TNA, AAA, ROH e BWF. O piloto da Carreira Livre usa NXT, TNA e ROH. Carreira História será adicionada na etapa G.
 - Três propostas iniciais, negociação e calendário. Criação com seis estilos, nove atributos e 20 espaços de golpes. Balanceamento inicial com 40 por atributo, 180 distribuíveis, 90 de limite inicial e 100 de teto evolutivo.
 - XP evolui atributos e golpes. A economia da carreira tem registro próprio. Os três níveis de dificuldade usam o mesmo OVR base. Lesões geradas pela simulação ficam desativadas.
-- Combates por turnos. Singles no piloto, com expansão para as 29 estipulações do Documento Mestre. O resultado depende das regras da luta e das decisões de cada lutador.
+- Combates por turnos. Singles e Tag Team jogáveis, com expansão planejada para as 29 estipulações do Documento Mestre. O resultado depende das regras da luta e das decisões de cada lutador.
 - Catálogo de referência de 72 entradas para 71 títulos, com o AAA World Cruiserweight Championship compartilhando a identidade nas listas WWE e AAA. Regras próprias para elegibilidade, linhagem, unificações, designs e torneios.
 - Múltiplas carreiras com autosave, save manual, exportação, importação e recuperação local. As páginas refletem o estado salvo da carreira.
 
@@ -53,4 +53,4 @@ Veja [como rodar o piloto](docs/PILOTO.md), o recorte de dados e os testes.
 
 ## Expansão do Universo 2026
 
-O [Universo de 2026](docs/UNIVERSO-2026.md) inclui as sete empresas, os elencos de abertura, o catálogo de títulos, defesas Singles e as agendas da carreira.
+O [Universo de 2026](docs/UNIVERSO-2026.md) inclui as sete empresas, os elencos de abertura, o catálogo de títulos, defesas de Singles e Tag Team e as agendas da carreira.

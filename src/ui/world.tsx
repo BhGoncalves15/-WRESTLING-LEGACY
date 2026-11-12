@@ -4,9 +4,11 @@ import {
   ANNOUNCED_SHOWS, ARCHIVE_2026, COMPANY_NAMES, OPENING_TITLES, ORGANIZATIONS, TITLES_BY_ID, evidenceFor, rosterFor, showPromotions, upcomingShows,
 } from '../content/catalog'
 import { HISTORICAL_OBSERVATIONS } from '../content/research-2026'
-import { supportsDefense, type TitleRule } from '../content/titles'
+import { TAG_TEAM_REFERENCES } from '../content/tag-teams'
+import { supportsDefense, supportsTagDefense, type TitleRule } from '../content/titles'
 import { COMPANIES, DIVISION_LABEL, METHOD_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId, type ShowReport } from '../domain/model'
-import { fighterName, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
+import { fighterName, fighterNames, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
+import { matchTeams, matchWinners, sameTeam } from '../engine/matches'
 import { titleStates } from '../engine/titles'
 import { dateShort, dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
 
@@ -71,13 +73,19 @@ export function Home({ career, pending, onNew, onSaves, onCalendar, onCompanies,
 
 function Results({ report, career }: { report: ShowReport; career: Career }) {
   return <ul className="rows match-results">
-    {report.matches.map(match => <li className="record-row" key={match.id}>
-      <div className="row-text"><strong>{fighterName(career, match.firstId)} × {fighterName(career, match.secondId)}</strong>
-        <small>{fighterName(career, match.winnerId)} venceu · {METHOD_LABEL[match.method]}</small>
-        {match.titleId && <small className="belt-label">{TITLES_BY_ID.get(match.titleId)?.name}</small>}
-      </div>
-      <span className="chip">{match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : 'Singles'}</span>
-    </li>)}
+    {report.matches.map(match => {
+      const [first, second] = matchTeams(match)
+      const winner = fighterNames(career, matchWinners(match))
+      const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId) : ''
+      return <li className="record-row" key={match.id}>
+        <div className="row-text"><strong>{fighterNames(career, first)} × {fighterNames(career, second)}</strong>
+          <small>{winner} {match.tag ? 'venceram' : 'venceu'} · {METHOD_LABEL[match.method]}{finisher}</small>
+          {match.titleId && <small className="belt-label">{TITLES_BY_ID.get(match.titleId)?.name}</small>}
+          {match.tag && match.player && <small>Sua luta</small>}
+        </div>
+        <span className="chip">{match.tag ? 'Tag Team' : match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : 'Singles'}</span>
+      </li>
+    })}
   </ul>
 }
 
@@ -138,6 +146,7 @@ export function Companies({ career }: { career: Career | null }) {
   const [search, setSearch] = useState('')
   const org = ORGANIZATIONS[selected]
   const roster = rosterFor(selected)
+  const teams = TAG_TEAM_REFERENCES.filter(team => team.promotion === selected)
   const observations = HISTORICAL_OBSERVATIONS.filter(entry => entry.promotion === selected)
   const filtered = roster.filter(fighter => [fighter.name, ...(fighter.aliases ?? [])].some(value => value.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))))
   return <>
@@ -163,6 +172,12 @@ export function Companies({ career }: { career: Career | null }) {
       })}</ul>
       {filtered.length === 0 && <p className="empty-line">Nenhum lutador corresponde à busca.</p>}
     </section>
+    {teams.length > 0 && <section className="panel reference-roster">
+      <header className="panel-head"><h2>Duplas de referência</h2></header>
+      <ul className="rows">{teams.map(team => <li className="record-row" key={team.members.join('+')}>
+        <div className="row-text"><strong>{team.label}</strong></div><SourceLink url={team.source} />
+      </li>)}</ul>
+    </section>}
     {observations.length > 0 && <section className="panel reference-roster">
       <header className="panel-head"><div><h2>Registros reais após a abertura</h2><p>Acontecimentos de referência de 2026 para consulta.</p></div></header>
       <ul className="rows">{observations.map(entry => <li className="record-row" key={entry.id + entry.date}>
@@ -188,22 +203,26 @@ export function Championships({ career }: { career: Career | null }) {
     <div className="stack">{titles.map(title => {
       const state = states?.get(title.id)
       const opening = title.holder ?? (title.vacant ? 'Vago' : 'A confirmar')
-      const current = state && career ? state.holderId ? fighterName(career, state.holderId) : 'Vago' : opening
+      const openingTeam = state?.holders && title.holderTeam && sameTeam(state.holders, title.holderTeam)
+      const current = state && career && !openingTeam ? state.holders ? fighterNames(career, state.holders) : 'Vago' : opening
       const status = title.status === 'later' ? 'Surge depois' : title.status === 'unverified' ? 'A verificar'
-        : supportsDefense(title) ? 'Disputa jogável' : 'Registro histórico'
+        : supportsTagDefense(title) ? 'Tag Team jogável' : supportsDefense(title) ? 'Disputa jogável' : 'Registro histórico'
       return <details className="panel report title-row" key={title.id}>
         <summary><OrgMark id={title.promotion} small /><div className="row-text"><strong>{title.name}</strong>
           <small>{title.status === 'later' ? 'Estreia posterior a janeiro' : current}</small></div>
           <span className="chip">{status}</span><ChevronDown size={18} aria-hidden /></summary>
         <div className="title-detail">
           <div className="title-meta"><span>{ruleLabel[title.rule]} · {title.division === 'mixed' ? 'Mista' : DIVISION_LABEL[title.division]}</span><SourceLink url={title.source} /></div>
+          {supportsTagDefense(title) && title.listings.length > 1 && <p>Disputas na agenda de {ORGANIZATIONS[title.promotion].name} e nos eventos compartilhados dessa brand.</p>}
           {title.note && <p>{title.note}</p>}
           {title.status === 'active' && <p>Abertura em 01/01/2026 · {opening}</p>}
-          {state && <p>Reinado na carreira desde {dateText(state.heldFrom)} · {state.defenses} defesas bem-sucedidas</p>}
+          {state?.holders && <p>Reinado na carreira desde {dateText(state.heldFrom)} · {state.defenses} defesas bem-sucedidas</p>}
           {state && state.events.length > 0 && career && <ol className="title-timeline">
             {[...state.events].reverse().map((entry, index) => <li key={entry.date + '-' + index}>
-              <small>{dateText(entry.date)}</small><span>{entry.kind === 'vacancy' ? 'O título ficou vago'
-                : fighterName(career, entry.to!) + (entry.kind === 'defense' ? ' reteve o cinturão' : ' conquistou o cinturão' + (entry.from ? ' de ' + fighterName(career, entry.from) : ''))}</span>
+              <small>{dateText(entry.date)}</small><span>{entry.to === null ? 'O título ficou vago'
+                : fighterNames(career, entry.to) + (entry.kind === 'defense'
+                  ? (entry.to.length === 2 ? ' retiveram o cinturão' : ' reteve o cinturão')
+                  : (entry.to.length === 2 ? ' conquistaram o cinturão' : ' conquistou o cinturão') + (entry.from ? ' de ' + fighterNames(career, entry.from) : ''))}</span>
             </li>)}
           </ol>}
         </div>
@@ -216,7 +235,7 @@ export function Feed({ career, history = false }: { career: Career; history?: bo
   const [filter, setFilter] = useState<CircuitFilter>('all')
   const [limit, setLimit] = useState(25)
   const records = [...career.history].reverse().filter(item => (
-    (history || ['show', 'match', 'contract', 'title'].includes(item.kind)) && (filter === 'all' || item.promotion === filter)
+    (history || ['show', 'match', 'contract', 'title', 'team'].includes(item.kind)) && (filter === 'all' || item.promotion === filter)
   ))
   const record = recordFor(career, PLAYER_ID)
   return <>

@@ -1,18 +1,19 @@
 import { ROSTER_BY_ID, showPromotions, wrestlerAppearsIn } from '../content/catalog'
-import { OPENING_TITLES, TITLES_BY_ID, supportsDefense, type TitleRecord } from '../content/titles'
+import { OPENING_TITLES, TITLES_BY_ID, supportsDefense, supportsTagDefense, type TitleRecord } from '../content/titles'
 import { START_DATE, dayDistance, type Career, type MatchResult, type Show } from '../domain/model'
+import { matchTeams, matchWinners, sameTeam } from './matches'
 
 export const CAREER_FIGHTER_ID = 'career-player'
 
 type TitleEvent = {
   date: string
-  from: string | null
-  to: string | null
+  from: readonly string[] | null
+  to: readonly string[] | null
   kind: 'defense' | 'change' | 'vacancy'
 }
 
 export type BeltState = {
-  holderId: string | null
+  holders: readonly string[] | null
   heldFrom: string
   lastDefense: string | null
   defenses: number
@@ -22,7 +23,7 @@ export type BeltState = {
 export type BeltStates = Map<string, BeltState>
 
 export function showSupportsTitle(show: Show, title: TitleRecord): boolean {
-  return supportsDefense(title) && showPromotions(show).includes(title.promotion)
+  return (supportsDefense(title) || supportsTagDefense(title)) && showPromotions(show).includes(title.promotion)
 }
 
 export function titleEligible(career: Career, title: TitleRecord, id: string): boolean {
@@ -35,16 +36,17 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
   if (!match.titleId) return
   const title = TITLES_BY_ID.get(match.titleId)
   const state = states.get(match.titleId)
-  const participants = [match.firstId, match.secondId]
+  const from = state?.holders ?? null
+  const teams = matchTeams(match)
   if (!title || !state || !showSupportsTitle(show, title)
-    || !participants.every(id => titleEligible(career, title, id))
-    || (state.holderId && !participants.includes(state.holderId))) {
+    || Boolean(match.tag) !== supportsTagDefense(title)
+    || !teams.flat().every(id => titleEligible(career, title, id))
+    || (from && !teams.some(team => sameTeam(team, from)))) {
     throw new Error('A disputa de cinturão não corresponde à divisão, ao evento ou ao campeão vigente.')
   }
-  const from = state.holderId
-  const to = match.winnerId
-  const retained = from === to
-  state.holderId = to
+  const to = matchWinners(match)
+  const retained = from !== null && sameTeam(from, to)
+  state.holders = to
   state.lastDefense = show.date
   state.heldFrom = retained ? state.heldFrom : show.date
   state.defenses = retained ? state.defenses + 1 : 0
@@ -54,16 +56,17 @@ export function applyTitleMatch(states: BeltStates, career: Career, show: Show, 
 export function titleStates(career: Career): BeltStates {
   const states: BeltStates = new Map()
   for (const title of OPENING_TITLES) {
-    if (supportsDefense(title)) states.set(title.id, {
-      holderId: title.holderId ?? null, heldFrom: START_DATE, lastDefense: null, defenses: 0, events: [],
+    if (supportsDefense(title) || supportsTagDefense(title)) states.set(title.id, {
+      holders: title.holderTeam ?? (title.holderId ? [title.holderId] : null),
+      heldFrom: START_DATE, lastDefense: null, defenses: 0, events: [],
     })
   }
   let nextVacancy = 0
   const applyVacancy = ({ titleId, date }: Career['vacatedTitles'][number]) => {
     const state = states.get(titleId)
-    if (state?.holderId !== CAREER_FIGHTER_ID) throw new Error('O lutador não detinha o cinturão na data da vacância.')
-    state.events.push({ date, from: state.holderId, to: null, kind: 'vacancy' })
-    state.holderId = null
+    if (!state?.holders?.includes(CAREER_FIGHTER_ID)) throw new Error('O lutador não detinha o cinturão na data da vacância.')
+    state.events.push({ date, from: state.holders, to: null, kind: 'vacancy' })
+    state.holders = null
     state.heldFrom = date
     state.defenses = 0
   }

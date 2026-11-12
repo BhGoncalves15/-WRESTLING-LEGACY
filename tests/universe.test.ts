@@ -94,7 +94,7 @@ describe('universo de janeiro de 2026', () => {
     expect(titleId).toBeTruthy()
     const finished = finishForPlayer(career)
     const state = titleStates(finished).get(titleId!)
-    expect(state?.holderId).toBe(PLAYER_ID)
+    expect(state?.holders).toEqual([PLAYER_ID])
     expect(state?.events.at(-1)?.kind).toBe('change')
     expect(finished.history.some(item => item.kind === 'title' && item.title.includes('BH conquistou'))).toBe(true)
     expect(titleStates(importCareer(exportCareer(finished))).get(titleId!)).toEqual(state)
@@ -103,13 +103,13 @@ describe('universo de janeiro de 2026', () => {
   it('atualiza saves v1 sem reescrever shows anteriores ou o turno em andamento', () => {
     const started = advanceCareer(sign(careerWithOffer('nxt'), 'nxt'))
     const turned = resolvePlayerTurn(started, 'guard')
-    const { expandedOn: _expandedOn, vacatedTitles: _vacatedTitles, ...fields } = turned
+    const { expandedOn: _expandedOn, vacatedTitles: _vacatedTitles, tagPartnerId: _tagPartnerId, ...fields } = turned
     const old = {
       ...fields,
       schemaVersion: 1,
       dataVersion: LEGACY_DATA_VERSION,
       shows: turned.shows.filter(show => ['nxt', 'tna', 'roh'].includes(show.promotion))
-        .map(show => ({ ...show, matches: show.matches.map(({ titleId: _titleId, ...match }) => match) })),
+        .map(show => ({ ...show, matches: show.matches.filter(match => !match.tag).map(({ titleId: _titleId, ...match }) => match) })),
       history: turned.history.filter(item => item.kind !== 'title').map((item, index) => ({ ...item, id: 'event-' + index })),
     }
     const upgraded = importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 1, career: old }))

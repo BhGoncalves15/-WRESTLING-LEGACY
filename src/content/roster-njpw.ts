@@ -2,6 +2,10 @@ import { rosterGroup } from './roster-model'
 import { SOURCES } from './sources'
 
 export const NJPW_ROSTER = [
+  ...rosterGroup('njpw', '2025-11-14', SOURCES.njpwStrongTag, 'men', [
+    ['angel-de-oro', 'Ángel de Oro', 'Highflyer', 12, 'Face'],
+    ['niebla-roja', 'Niebla Roja', 'Technician', 10, 'Face'],
+  ]),
   ...rosterGroup('njpw', '2025-12-22', SOURCES.njpwDecCard, 'men', [
     ['el-phantasmo', 'El Phantasmo', 'Highflyer', 13, 'Face'],
     ['ryusuke-taguchi', 'Ryusuke Taguchi', 'Technician', 8, 'Face'],
