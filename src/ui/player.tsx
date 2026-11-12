@@ -1,9 +1,10 @@
-import { ArrowUp, Coins, Flame, Swords } from 'lucide-react'
-import { ORGANIZATIONS } from '../content/catalog'
+import { ArrowUp, Coins, Flame, Swords, Trophy } from 'lucide-react'
+import { ORGANIZATIONS, TITLES_BY_ID } from '../content/catalog'
 import { MOVE_BY_ID } from '../content/moves'
 import { ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DIVISION_LABEL, MOVE_KIND_LABEL, overall, type Attribute, type Career } from '../domain/model'
 import { attributeCost, balanceFor, hasLiveBout, moveCost, PLAYER_ID, recordFor } from '../engine/career'
-import { Meter, money, PageTitle } from './shared'
+import { titleStates } from '../engine/titles'
+import { Meter, dateText, money, PageTitle } from './shared'
 
 export function Player({ career, pending, onAttribute, onMove }: {
   career: Career; pending: boolean; onAttribute: (attribute: Attribute) => void; onMove: (id: string) => void
@@ -11,6 +12,7 @@ export function Player({ career, pending, onAttribute, onMove }: {
   const { profile, contract, xp } = career
   const record = recordFor(career, PLAYER_ID)
   const locked = pending || hasLiveBout(career)
+  const belts = [...titleStates(career)].filter(([, state]) => state.holderId === PLAYER_ID)
   return <>
     <PageTitle title="Meu lutador" />
     <section className="panel profile-card">
@@ -28,6 +30,13 @@ export function Player({ career, pending, onAttribute, onMove }: {
       <div className="panel stat"><Coins aria-hidden /><span>Patrimônio</span><strong>{money(balanceFor(career))}</strong></div>
       <div className="panel stat"><ArrowUp aria-hidden /><span>Popularidade</span><strong>{career.popularity}<small> / 100</small></strong></div>
     </div>
+    {belts.length > 0 && <section className="panel career-belts">
+      <header className="panel-head"><h2><Trophy size={19} aria-hidden /> Cinturões em posse</h2></header>
+      <ul className="rows">{belts.map(([id, state]) => <li className="record-row" key={id}>
+        <div className="row-text"><strong>{TITLES_BY_ID.get(id)?.name}</strong><small>Desde {dateText(state.heldFrom)}</small></div>
+        <span className="chip">{state.defenses} defesas</span>
+      </li>)}</ul>
+    </section>}
     <div className="two-col profile-details">
       <section className="panel">
         <header className="panel-head"><div><h2>Atributos</h2><p>{contract?.status === 'active' ? ORGANIZATIONS[contract.promotion].name : 'Livre no mercado'}</p></div><span className="chip">{xp} XP</span></header>

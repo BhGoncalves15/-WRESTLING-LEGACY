@@ -198,7 +198,7 @@ export function App() {
     if (route === 'nova-carreira') return <Creator initialDifficulty={defaultDifficulty} pending={pending} onCancel={() => navigate('inicio')} onCreate={create} />
     if (route === 'calendario') return <Calendar career={career} pending={pending} onAdvance={advance} onFight={openFight} />
     if (route === 'empresas') return <Companies career={career} />
-    if (route === 'campeonatos') return <Championships />
+    if (route === 'campeonatos') return <Championships career={career} />
     if (route === 'salvamentos') return <Saves vault={vault} current={career} pending={pending} onOpen={resume} onNew={openNew}
       onSave={() => change(current => current, () => setNotice({ text: 'Carreira salva.', error: false }))}
       onImport={upload} onExport={download} />
@@ -242,7 +242,7 @@ export function App() {
       </nav>
       <div className="rail-bottom">
         <button className="rail-new" onClick={openNew}><Plus size={18} aria-hidden /> Nova carreira</button>
-        <span>Temporada 2026 · Piloto</span>
+        <span>Universo 2026</span>
       </div>
     </aside>
     <div className="app-body">
