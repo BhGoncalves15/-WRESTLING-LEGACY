@@ -75,17 +75,17 @@ jobs:
           $launcher = Start-Process -FilePath './pacote-beta/JOGAR-WINDOWS.exe' -ArgumentList '-sem-navegador' -PassThru
           try {
             $url = 'http://127.0.0.1:4173/-WRESTLING-LEGACY/'
-            $home = $null
+            $gameResponse = $null
             for ($attempt = 0; $attempt -lt 15; $attempt++) {
               if ($launcher.HasExited) { throw "O iniciador encerrou com código $($launcher.ExitCode)." }
               try {
-                $home = Invoke-WebRequest -Uri $url -ConnectionTimeoutSeconds 2 -OperationTimeoutSeconds 3
+                $gameResponse = Invoke-WebRequest -Uri $url -ConnectionTimeoutSeconds 2 -OperationTimeoutSeconds 3
                 break
               } catch {
                 Start-Sleep -Seconds 1
               }
             }
-            if ($home.Content -notmatch '<title>Wrestling Legacy</title>') { throw 'A página do jogo não abriu.' }
+            if ($gameResponse.Content -notmatch '<title>Wrestling Legacy</title>') { throw 'A página do jogo não abriu.' }
 
             $catalog = Invoke-WebRequest -Uri "${url}geography/places-0.json.gz"
             $bytes = $catalog.RawContentStream.ToArray()
