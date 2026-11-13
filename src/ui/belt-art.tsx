@@ -32,10 +32,13 @@ function Emblem({ motif }: { motif: BeltArtwork['motif'] }) {
 }
 
 function linesOf(name: string) {
-  if (name.length <= 30) return [name]
-  const words = name.split(' ')
-  const breakAt = words.findIndex((_, index) => words.slice(0, index + 1).join(' ').length >= name.length / 2)
-  return [words.slice(0, breakAt + 1).join(' '), words.slice(breakAt + 1).join(' ')].filter(Boolean)
+  if (name.length <= 24) return [name]
+  const midpoint = Math.floor(name.length / 2)
+  const before = name.lastIndexOf(' ', midpoint)
+  const after = name.indexOf(' ', midpoint)
+  if (before === -1 && after === -1) return [name]
+  const breakAt = after === -1 || (before !== -1 && midpoint - before <= after - midpoint) ? before : after
+  return [name.slice(0, breakAt), name.slice(breakAt + 1)]
 }
 
 export function SimulatedBelt({ artwork, name, initials }: { artwork: BeltArtwork; name: string; initials: string }) {
@@ -80,7 +83,7 @@ export function SimulatedBelt({ artwork, name, initials }: { artwork: BeltArtwor
       <text x="0" y="-39" fill={shine} textAnchor="middle" fontFamily={lettering} fontSize="12" fontWeight="700" letterSpacing="2">{initials}</text>
       <rect x="-86" y="18" width="172" height="34" rx="5" fill="#161111" stroke={metal} strokeWidth="1.3" />
       {linesOf(name.toUpperCase()).map((line, index, lines) => <text key={line} x="0" y={lines.length === 1 ? 39 : 32 + index * 13}
-        fill={shine} textAnchor="middle" fontFamily={lettering} fontSize={Math.min(10, 275 / line.length)} fontWeight="700">{line}</text>)}
+        fill={shine} textAnchor="middle" fontFamily={lettering} fontSize={Math.min(10, 215 / line.length)} fontWeight="700">{line}</text>)}
     </g>
   </svg>
 }
