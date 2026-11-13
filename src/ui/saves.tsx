@@ -3,6 +3,8 @@ import { useRef } from 'react'
 import { ORGANIZATIONS } from '../content/catalog'
 import { DIFFICULTIES, DIFFICULTY_LABEL, type Career, type Difficulty } from '../domain/model'
 import type { Vault } from '../storage/indexed-db'
+import { defaultAppearance } from '../domain/appearance'
+import { FighterAvatar } from './avatar'
 import { dateText, EmptyState, PageTitle } from './shared'
 
 export function Saves({ vault, current, pending, onOpen, onNew, onSave, onImport, onExport }: {
@@ -21,7 +23,7 @@ export function Saves({ vault, current, pending, onOpen, onNew, onSave, onImport
     </div>
     {vault.damaged > 0 && <p className="inline-note" role="alert">{vault.damaged} carreira(s) indisponível(is). Você pode restaurar uma cópia pelo botão Importar carreira.</p>}
     {vault.entries.length ? <div className="stack">{vault.entries.map(({ career, recoveryAvailable }) => <article className="panel save-card" key={career.id}>
-      <div className="fighter-avatar">{career.profile.name.slice(0, 2).toUpperCase()}</div>
+      <FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} />
       <div className="row-text"><h2>{career.profile.name}</h2>
         <small>{dateText(career.date)} · {career.contract?.status === 'active' ? ORGANIZATIONS[career.contract.promotion].name : 'Livre no mercado'}</small>
         {recoveryAvailable && <small>Cópia anterior disponível para recuperação</small>}</div>

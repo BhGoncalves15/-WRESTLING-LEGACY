@@ -1,0 +1,45 @@
+export const MOVE_DESCRIPTIONS: Record<string, string> = {
+  jab: 'Um soco reto e rápido com o braço da frente.',
+  chop: 'Um golpe de mão aberta que atravessa o peito do adversário.',
+  kick: 'Um chute baixo que atinge a perna do adversário.',
+  dropkick: 'O lutador salta e atinge o peito do rival com os dois pés.',
+  european: 'O antebraço sobe por baixo da guarda em direção ao queixo.',
+  clothesline: 'Um braço estendido intercepta a parte alta do peito do rival em movimento.',
+  suplex: 'O adversário é erguido na vertical e cai de costas atrás do atacante.',
+  slam: 'O atacante ergue o rival na horizontal e o derruba de costas à sua frente.',
+  powerslam: 'O atacante segura o rival em movimento, gira e cai com ele contra o tablado.',
+  forearm: 'Após a corrida, o lutador acerta o rival com o antebraço.',
+  armdrag: 'O atacante usa a pegada no braço para projetar o rival por cima do ombro.',
+  snapmare: 'O lutador conduz a cabeça do adversário por cima do ombro e o deixa sentado.',
+  leglock: 'O lutador prende a perna adversária e estende o joelho. A ação de submissão é separada.',
+  backbreaker: 'O lutador ergue o rival e o deixa cair com as costas sobre um joelho.',
+  crossbody: 'Da terceira corda, o lutador se lança na horizontal e atinge o tronco do rival.',
+  moonsault: 'O lutador parte de costas da terceira corda, dá um mortal para trás e cai de peito sobre o rival.',
+  elbow: 'Da terceira corda, o lutador cai com o cotovelo sobre o peito do adversário deitado.',
+  duck: 'O lutador se abaixa para escapar do ataque e devolve com uma cotovelada.',
+  backdrop: 'O lutador se abaixa sob o rival em corrida e o projeta por cima das costas.',
+  wristlock: 'O lutador usa a pegada no pulso para inverter a pressão e assumir o controle do braço.',
+  rollthrough: 'O lutador acompanha a trajetória do ataque, rola e conduz o rival ao chão.',
+  enzuigiri: 'Um chute em salto atinge a lateral ou a parte de trás da cabeça do rival.',
+  ddt: 'Com a cabeça do rival presa sob o braço, o lutador gira e cai para completar o DDT.',
+  spinebuster: 'O lutador recebe o adversário em corrida, ergue-o pela cintura e o derruba de costas.',
+  german: 'O atacante ergue o rival pela cintura, o lança para trás e mantém a ponte após o impacto.',
+  splash: 'Da terceira corda, o lutador recolhe e estende braços e pernas antes de cair de peito sobre o rival.',
+  cutter: 'O lutador salta, encaixa a cabeça do rival sobre o ombro e cai de costas para conduzi-lo ao tablado.',
+  powerbomb: 'O adversário sobe aos ombros do lutador e cai de costas enquanto o atacante termina sentado.',
+  driver: 'O lutador parte com o rival sobre os ombros e o conduz ao chão enquanto termina sentado.',
+  spear: 'O lutador corre, baixa o ombro contra o tronco do rival e o derruba com a investida.',
+}
+
+type MoveReference = { alias: string; fighter: string; source: string; fighterId?: string; replace?: string }
+
+export const MOVE_REFERENCES: Readonly<Record<string, readonly MoveReference[]>> = {
+  cutter: [{ alias: 'RKO', fighter: 'Randy Orton', source: 'https://www.wwe.com/superstars/randy-orton' }],
+  spear: [
+    { alias: 'Spear', fighter: 'Roman Reigns', fighterId: 'roman-reigns', replace: 'driver', source: 'https://www.wwe.com/superstars/roman-reigns' },
+    { alias: 'Spear', fighter: 'Bron Breakker', fighterId: 'bron-breakker', replace: 'driver', source: 'https://www.wwe.com/superstars/bron-breakker' },
+  ],
+  splash: [{ alias: 'Frog Splash', fighter: 'Dominik Mysterio', fighterId: 'dominik-mysterio', replace: 'driver',
+    source: 'https://www.wwe.com/superstars/dominik-mysterio' }],
+  moonsault: [{ alias: 'Over The Moonsault', fighter: 'IYO SKY', fighterId: 'iyo-sky', source: 'https://www.wwe.com/superstars/iyo-sky' }],
+}

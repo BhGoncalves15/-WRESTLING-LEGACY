@@ -4,7 +4,7 @@ Simulador de carreira de wrestling profissional para computador e celular. Você
 
 ## Beta da Carreira Livre
 
-A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis e seis formatos de luta. O guia cobre o pacote testado e o acesso pelo PC e pelo celular. [Como testar a beta](docs/BETA-CARREIRA-LIVRE.md)
+A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A revisão acrescenta o editor 2D, a origem por catálogo, os vídeos de golpes e a galeria de cinturões. [Como testar a beta](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da revisão](docs/REVISAO-BETA.md)
 
 ## Escopo aprovado
 

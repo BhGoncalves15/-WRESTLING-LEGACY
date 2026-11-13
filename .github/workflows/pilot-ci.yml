@@ -37,13 +37,25 @@ jobs:
           path: qa-screenshots/
           if-no-files-found: ignore
           retention-days: 7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.4'
+          cache: false
+      - name: Testar o iniciador local
+        run: GO111MODULE=off go test ./scripts/launcher
       - name: Preparar o pacote da beta
         run: |
           mkdir -p pacote-beta/-WRESTLING-LEGACY
           cp -R dist/. pacote-beta/-WRESTLING-LEGACY/
           cp docs/BETA-CARREIRA-LIVRE.md pacote-beta/COMO-TESTAR.md
+          cp scripts/launcher/JOGAR-NO-CELULAR.cmd pacote-beta/
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o pacote-beta/JOGAR-WINDOWS.exe scripts/launcher/main.go
       - uses: actions/upload-artifact@v7
         with:
           name: wrestling-legacy-beta
-          path: pacote-beta/
+          path: |
+            pacote-beta/-WRESTLING-LEGACY/
+            pacote-beta/COMO-TESTAR.md
+            pacote-beta/JOGAR-WINDOWS.exe
+            pacote-beta/JOGAR-NO-CELULAR.cmd
           if-no-files-found: error

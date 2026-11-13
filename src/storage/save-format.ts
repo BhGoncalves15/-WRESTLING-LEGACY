@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, compareShows, fitsEventRoster, nextShows, showPromotions, validLegacyShow, wrestlerAppearsIn } from '../content/catalog'
-import { validMoveset } from '../content/moves'
+import { MOVE_BY_ID, validMoveset } from '../content/moves'
 import { defenseFormat } from '../content/titles'
 import {
-  COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
+  COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, MULTI_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
   TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, isTeamFormat, newCareerId, type Career, type DuelBout, type Fall,
   type MatchResult, type MultiBout, type Show,
 } from '../domain/model'
@@ -13,7 +13,7 @@ import { formatForSize, matchTeams, sameTeam } from '../engine/matches'
 import { canBreakFall } from '../engine/multi-combat'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagSwapUnavailable, tagTarget } from '../engine/tag-combat'
 import { careerTeamPartners } from '../engine/tag-teams'
-import { fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../engine/titles'
+import { compatibleTitles, fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../engine/titles'
 import { validateTournaments } from '../engine/tournaments'
 
 function unique(ids: string[]): boolean {
@@ -27,6 +27,7 @@ const worldSchema = z.looseObject({ schemaVersion: z.literal(2), dataVersion: z.
 const trioSaveSchema = z.looseObject({ schemaVersion: z.literal(4), dataVersion: z.literal(TRIOS_DATA_VERSION) })
 const teamTitlesSaveSchema = z.looseObject({ schemaVersion: z.literal(5), dataVersion: z.literal(TEAM_TITLES_DATA_VERSION) })
 const competitionsSaveSchema = z.looseObject({ schemaVersion: z.literal(6), dataVersion: z.literal(COMPETITIONS_DATA_VERSION) })
+const multiSaveSchema = z.looseObject({ schemaVersion: z.literal(7), dataVersion: z.literal(MULTI_DATA_VERSION) })
 const currentVersion = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION }
 const competitionDefaults = { ...currentVersion, tournamentEntries: [], tournamentFields: [] }
 const oldCornerSchema = z.object({
@@ -59,6 +60,10 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
 
 function migrate(input: unknown): unknown {
   if (!input || typeof input !== 'object' || !('schemaVersion' in input)) return input
+  if (input.schemaVersion === 7) {
+    const multi = multiSaveSchema.safeParse(input)
+    return multi.success ? { ...multi.data, ...currentVersion } : input
+  }
   if (input.schemaVersion === 6) {
     const competitions = competitionsSaveSchema.safeParse(input)
     return competitions.success ? { ...competitions.data, ...currentVersion } : input
@@ -154,8 +159,13 @@ export function validateCareer(input: unknown): Career {
   const { profile, bout, contract, shows, ledger, history, expandedOn, vacatedTitles, trioPartnerIds, mixedPartnerId, preferredFormat } = career
   const partners = [...careerTeamPartners(career, 'tag'), ...careerTeamPartners(career, 'trios')]
   const mixedPartner = mixedPartnerId ? ROSTER_BY_ID.get(mixedPartnerId) : undefined
+  const unlocked = profile.unlockedMoves ?? []
+  const availableMove = (id: string) => MOVE_BY_ID.has(id) && (!MOVE_BY_ID.get(id)!.unlock || unlocked.includes(id))
   if (
-    !validMoveset(profile.moves) || Object.keys(profile.moveLevels).some(id => !profile.moves.includes(id))
+    (profile.place && profile.city !== profile.place.city)
+    || !unique(career.titleChanges.map(change => change.showId))
+    || !validMoveset(profile.moves) || [...profile.moves, ...Object.keys(profile.moveLevels)].some(id => !availableMove(id))
+    || !unique(unlocked) || unlocked.some(id => !MOVE_BY_ID.get(id)?.unlock)
     || career.date < START_DATE || career.worldThrough < addDays(START_DATE, -1) || career.worldThrough > career.date
     || career.date !== (career.worldThrough < START_DATE ? START_DATE : career.worldThrough)
     || !unique(career.offers.map(offer => offer.id))
@@ -212,6 +222,12 @@ export function validateCareer(input: unknown): Career {
     throw new Error('O histórico financeiro não corresponde às lutas da carreira.')
   }
 
+  const proposal = career.titleProposal
+  if (proposal) {
+    const primary = TITLES_BY_ID.get(proposal.titleId)
+    const secondary = TITLES_BY_ID.get(proposal.secondaryId)
+    if (!primary || !secondary || !compatibleTitles(primary, secondary)) throw new Error('A proposta de unificação é inválida.')
+  }
   const belts = titleStates(career)
   for (const [titleId, belt] of belts) {
     const holders = belt.holders
@@ -243,7 +259,7 @@ export function validateCareer(input: unknown): Career {
       const title = TITLES_BY_ID.get(bout.titleId)
       const belt = belts.get(bout.titleId)
       const holders = belt?.holders
-      if (!title || !belt || title.promotion !== contract?.promotion || !showSupportsTitle(show, title)
+      if (!title || !belt || belt.retiredBy || title.promotion !== contract?.promotion || !showSupportsTitle(show, title)
         || formatForSize(teams[0].length, bout.tag?.mixed) !== defenseFormat(title)
         || teams.some(team => !titleTeamEligible(career, title, team)) || (holders && !teams.some(team => sameTeam(holders, team)))) {
         throw new Error('A disputa de cinturão em andamento é inválida.')
@@ -256,8 +272,8 @@ export function validateCareer(input: unknown): Career {
 
 const envelopeSchema = z.object({
   format: z.literal('wrestling-legacy'),
-  version: z.literal([1, 2, 3, 4, 5, 6, SAVE_VERSION]),
-  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, 6, SAVE_VERSION]) }),
+  version: z.literal([1, 2, 3, 4, 5, 6, 7, SAVE_VERSION]),
+  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7, SAVE_VERSION]) }),
 })
 
 export function exportCareer(career: Career): string {

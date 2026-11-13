@@ -87,7 +87,7 @@ export function fighterActionIssue(side: BoutSide, target: BoutSide, fighter: Fi
   return null
 }
 
-const controlAttribute: Record<Move['kind'], Attribute> = {
+export const controlAttribute: Record<Move['kind'], Attribute> = {
   quick: 'agility', heavy: 'strength', technical: 'technique', aerial: 'agility',
   counter: 'defense', signature: 'psychology', finisher: 'finishing',
 }
@@ -174,10 +174,13 @@ export function resolveFighterAction(
     return { text: fighter.name + ' fechou a guarda.', guarding: true }
   }
   if (action === 'breathe') {
+    const wasGrounded = side.position === 'grounded'
+    const wasInCorner = side.position === 'corner'
     side.position = 'standing'
     side.stamina = clamp(side.stamina + 13 + fighter.attributes.stamina / 9, 0, 100)
     side.momentum = clamp(side.momentum + 3, 0, 100)
-    return { text: fighter.name + ' recuperou o fôlego e ficou em pé.' }
+    return { text: fighter.name + (wasGrounded ? ' se levantou e recuperou o fôlego.'
+      : wasInCorner ? ' desceu do corner e recuperou o fôlego.' : ' recuperou o fôlego.') }
   }
   if (action === 'climb') {
     side.position = 'corner'

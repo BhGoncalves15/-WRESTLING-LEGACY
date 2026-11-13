@@ -1,15 +1,21 @@
 import { ArrowUp, Coins, Flame, Swords, Trophy, Users } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { OPENING_TITLES, ORGANIZATIONS, TITLES_BY_ID } from '../content/catalog'
+import { titleName } from '../content/belt-designs'
 import { MOVE_BY_ID } from '../content/moves'
 import { NJPW_JUNIOR_IDS, TAMASHII_IDS } from '../content/roster-njpw'
 import { JUNIOR_WEIGHT_LIMIT, defenseFormat } from '../content/titles'
 import { ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DIVISION_LABEL, MATCH_FORMAT_LABEL, MATCH_FORMATS, MAX_RING_WEIGHT_KG, MIN_RING_WEIGHT_KG, MOVE_KIND_LABEL, TEAM_SIZE,
-  isTeamFormat, overall, type Attribute, type Career, type MatchFormat, type TeamFormat } from '../domain/model'
-import { attributeCost, balanceFor, fighterNames, hasLiveBout, moveCost, PLAYER_ID, recordFor } from '../engine/career'
+  ageOn, isTeamFormat, overall, type Attribute, type Career, type MatchFormat, type TeamFormat } from '../domain/model'
+import { attributeCost, balanceFor, fighterNames, hasLiveBout, moveCost, moveUnlockIssue, PLAYER_ID, recordFor } from '../engine/career'
 import { availableTeamPartners, careerTeamPartners, teamRecordFor } from '../engine/tag-teams'
 import { titleStates, type BeltStates } from '../engine/titles'
 import { Meter, dateText, money, PageTitle } from './shared'
+import { defaultAppearance, type Appearance } from '../domain/appearance'
+import { FighterAvatar } from './avatar'
+
+const AppearanceEditor = lazy(() => import('./appearance-editor'))
+const Moveset = lazy(() => import('./moveset'))
 
 function TeamPanel({ career, format, locked, states, onTeam }: {
   career: Career; format: TeamFormat; locked: boolean; states: BeltStates; onTeam: (ids: string[] | null) => void
@@ -58,12 +64,15 @@ function TeamPanel({ career, format, locked, states, onTeam }: {
   </section>
 }
 
-export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat, onWeight }: {
+export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat, onWeight, onLook, onEquip, onUnlock }: {
   career: Career; pending: boolean; onAttribute: (attribute: Attribute) => void; onMove: (id: string) => void
   onTeam: (format: TeamFormat, ids: string[] | null) => void; onFormat: (format: MatchFormat) => void
-  onWeight: (weight: number) => void
+  onWeight: (weight: number) => void; onLook: (look: Appearance) => void
+  onEquip: (id: string, replaced: string) => void; onUnlock: (id: string) => void
 }) {
   const [weight, setWeight] = useState('')
+  const [draft, setDraft] = useState<Appearance | null>(null)
+  const [catalogOpen, setCatalogOpen] = useState(false)
   const { profile, contract, xp } = career
   const record = recordFor(career, PLAYER_ID)
   const locked = pending || hasLiveBout(career)
@@ -73,14 +82,25 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
   return <>
     <PageTitle title="Meu lutador" />
     <section className="panel profile-card">
-      <div className="fighter-avatar">{profile.name.slice(0, 2).toUpperCase()}</div>
+      <FighterAvatar name={profile.name} look={profile.look ?? defaultAppearance()} />
       <div className="profile-name"><h2>{profile.name}</h2>
         <p>{[profile.nickname, profile.style, profile.alignment, DIVISION_LABEL[profile.division]].filter(Boolean).join(' · ')}</p>
-        <p>{[profile.city, profile.country, profile.age + ' anos', profile.ringWeightKg && profile.ringWeightKg + ' kg', profile.personality].filter(Boolean).join(' · ')}</p>
-        {(profile.appearance || profile.gear || profile.entrance) && <p>{[profile.appearance, profile.gear, profile.entrance].filter(Boolean).join(' · ')}</p>}
+        <p>{[profile.city, profile.place?.region, profile.country, ageOn(profile.age, career.date) + ' anos', profile.ringWeightKg && profile.ringWeightKg + ' kg', profile.personality].filter(Boolean).join(' · ')}</p>
+        {(profile.appearance || profile.gear) && <p>{[profile.appearance, profile.gear].filter(Boolean).join(' · ')}</p>}
       </div>
       <div className="rating"><strong>{overall(profile.attributes, profile.style)}</strong><span>OVR</span></div>
     </section>
+    {draft ? <section className="panel profile-editor" aria-label="Editar visual">
+      <header className="panel-head"><h2>Editar visual</h2></header>
+      <Suspense fallback={<p className="empty-line" role="status">Carregando o editor 2D…</p>}>
+        <AppearanceEditor value={draft} onChange={setDraft} />
+      </Suspense>
+      <div className="form-footer">
+        <button className="button secondary" onClick={() => setDraft(null)}>Cancelar edição</button>
+        <button className="button primary" disabled={pending} onClick={() => { onLook(draft); setDraft(null) }}>Salvar visual</button>
+      </div>
+    </section> : <div className="profile-toolbar"><button className="button secondary"
+      onClick={() => setDraft(profile.look ?? defaultAppearance())}>Editar visual</button></div>}
     {profile.ringWeightKg === null && <form className="panel team-preference" onSubmit={event => {
       event.preventDefault()
       onWeight(Number(weight))
@@ -101,7 +121,7 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
     {belts.length > 0 && <section className="panel career-belts">
       <header className="panel-head"><h2><Trophy size={19} aria-hidden /> Cinturões em posse</h2></header>
       <ul className="rows">{belts.map(([id, state]) => <li className="record-row" key={id}>
-        <div className="row-text"><strong>{TITLES_BY_ID.get(id)?.name}</strong>
+        <div className="row-text"><strong>{titleName(career, TITLES_BY_ID.get(id)!)}</strong>
           <small>{state.holders && state.holders.length > 1 ? fighterNames(career, state.holders) + ' · ' : ''}Desde {dateText(state.heldFrom)}</small></div>
         <span className="chip">{state.defenses} defesas</span>
       </li>)}</ul>
@@ -147,5 +167,11 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
         </ul>
       </section>
     </div>
+    <details className="panel profile-catalog" onToggle={event => setCatalogOpen(event.currentTarget.open)}>
+      <summary>Consultar e editar o moveset</summary>
+      {catalogOpen && <Suspense fallback={<p className="empty-line" role="status">Carregando os golpes…</p>}>
+        <Moveset profile={profile} disabled={locked} onEquip={onEquip} onUnlock={onUnlock} unlockIssue={id => moveUnlockIssue(career, id)} />
+      </Suspense>}
+    </details>
   </>
 }
