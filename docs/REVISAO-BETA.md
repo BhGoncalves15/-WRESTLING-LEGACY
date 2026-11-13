@@ -5,7 +5,7 @@ A revisão parte da [beta anterior](https://github.com/BhGoncalves15/-WRESTLING-
 ## Código e download
 
 - A revisão está no [PR #9](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/pull/9). Os [commits](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/pull/9/commits) registram a inclusão dos recursos, a revisão dos sistemas e os ajustes encontrados nos testes.
-- O [ZIP da revisão validada](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/runs/43423330788/artifacts/14034104004) inclui o iniciador para Windows e o modo para jogar no celular pela mesma rede Wi-Fi. O [PR #9](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/pull/9/checks) lista as verificações e os pacotes de cada versão.
+- O ZIP inclui o iniciador para Windows e o modo para jogar no celular pela mesma rede Wi-Fi. [Baixar a beta testada](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/runs/43425976072/artifacts/14037476616)
 
 ## Problemas encontrados e correções
 
@@ -40,7 +40,8 @@ A revisão parte da [beta anterior](https://github.com/BhGoncalves15/-WRESTLING-
 
 ## Simulações de jogo
 
-- Na [execução de referência](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/runs/43423330788), passaram **84 testes de motor, catálogo e salvamento**, **42 testes no navegador** e os testes do servidor local. O Playwright executou Chromium desktop e os perfis móveis Android (Chromium) e iPhone (WebKit). Os cenários novos verificaram cadastro, origem e troca de subdivisão, aparência após recarregar, busca e reprodução de golpes e galeria com histórico e unificação.
+- Passaram **84 testes de motor, catálogo e salvamento**, **42 testes no navegador** e os testes do servidor local. O Playwright executou Chromium desktop e os perfis móveis Android (Chromium) e iPhone (WebKit). Os cenários novos verificaram cadastro, origem e troca de subdivisão, aparência após recarregar, busca e reprodução de golpes e galeria com histórico e unificação. [Resultados dos testes](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/runs/43425976072)
+- Executei o iniciador extraído do ZIP em uma máquina Windows x64. O processo serviu a página, os bytes do catálogo gzip e um intervalo do vídeo do RKO. A verificação usou o modo `-sem-navegador` do iniciador. [Resultado do teste no Windows](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/runs/43425976072/job/131889707835)
 - Importei um save v7 gerado pela beta anterior com uma Fatal 4-Way em andamento e avancei a luta do primeiro para o segundo turno. O arquivo da revisão usa o formato v8. Para continuar uma carreira criada em outro endereço, use a exportação e a importação de JSON conforme o [guia da beta](BETA-CARREIRA-LIVRE.md#começar-ou-continuar-uma-carreira).
 - Simulei três temporadas em cada dificuldade com a mesma semente para verificar a continuidade do calendário. Cada carreira avançou por 1.590 shows nas nove agendas e 51 torneios. O personagem começou com 24 anos, chegou aos 27 e o save exportado tinha 2,32 MB. Cada universo produziu 26 reformulações, onze homenagens e cinco unificações. O teste de importação verificou que os títulos incorporados saíram apenas dos cards posteriores e que outra carreira manteve seu próprio catálogo.
 - Joguei 91 combates individuais no motor até o fim de cinco contratos, com estratégias variadas, Dropkick repetido e recuperação passiva. As médias por carreira ficaram entre 7,8 e 9,4 turnos. Houve pinfall, submissão, uso de corner, reversões, signatures e finishers. A recuperação passiva perdeu os 18 combates da amostra no NXT. A sequência de Dropkick venceu cinco de cinco na amostra pequena da BWF. Uma amostra maior é necessária antes de alterar o equilíbrio por empresa.
