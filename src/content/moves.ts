@@ -1,4 +1,4 @@
-import { MOVE_KINDS, MOVE_SLOTS, type MoveKind, type Style } from '../domain/model'
+import { MOVE_KINDS, MOVE_SLOTS, type Attribute, type MoveKind, type Style } from '../domain/model'
 
 export type Move = {
   id: string
@@ -9,6 +9,7 @@ export type Move = {
   knockdown?: boolean
   topRope?: boolean
   counters?: readonly MoveKind[]
+  unlock?: { attribute: Attribute; minimum: number; xp: number }
 }
 
 export const MOVES: readonly Move[] = [
@@ -41,6 +42,7 @@ export const MOVES: readonly Move[] = [
   { id: 'cutter', name: 'Jumping Cutter', kind: 'finisher', impact: 32, cost: 17, knockdown: true },
   { id: 'powerbomb', name: 'Sit-out Powerbomb', kind: 'finisher', impact: 38, cost: 21, knockdown: true },
   { id: 'driver', name: 'Samoan Driver', kind: 'finisher', impact: 34, cost: 18, knockdown: true },
+  { id: 'spear', name: 'Spear', kind: 'finisher', impact: 35, cost: 18, knockdown: true, unlock: { attribute: 'strength', minimum: 65, xp: 40 } },
 ]
 
 export const MOVE_BY_ID = new Map(MOVES.map(move => [move.id, move]))
@@ -61,6 +63,14 @@ export function defaultMoves(style: Style): string[] {
 }
 
 export function validMoveset(ids: readonly string[]): boolean {
-  if (new Set(ids).size !== ids.length) return false
+  if (ids.length !== 20 || new Set(ids).size !== ids.length) return false
   return MOVE_KINDS.every(kind => ids.filter(id => MOVE_BY_ID.get(id)?.kind === kind).length === MOVE_SLOTS[kind])
+}
+
+export function swapMove(ids: readonly string[], addId: string, removeId: string) {
+  const add = MOVE_BY_ID.get(addId)
+  if (!add || ids.includes(addId) || !ids.includes(removeId) || MOVE_BY_ID.get(removeId)?.kind !== add.kind) {
+    throw new Error('Escolha um golpe da mesma categoria para substituir.')
+  }
+  return ids.map(id => id === removeId ? addId : id)
 }

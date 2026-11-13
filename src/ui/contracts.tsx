@@ -1,18 +1,20 @@
 import { ArrowRight, BadgeCheck, Banknote, Clock3 } from 'lucide-react'
 import { useState } from 'react'
 import { ORGANIZATIONS } from '../content/catalog'
+import { defaultAppearance } from '../domain/appearance'
 import type { Career, Offer } from '../domain/model'
 import { balanceFor } from '../engine/career'
+import { FighterAvatar } from './avatar'
 import { dateText, EmptyState, money, OrgMark, PageTitle } from './shared'
 
-function OfferCard({ offer, pending, onSign, onDecline, onNegotiate }: {
-  offer: Offer; pending: boolean; onSign: () => void; onDecline: () => void; onNegotiate: (pay: number) => void
+function OfferCard({ offer, pending, renewal, onSign, onDecline, onNegotiate }: {
+  offer: Offer; pending: boolean; renewal: boolean; onSign: () => void; onDecline: () => void; onNegotiate: (pay: number) => void
 }) {
   const [raise, setRaise] = useState(10)
   const organization = ORGANIZATIONS[offer.promotion]
   const available = offer.status === 'available'
   return <article className="panel offer">
-    <div className="offer-company"><OrgMark id={offer.promotion} /><div><h2>{organization.name}</h2><p>{organization.home}</p></div></div>
+    <div className="offer-company"><OrgMark id={offer.promotion} /><div><h2>{organization.name}</h2><p>{renewal ? 'Proposta de renovação' : organization.home}</p></div></div>
     <dl className="terms">
       <div><dt>Por show disputado</dt><dd>{money(offer.pay)}</dd></div>
       <div><dt>Bônus por vitória</dt><dd>{money(offer.winBonus)}</dd></div>
@@ -30,7 +32,7 @@ function OfferCard({ offer, pending, onSign, onDecline, onNegotiate }: {
         {offer.response === 'accepted' ? 'Contraproposta aceita' : 'Proposta original mantida'}
       </p>}
       <div className="offer-actions">
-        <button className="button primary" onClick={onSign} disabled={pending}>Assinar com {organization.initials} <ArrowRight size={17} aria-hidden /></button>
+        <button className="button primary" onClick={onSign} disabled={pending}>{renewal ? 'Renovar com' : 'Assinar com'} {organization.initials} <ArrowRight size={17} aria-hidden /></button>
         <button className="button quiet" onClick={onDecline} disabled={pending}>Recusar</button>
       </div>
     </>}
@@ -45,6 +47,9 @@ export function Contracts({ career, pending, onSign, onDecline, onNegotiate, onR
   const active = contract?.status === 'active'
   return <>
     <PageTitle title="Contratos" intro={active ? 'Vínculo profissional e pagamentos da carreira.' : 'Escolha a empresa em que você vai lutar.'} />
+    <div className="identity-strip"><FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} />
+      <div className="row-text"><strong>{career.profile.name}</strong><small>{career.profile.style} · {career.profile.alignment}</small></div>
+    </div>
     {active ? <section className="panel current-contract">
       <div className="offer-company"><OrgMark id={contract.promotion} /><div>
         <h2>{ORGANIZATIONS[contract.promotion].name}</h2><p><BadgeCheck size={16} aria-hidden /> Contrato ativo</p>
@@ -57,7 +62,7 @@ export function Contracts({ career, pending, onSign, onDecline, onNegotiate, onR
       </dl>
       <button className="button primary" onClick={onCalendar}>Ver calendário <ArrowRight size={17} aria-hidden /></button>
     </section> : career.offers.length ? <div className="offer-grid">
-      {career.offers.map(offer => <OfferCard key={offer.id} offer={offer} pending={pending}
+      {career.offers.map(offer => <OfferCard key={offer.id} offer={offer} pending={pending} renewal={contract?.status === 'expired' && contract.promotion === offer.promotion}
         onSign={() => onSign(offer.id)} onDecline={() => onDecline(offer.id)} onNegotiate={pay => onNegotiate(offer.id, pay)} />)}
     </div> : <EmptyState title="Mercado de contratos">As ofertas disponíveis aparecem aqui.</EmptyState>}
     {!active && career.offers.every(offer => offer.status === 'declined') && <div className="inline-note">

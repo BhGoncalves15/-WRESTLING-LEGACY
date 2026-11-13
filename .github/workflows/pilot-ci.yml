@@ -37,13 +37,67 @@ jobs:
           path: qa-screenshots/
           if-no-files-found: ignore
           retention-days: 7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.4'
+          cache: false
+      - name: Testar o iniciador local
+        run: GO111MODULE=off go test ./scripts/launcher
       - name: Preparar o pacote da beta
         run: |
           mkdir -p pacote-beta/-WRESTLING-LEGACY
           cp -R dist/. pacote-beta/-WRESTLING-LEGACY/
           cp docs/BETA-CARREIRA-LIVRE.md pacote-beta/COMO-TESTAR.md
+          cp scripts/launcher/JOGAR-NO-CELULAR.cmd pacote-beta/
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o pacote-beta/JOGAR-WINDOWS.exe scripts/launcher/main.go
       - uses: actions/upload-artifact@v7
         with:
           name: wrestling-legacy-beta
-          path: pacote-beta/
+          path: |
+            pacote-beta/-WRESTLING-LEGACY/
+            pacote-beta/COMO-TESTAR.md
+            pacote-beta/JOGAR-WINDOWS.exe
+            pacote-beta/JOGAR-NO-CELULAR.cmd
           if-no-files-found: error
+  windows-package:
+    name: Executar o iniciador no Windows
+    runs-on: windows-latest
+    timeout-minutes: 5
+    needs: test
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: wrestling-legacy-beta
+          path: pacote-beta
+      - name: Verificar o executável e a mídia do jogo
+        shell: pwsh
+        run: |
+          $launcher = Start-Process -FilePath './pacote-beta/JOGAR-WINDOWS.exe' -ArgumentList '-sem-navegador' -PassThru
+          try {
+            $url = 'http://127.0.0.1:4173/-WRESTLING-LEGACY/'
+            $gameResponse = $null
+            for ($attempt = 0; $attempt -lt 15; $attempt++) {
+              if ($launcher.HasExited) { throw "O iniciador encerrou com código $($launcher.ExitCode)." }
+              try {
+                $gameResponse = Invoke-WebRequest -Uri $url -ConnectionTimeoutSeconds 2 -OperationTimeoutSeconds 3
+                break
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if ($gameResponse.Content -notmatch '<title>Wrestling Legacy</title>') { throw 'A página do jogo não abriu.' }
+
+            $catalog = Invoke-WebRequest -Uri "${url}geography/places-0.json.gz"
+            $bytes = $catalog.RawContentStream.ToArray()
+            if ($bytes.Length -lt 2 -or $bytes[0] -ne 31 -or $bytes[1] -ne 139) {
+              throw 'O servidor não entregou os bytes gzip do catálogo.'
+            }
+
+            $video = Invoke-WebRequest -Uri "${url}moves/cutter.mp4" -Headers @{ Range = 'bytes=0-15' }
+            if ($video.StatusCode -ne 206 -or $video.Headers['Content-Range'] -notmatch 'bytes 0-15/') {
+              throw 'O servidor não entregou o intervalo de bytes do vídeo.'
+            }
+            Write-Output 'Página, catálogo gzip e intervalo de vídeo verificados no Windows.'
+          } finally {
+            if (!$launcher.HasExited) { Stop-Process -Id $launcher.Id }
+          }

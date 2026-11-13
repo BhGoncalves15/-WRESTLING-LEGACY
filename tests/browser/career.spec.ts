@@ -22,7 +22,11 @@ async function openBeta(page: Page, baseURL: string) {
   await page.context().route(localNetwork.origin + '/**', async route => {
     const target = new URL(route.request().url())
     target.host = preview.host
-    await route.fulfill({ response: await route.fetch({ url: target.href }) })
+    const response = await route.fetch({ url: target.href })
+    const headers = response.headers()
+    delete headers['content-encoding']
+    delete headers['content-length']
+    await route.fulfill({ response, headers, body: await response.body() })
   })
   await page.goto(localNetwork.href)
   expect(await page.evaluate(() => window.isSecureContext)).toBe(false)
@@ -45,10 +49,15 @@ test('cria BH, negocia, reabre a luta e importa uma cópia pela rede local', asy
   await expect(main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' })).toHaveValue('80')
   await expect(main.getByLabel('Nome de ringue')).toHaveValue('BH')
   await expect(main.getByRole('combobox', { name: /^Estilo\b/ })).toHaveValue('Highflyer')
+  await expect(main.getByLabel('Cidade', { exact: true })).toHaveValue('BR:50:5008305')
+  await main.getByRole('button', { name: 'Continuar' }).click()
+  await expect(main.getByRole('heading', { name: 'Visual do lutador' })).toBeVisible()
   await main.getByRole('button', { name: 'Continuar' }).click()
   await expect(main.getByText(/0 de 180 pontos disponíveis/)).toBeVisible()
   await main.getByRole('button', { name: 'Continuar' }).click()
-  await expect(main.getByRole('combobox')).toHaveCount(20)
+  const quota = main.getByRole('list', { name: 'Espaços do moveset' })
+  await expect(quota.getByRole('listitem')).toHaveText(['Rápidos 4/4', 'Fortes 4/4', 'Técnicos 3/3', 'Aéreos 2/2',
+    'Reversões 3/3', 'Signatures 2/2', 'Finishers 2/2'])
   await main.getByRole('button', { name: 'Criar carreira' }).click()
   await expect(main.getByRole('button', { name: /Assinar com/ })).toHaveCount(3)
   const offer = main.locator('.offer').first()
@@ -391,7 +400,7 @@ test('navega em 320 px e pagina o calendário de uma carreira longa', async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/calendario-320-' + testInfo.project.name + '.png' })
 
-  for (const route of ['Meu lutador', 'Campeonatos', 'Competições', 'Empresas', 'Configurações']) {
+  for (const route of ['Meu lutador', 'Campeonatos', 'Competições', 'Empresas', 'Contratos', 'Notícias', 'Histórico', 'Configurações']) {
     await navigate(page, route)
     await expect(main.getByRole('heading', { name: route, exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(320)

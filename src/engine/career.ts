@@ -2,15 +2,17 @@ import {
   OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID, compareShows, nextShowForCareer, nextShows, rosterFor,
   fitsEventRoster, showPromotions, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
 } from '../content/catalog'
-import { MOVE_BY_ID, defaultMoves, validMoveset } from '../content/moves'
+import { beltArtworkFor, titleName, titlePrestige, unifiedTitleName } from '../content/belt-designs'
+import { MOVE_BY_ID, defaultMoves, swapMove, validMoveset } from '../content/moves'
+import { appearanceSchema, defaultAppearance, type Appearance } from '../domain/appearance'
 import { defenseFormat, type TitleRecord } from '../content/titles'
 import { roundName, tournamentEdition } from '../content/tournaments'
 import {
   ATTRIBUTES, ATTRIBUTE_CAP, ATTRIBUTE_NAMES, DATA_VERSION, DIFFICULTY_LABEL, INITIAL_BUDGET, INITIAL_LIMIT,
-  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, MULTI_SIZE, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, TEAM_FORMATS, TEAM_SIZE,
+  DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, MULTI_SIZE, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, STARTING_AGE_MESSAGE, TEAM_FORMATS, TEAM_SIZE,
   addDays, clamp, dayDistance, isMultiFormat, isTeamFormat, newCareerId, overall, pointsSpent, profileSchema, ringWeightSchema,
-  suggestedAttributes, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
-  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type WrestlingTeam,
+  suggestedAttributes, validStartingAge, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
+  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type TitleChange, type TitlePair, type WrestlingTeam,
 } from '../domain/model'
 import { createBout, playTurn, simulateSingles } from './combat'
 import { matchFormat, matchTeams, matchWinners, multiFormatForSize, sameTeam } from './matches'
@@ -20,7 +22,10 @@ import { CONTENDER_LIMIT, rankingsFor } from './rankings'
 import { matchRivalry, rematchReady, rivalryStates, trackRivalry, type RivalryStates } from './rivalries'
 import { cornerFighterIds, createTagBout, isTagBout, legalFighterId, playTagTurn, simulateTag } from './tag-combat'
 import { availableTeamPartners, careerTeamPartners, hasMixedTeams, pickRosterTeam, playerTeamBooking, rosterTeam } from './tag-teams'
-import { applyTitleMatch, beltsDue, CAREER_FIGHTER_ID, titleEligible, titleStates, type BeltStates } from './titles'
+import {
+  applyTitleChange, applyTitleMatch, beltsDue, canRedesign, canUnify, CAREER_FIGHTER_ID, compatibleTitles, showSupportsTitle,
+  titleEligible, titleStates, type BeltStates,
+} from './titles'
 import { planTournaments, type TournamentFixture } from './tournaments'
 
 export const PLAYER_ID = CAREER_FIGHTER_ID
@@ -64,9 +69,9 @@ export function recordFor(career: Career, fighterId: string, individualOnly = fa
 export const balanceFor = (career: Career) => career.ledger.reduce((sum, item) => sum + item.amount, 0)
 export const hasLiveBout = (career: Career) => career.bout?.finish === null
 
-function addHistory(career: Career, kind: HistoryItem['kind'], title: string, detail: string, promotion: PromotionId | null = null) {
+function addHistory(career: Career, kind: HistoryItem['kind'], title: string, detail: string, promotion: PromotionId | null = null, player = false) {
   career.history = [...career.history, {
-    id: 'event-' + career.history.length, date: career.date, kind, title, detail, promotion,
+    id: 'event-' + career.history.length, date: career.date, kind, title, detail, promotion, ...(player ? { participantId: PLAYER_ID } : {}),
   }]
 }
 
@@ -81,14 +86,18 @@ function offersFor(career: Career, random: Random): Offer[] {
   const result: Offer[] = []
   for (let slot = 0; slot < OPENING_OFFER_COUNT; slot++) {
     const remaining = candidates.filter(promotion => result.every(offer => ORGANIZATIONS[offer.promotion].company !== ORGANIZATIONS[promotion].company))
-    const promotion = random.weighted(remaining, id => {
+    const renewing = career.contract?.status === 'expired' && slot === 0 ? career.contract.promotion : undefined
+    const renewal = renewing && remaining.includes(renewing) ? renewing : undefined
+    const offered = random.weighted(remaining, id => {
       const org = ORGANIZATIONS[id]
       const appeal = ovr + career.popularity * 0.48
       const gap = org.prestige - appeal
       return gap > 0 ? Math.max(0.04, 1 - gap / 24) : 1 + (appeal - org.prestige) / 55
     })
+    const promotion = renewal ?? offered
     const org = ORGANIZATIONS[promotion]
-    const pay = Math.round(org.basePay * premium * (0.83 + (ovr - 55) * 0.008 + career.popularity * 0.004 + random.next() * 0.17) / 5) * 5
+    const marketPay = Math.round(org.basePay * premium * (0.83 + (ovr - 55) * 0.008 + career.popularity * 0.004 + random.next() * 0.17) / 5) * 5
+    const pay = renewal ? Math.max(marketPay, career.contract!.pay) : marketPay
     const weeks = random.pick(org.prestige >= 61 ? [16, 20, 24] : [12, 16, 20])
     result.push({
       id: 'offer-' + career.history.length + '-' + promotion, promotion, weeks, pay,
@@ -100,23 +109,30 @@ function offersFor(career: Career, random: Random): Offer[] {
 type CareerIdentity = { id?: string; seed?: number; createdAt?: number }
 
 export function newCareer(input: Profile, difficulty: Difficulty, identity: CareerIdentity = {}): Career {
-  const profile = profileSchema.parse(input)
+  if (!validStartingAge(input.age)) throw new Error(STARTING_AGE_MESSAGE)
+  const profile = profileSchema.parse({ ...input, look: input.look ?? defaultAppearance() })
+  if (profile.place && profile.place.city !== profile.city) throw new Error('A cidade deve corresponder à origem escolhida.')
   if (pointsSpent(profile.attributes) !== INITIAL_BUDGET || ATTRIBUTES.some(key => profile.attributes[key] > INITIAL_LIMIT)) {
     throw new Error('Distribua os 180 pontos respeitando o limite inicial de 90.')
   }
-  if (!validMoveset(profile.moves) || Object.keys(profile.moveLevels).length) throw new Error('Revise os 20 espaços do moveset.')
+  if (!validMoveset(profile.moves) || profile.moves.some(id => MOVE_BY_ID.get(id)?.unlock)
+    || profile.unlockedMoves?.length || Object.keys(profile.moveLevels).length) throw new Error('Revise os 20 espaços do moveset.')
   const random = new Random(identity.seed ?? crypto.getRandomValues(new Uint32Array(1))[0])
   const career: Career = {
     schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, id: identity.id ?? newCareerId(), revision: 0,
     createdAt: identity.createdAt ?? Date.now(), mode: 'free', profile, difficulty, rng: random.state,
     date: START_DATE, worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
-    bout: null, shows: [], expandedOn: null, vacatedTitles: [], tagPartnerId: null, trioPartnerIds: null,
+    bout: null, shows: [], expandedOn: null, vacatedTitles: [], titleChanges: [], titleProposal: null, tagPartnerId: null, trioPartnerIds: null,
     mixedPartnerId: null, preferredFormat: 'singles', tournamentEntries: [], tournamentFields: [], history: [], ledger: [],
   }
   career.offers = offersFor(career, random)
   career.rng = random.state
   addHistory(career, 'career', 'Início de carreira', profile.name + ' entrou no mercado com três propostas.')
   return career
+}
+
+export function updateAppearance(career: Career, look: Appearance): Career {
+  return { ...career, profile: { ...career.profile, look: appearanceSchema.parse(look) } }
 }
 
 function currentOffer(career: Career, offerId: string): Offer {
@@ -159,7 +175,7 @@ function vacatePlayerTitles(career: Career, release: (title: TitleRecord) => boo
     const title = TITLES_BY_ID.get(titleId)!
     if (state.holders?.includes(PLAYER_ID) && release(title)) {
       career.vacatedTitles = [...career.vacatedTitles, { titleId, date: career.date }]
-      addHistory(career, 'title', title.name + ' ficou vago', reason, title.promotion)
+      addHistory(career, 'title', titleName(career, title) + ' ficou vago', reason, title.promotion)
     }
   }
 }
@@ -234,7 +250,8 @@ export function signOffer(career: Career, offerId: string): Career {
     addHistory(next, 'team', 'Fim das parcerias', 'Sua mudança de empresa ou brand encerrou as equipes anteriores.', career.contract?.promotion)
   }
   vacatePlayerTitles(next, title => title.promotion !== promotion, 'Você assinou com ' + ORGANIZATIONS[promotion].name + '.')
-  addHistory(next, 'contract', 'Contrato com ' + ORGANIZATIONS[promotion].name,
+  const renewal = career.contract?.promotion === promotion && career.contract.status === 'expired'
+  addHistory(next, 'contract', (renewal ? 'Renovação com ' : 'Contrato com ') + ORGANIZATIONS[promotion].name,
     'Acordo de ' + weeks + ' semanas, com $' + pay + ' por show disputado.', promotion)
   return next
 }
@@ -317,8 +334,8 @@ function addTitleHistory(career: Career, show: Show, match: MatchResult, states:
   applyTitleMatch(states, career, show, match)
   const winners = matchWinners(match)
   const verb = previous && sameTeam(previous, winners) ? (match.tag ? ' retiveram ' : ' reteve ') : (match.tag ? ' conquistaram ' : ' conquistou ')
-  addHistory(career, 'title', fighterNames(career, winners) + verb + title.name,
-    show.name + ' · ' + METHOD_LABEL[match.method], title.promotion)
+  addHistory(career, 'title', fighterNames(career, winners) + verb + titleName(career, title, show.date),
+    show.name + ' · ' + METHOD_LABEL[match.method], title.promotion, match.player)
 }
 
 function addCompetitionHistory(career: Career, show: Show, match: MatchResult, rivalries: RivalryStates) {
@@ -505,8 +522,8 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
     const opponents = namesList.format((team?.opponents ?? [rival, ...extraRivals]).map(fighter => fighter.name))
     const format = team?.format ?? (extraRivals.length ? multiFormatForSize(extraRivals.length + 2) : 'singles')
     const stakes = playerFixture ? playerFixture.edition.name + ' · ' + roundName(playerFixture.edition, playerFixture.round)
-      : [MATCH_FORMAT_LABEL[format], playerTitle?.name].filter(Boolean).join(' · ')
-    addHistory(career, 'match', 'Luta marcada contra ' + opponents, show.name + ' · ' + stakes, show.promotion)
+      : [MATCH_FORMAT_LABEL[format], playerTitle && titleName(career, playerTitle, show.date)].filter(Boolean).join(' · ')
+    addHistory(career, 'match', 'Luta marcada contra ' + opponents, show.name + ' · ' + stakes, show.promotion, true)
   } else if (matches.length) {
     const mainEvent = matches.at(-1)!
     addHistory(career, 'show', show.name, fighterNames(career, matchWinners(mainEvent))
@@ -516,6 +533,93 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
   }
   return { ...show, matches }
 }
+export function setTitleProposal(career: Career, pair: TitlePair | null): Career {
+  if (hasLiveBout(career)) throw new Error('Finalize o combate para enviar uma proposta.')
+  if (!pair) return { ...career, titleProposal: null }
+  const promotion = career.contract?.status === 'active' ? career.contract.promotion : undefined
+  const states = titleStates(career)
+  if (!promotion || career.titleProposal || TITLES_BY_ID.get(pair.titleId)?.promotion !== promotion || !canUnify(states, pair)
+    || !states.get(pair.titleId)?.holders?.includes(PLAYER_ID)) {
+    throw new Error('A proposta exige dois cinturões compatíveis da sua brand, com uma defesa em cada reinado.')
+  }
+  const next = { ...career, titleProposal: pair }
+  addHistory(next, 'title', 'Proposta de unificação', 'A diretoria decidirá no próximo evento especial da brand.', promotion)
+  return next
+}
+
+function officeApproves(states: BeltStates, pair: TitlePair) {
+  const first = states.get(pair.titleId)!
+  const second = states.get(pair.secondaryId)!
+  const primary = TITLES_BY_ID.get(pair.titleId)!
+  const secondary = TITLES_BY_ID.get(pair.secondaryId)!
+  // Consolidate overlapping divisions when both belts are well defended and their standing is comparable.
+  return first.defenses + second.defenses >= 4
+    && Math.abs(titlePrestige(primary, first.defenses) - titlePrestige(secondary, second.defenses)) <= 28
+}
+
+function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltStates) {
+  const agendas = shows.filter(show => show.special)
+    .flatMap(show => showPromotions(show).map(promotion => ({ show, promotion })))
+  for (const { show, promotion } of agendas) {
+    const titles = OPENING_TITLES.filter(title => title.promotion === promotion && showSupportsTitle(show, title))
+    const proposal = career.titleProposal
+    const requested = proposal && titles.some(title => title.id === proposal.titleId) ? proposal : null
+    let pair: TitlePair | undefined
+    let proposed = false
+    if (requested) {
+      career.titleProposal = null
+      if (career.contract?.status === 'active' && career.contract.promotion === promotion && show.date < career.contract.end
+        && states.get(requested.titleId)?.holders?.includes(PLAYER_ID) && canUnify(states, requested) && officeApproves(states, requested)) {
+        pair = requested
+        proposed = true
+      } else {
+        addHistory(career, 'title', 'Unificação recusada', 'A diretoria decidiu manter as linhagens separadas. Ela considerou o vínculo, os reinados, as defesas e o prestígio.', promotion)
+      }
+    }
+    if (!pair && !requested) {
+      for (const [index, title] of titles.entries()) {
+        const primary = states.get(title.id)
+        if (!primary?.holders || primary.holders.includes(PLAYER_ID)) continue
+        const secondary = titles.slice(index + 1).find(other => compatibleTitles(title, other)
+          && canUnify(states, { titleId: title.id, secondaryId: other.id })
+          && officeApproves(states, { titleId: title.id, secondaryId: other.id }))
+        if (secondary) {
+          pair = { titleId: title.id, secondaryId: secondary.id }
+          break
+        }
+      }
+    }
+    const lastChange = career.titleChanges.filter(change => TITLES_BY_ID.get(change.titleId)?.promotion === promotion).at(-1)
+    const redesign = !pair && (!lastChange || dayDistance(lastChange.date, show.date) >= 150) ? titles.find(title => {
+      const state = states.get(title.id)!
+      return canRedesign(state, show.date) && state.events.some(event => event.kind === 'defense')
+    }) : undefined
+    const title = pair ? TITLES_BY_ID.get(pair.titleId) : redesign
+    if (!title) continue
+    const state = states.get(title.id)!
+    const champion = state.holders && state.defenses >= 4 && dayDistance(state.heldFrom, show.date) >= 100 ? [...state.holders] : undefined
+    const kind = pair ? 'unification' : champion ? 'personalized' : 'redesign'
+    const prestige = titlePrestige(title, state.defenses, Boolean(pair || state.designs?.some(change => change.kind === 'unification')))
+    const name = pair ? unifiedTitleName(title) : titleName(career, title)
+    const secondaryName = pair && TITLES_BY_ID.get(pair.secondaryId)!.name
+    const artwork = beltArtworkFor({
+      title: name, promotion: ORGANIZATIONS[promotion].name, accent: ORGANIZATIONS[promotion].accent,
+      prestige, lineage: [title.name, ...(secondaryName ? [secondaryName] : [])],
+      reason: kind, formerDesign: state.designs?.at(-1)?.artwork, seed: career.rng + '|' + show.id,
+    })
+    const fields = { titleId: title.id, date: show.date, showId: show.id, artwork, prestige }
+    const change: TitleChange = pair ? { ...fields, kind: 'unification', secondaryId: pair.secondaryId, proposed }
+      : champion ? { ...fields, kind: 'personalized', champion } : { ...fields, kind: 'redesign' }
+    applyTitleChange(states, show, change)
+    career.titleChanges = [...career.titleChanges, change]
+    const detail = pair ? 'A diretoria reuniu ' + title.name + ' e ' + secondaryName + ' após defesas dos mesmos campeões.'
+      : champion ? 'A diretoria homenageou o reinado de ' + fighterNames(career, champion) + '.'
+        : 'A diretoria atualizou a identidade visual após um ciclo de mudanças de campeão.'
+    addHistory(career, 'title', pair ? 'Unificação de campeonatos' : 'Novo design de cinturão',
+      name + ' · ' + detail + ' ' + show.name + '.', promotion)
+  }
+}
+
 function advanceThrough(career: Career, target: string): Career {
   const random = new Random(career.rng)
   const shows = dueShows(career.worldThrough, target)
@@ -539,6 +643,7 @@ function advanceThrough(career: Career, target: string): Career {
         && show.date >= next.contract.start && show.date < next.contract.end
       next.shows.push(bookShow(next, show, random, playerBooked, occupied, states, rivalries, card))
     }
+    if (!hasLiveBout(next)) closeBeltOffice(next, today, states)
     start = end
   }
   next.date = target
@@ -606,20 +711,49 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   bout.xpAwarded = xp
   next.xp += xp
   next.popularity = clamp(next.popularity + (won ? 4 : 1) + (show.special ? 2 : 0), 0, 100)
-  addTitleHistory(next, show, result, titleStates(career))
+  const states = titleStates(career)
+  addTitleHistory(next, show, result, states)
   addCompetitionHistory(next, show, result, rivalries)
   next.shows = career.shows.map(report => report.id === show.id ? { ...report, matches: [...report.matches, result] } : report)
   next.ledger = [...career.ledger, { id: bout.id, date: show.date, label: show.name + (won ? ' · participação e vitória' : ' · participação'), amount: contract.pay + (won ? contract.winBonus : 0) }]
   const headline = result.multi ? (won ? 'Vitória em ' : 'Derrota em ') + MATCH_FORMAT_LABEL[matchFormat(result)]
     : (won ? 'Vitória sobre ' : 'Derrota para ') + fighterNames(career, matchTeams(result)[1])
   const fall = result.multi ? fighterName(career, result.winnerId) + ' finalizou ' + fighterName(career, result.multi.defeatedId) + ' · ' : ''
-  addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion)
+  addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion, true)
   addHistory(next, 'show', show.name, 'Card encerrado com ' + (show.matches.length + 1) + ' lutas.', show.promotion)
+  closeBeltOffice(next, next.shows.filter(report => report.date === show.date), states)
   return next
 }
 
 export const attributeCost = (value: number) => 7 + Math.floor((value - 40) / 5) * 3
 export const moveCost = (level: number) => 18 + level * 16
+
+export function moveUnlockIssue(career: Career, id: string) {
+  const unlock = MOVE_BY_ID.get(id)?.unlock
+  if (!unlock || career.profile.unlockedMoves?.includes(id)) return 'Golpe já disponível.'
+  if (hasLiveBout(career)) return 'Finalize a luta antes de alterar o moveset.'
+  if (career.profile.attributes[unlock.attribute] < unlock.minimum) return 'Requer ' + ATTRIBUTE_NAMES[unlock.attribute] + ' ' + unlock.minimum + '.'
+  if (career.xp < unlock.xp) return 'Requer ' + unlock.xp + ' XP.'
+  return null
+}
+
+export function unlockMove(career: Career, id: string): Career {
+  const issue = moveUnlockIssue(career, id)
+  if (issue) throw new Error(issue)
+  const move = MOVE_BY_ID.get(id)!
+  const next = { ...career, xp: career.xp - move.unlock!.xp, profile: {
+    ...career.profile, unlockedMoves: [...(career.profile.unlockedMoves ?? []), id],
+  } }
+  addHistory(next, 'progression', move.name + ' aprendido', 'Golpe disponível no catálogo.')
+  return next
+}
+
+export function changeCareerMove(career: Career, id: string, replaced: string): Career {
+  if (hasLiveBout(career)) throw new Error('Finalize a luta antes de alterar o moveset.')
+  const move = MOVE_BY_ID.get(id)
+  if (move?.unlock && !career.profile.unlockedMoves?.includes(id)) throw new Error('Aprenda este golpe antes de equipá-lo.')
+  return { ...career, profile: { ...career.profile, moves: swapMove(career.profile.moves, id, replaced) } }
+}
 
 export function improveAttribute(career: Career, attribute: Attribute): Career {
   if (hasLiveBout(career)) throw new Error('A evolução fica disponível após a luta.')

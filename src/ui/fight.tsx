@@ -1,6 +1,8 @@
 import { ArrowRight, Crosshair, Flame, HeartPulse, Repeat2, Shield, Swords, Trophy, Zap } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, type Fighter } from '../content/catalog'
+import { defaultAppearance, type Appearance } from '../domain/appearance'
+import { titleName } from '../content/belt-designs'
 import { MOVE_BY_ID } from '../content/moves'
 import { roundName, tournamentEdition } from '../content/tournaments'
 import {
@@ -13,14 +15,15 @@ import { formatForSize, multiFormatForSize } from '../engine/matches'
 import { BREAKUP_STAMINA, multiActionIssue } from '../engine/multi-combat'
 import { matchRivalry, rivalryStates } from '../engine/rivalries'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagActionFor, tagActionUnavailable, tagTarget } from '../engine/tag-combat'
+import { FighterAvatar } from './avatar'
 import { EmptyState, Meter, PageTitle } from './shared'
 
-function Corner({ fighter, side, rival = false, tag = false, selected = false, children }: {
-  fighter: Fighter; side: BoutSide; rival?: boolean; tag?: boolean; selected?: boolean; children?: ReactNode
+function Corner({ fighter, side, rival = false, tag = false, selected = false, look, children }: {
+  fighter: Fighter; side: BoutSide; rival?: boolean; tag?: boolean; selected?: boolean; look?: Appearance; children?: ReactNode
 }) {
   return <section className={'panel ring-corner' + (rival ? ' rival-corner' : '') + (selected ? ' targeted-corner' : '')}>
     <header className="corner-header">
-      <div className="fighter-avatar">{fighter.name.slice(0, 2).toUpperCase()}</div>
+      <FighterAvatar name={fighter.name} look={look} />
       <div><h2>{fighter.name}</h2><p>{fighter.style} · {fighter.alignment}</p></div>
       <div className="rating"><strong>{overall(fighter.attributes, fighter.style)}</strong><span>OVR</span></div>
     </header>
@@ -52,13 +55,13 @@ type FightProps = {
 }
 type ActiveFightProps = Pick<FightProps, 'career' | 'pending' | 'onTurn' | 'onAdvance'> & { show: Show; player: Fighter }
 
-function FightHeading({ show, bout, format }: { show: Show; bout: Bout; format: MatchFormat }) {
+function FightHeading({ career, show, bout, format }: { career: Career; show: Show; bout: Bout; format: MatchFormat }) {
   const belt = bout.titleId ? TITLES_BY_ID.get(bout.titleId) : undefined
   const status = bout.finish ? 'Encerrado' : bout.multi?.pendingFall ? 'Finalização em curso' : 'Turno ' + (bout.turn + 1)
   return <>
     <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · ' + MATCH_FORMAT_LABEL[format]}
       action={<span className="chip">{status}</span>} />
-    {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {belt.name}</span></div>}
+    {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {titleName(career, belt, show.date)}</span></div>}
   </>
 }
 
@@ -92,11 +95,11 @@ function FightControls({ player, pending, onTurn, issue, title = 'Escolha sua a�
   </section>
 }
 
-function FightFinish({ bout, victory, method, pending, onAdvance, children }: {
-  bout: Bout; victory: boolean; method: Method; pending: boolean; onAdvance: () => void; children: ReactNode
+function FightFinish({ career, bout, victory, method, pending, onAdvance, children }: {
+  career: Career; bout: Bout; victory: boolean; method: Method; pending: boolean; onAdvance: () => void; children: ReactNode
 }) {
   return <section className={'panel fight-finish ' + (victory ? 'won' : '')} aria-live="polite">
-    <Trophy size={28} aria-hidden /><div><h2>{victory ? 'Vitória' : 'Derrota'} por {METHOD_LABEL[method].toLowerCase()}</h2>
+    <FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} /><div><h2>{victory ? 'Vitória' : 'Derrota'} por {METHOD_LABEL[method].toLowerCase()}</h2>
       <p>{children} após {bout.turn} {bout.turn === 1 ? 'turno' : 'turnos'}. <strong>+{bout.xpAwarded} XP</strong></p></div>
     <button className="button primary" onClick={onAdvance} disabled={pending}>Avançar calendário <ArrowRight size={17} aria-hidden /></button>
   </section>
@@ -131,7 +134,7 @@ function DuelFight({ career, bout, show, player, pending, onTurn, onAdvance }: A
     id: tagActionFor(teamBout, 'player', slot), name: format === 'trios' ? 'Fazer a tag com ' + fighterName(career, playerMembers[slot]) : undefined,
   })) : []
   return <>
-    <FightHeading show={show} bout={bout} format={format} />
+    <FightHeading career={career} show={show} bout={bout} format={format} />
     {edition && <div className="inline-note"><Trophy size={19} aria-hidden /><span>
       {edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === show.id))}
     </span></div>}
@@ -140,16 +143,16 @@ function DuelFight({ career, bout, show, player, pending, onTurn, onAdvance }: A
     </span></div>}
     {teamBout?.tag.mixed && <div className="inline-note"><Repeat2 size={18} aria-hidden /><span>Na tag, as duas duplas trocam o lutador legal.</span></div>}
     <div className="ring-grid">
-      <Corner fighter={legalPlayer} side={cornerSide(bout, 'player')} tag={Boolean(teamBout)} />
+      <Corner fighter={legalPlayer} look={onApron ? undefined : career.profile.look ?? defaultAppearance()} side={cornerSide(bout, 'player')} tag={Boolean(teamBout)} />
       <Corner fighter={legalRival} side={cornerSide(bout, 'rival')} tag={Boolean(teamBout)} rival />
     </div>
     {teamBout && <div className="ring-grid apron-grid">
       <Apron career={career} bout={teamBout} actor="player" members={playerMembers} />
       <Apron career={career} bout={teamBout} actor="rival" members={rivalMembers} />
     </div>}
-    {finished ? <FightFinish bout={bout} method={finished.method} victory={victory} pending={pending} onAdvance={onAdvance}>
+    {finished ? <FightFinish career={career} bout={bout} method={finished.method} victory={victory} pending={pending} onAdvance={onAdvance}>
       {finisher} {teamBout ? 'garantiu a vitória da equipe' : 'venceu'}
-    </FightFinish> : <FightControls player={player} pending={pending} onTurn={onTurn}
+    </FightFinish> : <FightControls key={bout.id} player={player} pending={pending} onTurn={onTurn}
       issue={id => teamBout ? tagActionUnavailable(teamBout, player, id) : reasonUnavailable(bout, 'player', player, id, bout.plan)}
       title={onApron ? 'Ações no apron' : undefined} onApron={onApron} tags={tags}>
       <div className="fight-intent" aria-live="polite"><Flame size={20} aria-hidden /><div><strong>Leitura do rival</strong>
@@ -170,7 +173,7 @@ function MultiFight({ career, bout, show, player, pending, onTurn, onTarget, onA
     }
   }, [pendingFall])
   return <>
-    <FightHeading show={show} bout={bout} format={multiFormatForSize(1 + opponents.length)} />
+    <FightHeading career={career} show={show} bout={bout} format={multiFormatForSize(1 + opponents.length)} />
     {pendingFall && <section className="panel fall-reaction" ref={response} tabIndex={-1} aria-labelledby="fall-reaction-title">
       <div><h2 id="fall-reaction-title">Interromper a finalização</h2>
         <p>{fighterName(career, pendingFall.winnerId)} está prestes a vencer por {METHOD_LABEL[pendingFall.method].toLowerCase()}
@@ -182,15 +185,15 @@ function MultiFight({ career, bout, show, player, pending, onTurn, onTarget, onA
       </div>
     </section>}
     <div className={'ring-grid multi-ring multi-ring-' + (1 + opponents.length)}>
-      <Corner fighter={player} side={bout.player} />
+      <Corner fighter={player} look={career.profile.look ?? defaultAppearance()} side={bout.player} />
       {opponents.map(entry => <Corner key={entry.id} fighter={ROSTER_BY_ID.get(entry.id)!} side={entry.side} rival selected={!finish && targetId === entry.id}>
         {!finish && !pendingFall && <p className="multi-intent">{telegraph(entry.action)}
           {['guard', 'breathe', 'climb'].includes(entry.action) ? '.' : ' · alvo ' + fighterName(career, entry.targetId)}</p>}
       </Corner>)}
     </div>
-    {finish ? <FightFinish bout={bout} method={finish.method} victory={finish.winnerId === PLAYER_ID} pending={pending} onAdvance={onAdvance}>
+    {finish ? <FightFinish career={career} bout={bout} method={finish.method} victory={finish.winnerId === PLAYER_ID} pending={pending} onAdvance={onAdvance}>
       {fighterName(career, finish.winnerId)} finalizou {fighterName(career, finish.defeatedId)}
-    </FightFinish> : !pendingFall && <FightControls player={player} pending={pending} onTurn={onTurn}
+    </FightFinish> : !pendingFall && <FightControls key={bout.id} player={player} pending={pending} onTurn={onTurn}
       issue={id => multiActionIssue(bout, player, id)}>
       <div className="fight-intent multi-target">
         <Crosshair size={20} aria-hidden /><div><label>Alvo da sua ação

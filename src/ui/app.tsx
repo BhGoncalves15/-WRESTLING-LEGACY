@@ -5,8 +5,8 @@ import {
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
-  advanceCareer, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
-  registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setFightTarget, setMatchPreference, signOffer,
+  advanceCareer, changeCareerMove, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
+  registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setFightTarget, setMatchPreference, signOffer, unlockMove, updateAppearance, setTitleProposal,
 } from '../engine/career'
 import { setTournamentEntry } from '../engine/tournaments'
 import { createSave, listSaves, openSave, saveCareer, type Vault } from '../storage/indexed-db'
@@ -16,8 +16,9 @@ import { Creator } from './creator'
 import { Player } from './player'
 import { Saves, Settings } from './saves'
 import { dateText } from './shared'
-import { Calendar, Championships, Companies, Feed, Home } from './world'
+import { Calendar, Companies, Feed, Home } from './world'
 
+const Championships = lazy(() => import('./championships'))
 const Competitions = lazy(() => import('./competitions'))
 const Fight = lazy(() => import('./fight'))
 
@@ -230,7 +231,9 @@ export function App() {
     if (route === 'nova-carreira') return <Creator initialDifficulty={defaultDifficulty} pending={pending} onCancel={() => navigate('inicio')} onCreate={create} />
     if (route === 'calendario') return <Calendar career={career} pending={pending} onAdvance={advance} onFight={openFight} />
     if (route === 'empresas') return <Companies career={career} />
-    if (route === 'campeonatos') return <Championships career={career} />
+    if (route === 'campeonatos') return <Suspense fallback={<p className="loading" role="status">Carregando campeonatos…</p>}>
+      <Championships key={career?.id} career={career} pending={pending} onProposal={pair => change(current => setTitleProposal(current, pair))} />
+    </Suspense>
     if (route === 'salvamentos') return <Saves vault={vault} current={career} pending={pending} onOpen={resume} onNew={openNew}
       onSave={() => change(current => current, () => setNotice({ text: 'Carreira salva.', error: false }))}
       onImport={upload} onExport={download} />
@@ -247,9 +250,12 @@ export function App() {
         <Competitions key={career.id} career={career} pending={pending}
           onEntry={(id, enter) => change(current => setTournamentEntry(current, id, enter))} />
       </Suspense>
-      if (route === 'lutador') return <Player career={career} pending={pending}
+      if (route === 'lutador') return <Player key={career.id} career={career} pending={pending}
         onAttribute={attribute => change(current => improveAttribute(current, attribute))}
         onMove={id => change(current => improveMove(current, id))}
+        onLook={look => change(current => updateAppearance(current, look))}
+        onEquip={(id, replaced) => change(current => changeCareerMove(current, id, replaced))}
+        onUnlock={id => change(current => unlockMove(current, id))}
         onTeam={(format, ids) => change(current => setCareerTeam(current, format, ids))}
         onWeight={weight => change(current => registerRingWeight(current, weight))}
         onFormat={format => change(current => setMatchPreference(current, format))} />

@@ -1,4 +1,7 @@
+import { beltArtSchema } from './belt-art'
 import { z } from 'zod'
+import { appearanceSchema } from './appearance'
+import { placeSchema } from './geography'
 
 export const START_DATE = '2026-01-01'
 export const LEGACY_DATA_VERSION = 'pilot-2026-01-01.1'
@@ -7,12 +10,18 @@ export const TAG_DATA_VERSION = 'world-2026-01-01.3'
 export const TRIOS_DATA_VERSION = 'world-2026-01-01.4'
 export const TEAM_TITLES_DATA_VERSION = 'world-2026-01-01.5'
 export const COMPETITIONS_DATA_VERSION = 'world-2026-01-01.6'
-export const DATA_VERSION = 'world-2026-01-01.7'
-export const SAVE_VERSION = 7
+export const MULTI_DATA_VERSION = 'world-2026-01-01.7'
+export const DATA_VERSION = 'world-2026-01-01.8'
+export const SAVE_VERSION = 8
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
 export const ATTRIBUTE_CAP = 100
+export const MIN_STARTING_AGE = 18
+export const MAX_STARTING_AGE = 24
+export const STARTING_AGE_MESSAGE = 'Informe uma idade inicial inteira entre 18 e 24 anos.'
+export const validStartingAge = (age: number) => Number.isInteger(age) && age >= MIN_STARTING_AGE && age <= MAX_STARTING_AGE
+export const ageOn = (initialAge: number, date: string) => initialAge + Number(date.slice(0, 4)) - Number(START_DATE.slice(0, 4))
 
 export const ATTRIBUTE_NAMES = {
   strength: 'Força',
@@ -141,20 +150,23 @@ const shortText = z.string().trim().max(75)
 export const profileSchema = z.object({
   name: shortText.min(2),
   nickname: shortText,
-  country: shortText.min(2),
-  city: shortText,
+  country: z.string().trim().min(2).max(100),
+  city: z.string().trim().max(100),
   age: z.number().int().min(16).max(80),
   ringWeightKg: ringWeightSchema.nullable().default(null),
   division: z.enum(DIVISIONS),
   alignment: z.enum(ALIGNMENTS),
   style: z.enum(STYLES),
   personality: shortText.min(2),
-  appearance: shortText,
-  gear: shortText,
-  entrance: shortText,
+  appearance: shortText.default(''),
+  gear: shortText.default(''),
+  entrance: shortText.default(''),
+  look: appearanceSchema.optional(),
+  place: placeSchema.optional(),
   attributes: attrs,
   moves: z.array(id).length(20),
   moveLevels: z.record(id, z.number().int().min(1).max(3)),
+  unlockedMoves: z.array(id).optional(),
 })
 export type Profile = z.infer<typeof profileSchema>
 
@@ -269,6 +281,7 @@ const historySchema = z.object({
   title: z.string().min(1).max(240),
   detail: z.string().min(1).max(360),
   promotion: promotion.nullable(),
+  participantId: z.literal('career-player').optional(),
 })
 export type HistoryItem = z.infer<typeof historySchema>
 
@@ -277,6 +290,17 @@ const ledgerSchema = z.object({
   amount: safeInt,
 })
 export type LedgerItem = z.infer<typeof ledgerSchema>
+
+export const titlePairSchema = z.object({ titleId: id, secondaryId: id })
+export type TitlePair = z.infer<typeof titlePairSchema>
+
+const titleChangeFields = { titleId: id, showId: id, date: dateSchema, prestige: safeInt.max(100), artwork: beltArtSchema }
+const titleChangeSchema = z.discriminatedUnion('kind', [
+  z.object({ ...titleChangeFields, kind: z.literal('unification'), secondaryId: id, proposed: z.boolean() }),
+  z.object({ ...titleChangeFields, kind: z.literal('redesign') }),
+  z.object({ ...titleChangeFields, kind: z.literal('personalized'), champion: z.array(id).min(1).max(3) }),
+])
+export type TitleChange = z.infer<typeof titleChangeSchema>
 
 export const careerSchema = z.object({
   schemaVersion: z.literal(SAVE_VERSION),
@@ -298,6 +322,8 @@ export const careerSchema = z.object({
   shows: z.array(reportSchema),
   expandedOn: dateSchema.nullable(),
   vacatedTitles: z.array(z.object({ titleId: id, date: dateSchema })),
+  titleChanges: z.array(titleChangeSchema).default([]),
+  titleProposal: titlePairSchema.nullable().default(null),
   tagPartnerId: id.nullable(),
   trioPartnerIds: z.tuple([id, id]).nullable(),
   mixedPartnerId: id.nullable(),

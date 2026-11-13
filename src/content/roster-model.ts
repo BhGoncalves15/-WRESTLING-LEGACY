@@ -1,5 +1,6 @@
 import { ATTRIBUTES, clamp, suggestedAttributes, type Alignment, type Attributes, type Division, type PromotionId, type Style } from '../domain/model'
-import { defaultMoves } from './moves'
+import { MOVE_REFERENCES } from './move-details'
+import { defaultMoves, swapMove } from './moves'
 
 export type Fighter = {
   id: string
@@ -27,7 +28,12 @@ export function rosterEntry(
 ): RosterEntry {
   const attributes = suggestedAttributes(style)
   ATTRIBUTES.forEach(attribute => { attributes[attribute] = clamp(attributes[attribute] + power, 40, 94) })
-  return { id, name, promotion, division, style, alignment, attributes, moves: defaultMoves(style), moveLevels: {}, appearance: { promotion, date, source }, guests, aliases }
+  let moves = defaultMoves(style)
+  for (const [move, references] of Object.entries(MOVE_REFERENCES)) {
+    const signature = references.find(reference => reference.fighterId === id)
+    if (signature?.replace && !moves.includes(move)) moves = swapMove(moves, move, signature.replace)
+  }
+  return { id, name, promotion, division, style, alignment, attributes, moves, moveLevels: {}, appearance: { promotion, date, source }, guests, aliases }
 }
 
 
