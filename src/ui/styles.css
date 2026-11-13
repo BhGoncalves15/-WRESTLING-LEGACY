@@ -137,6 +137,7 @@ svg { flex-shrink: 0; }
 .source-link:hover { text-decoration: underline; }
 
 label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 600; min-width: 0; }
+.field { display: grid; gap: 5px; align-content: start; min-width: 0; }
 input, select { display: block; width: 100%; min-width: 0; min-height: 41px; border: 1px solid #3d4134; border-radius: 6px; background: #11130f; color: var(--text); padding: 7px 10px; }
 select { padding-right: 22px; }
 .steps { display: flex; gap: 13px; list-style: none; padding: 0; margin-bottom: 16px; align-items: center; }
@@ -326,6 +327,8 @@ select { padding-right: 22px; }
   .stepper input { padding-inline: 2px; }
   .form-footer { padding: 10px 12px; }
   .creator .panel-head { flex-wrap: wrap; }
+  .steps { flex-wrap: wrap; gap: 6px; }
+  .steps li { gap: 4px; }
   .terms.wide { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .org-selector { display: grid; justify-items: start; gap: 6px; padding: 7px; }
   .org-selector .org-mark { min-width: 37px; height: 32px; font-size: 17px; }

@@ -1,5 +1,5 @@
 import { CirclePlay, LockKeyhole, Pause, RotateCcw } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { MOVE_BY_ID, MOVES, type Move } from '../content/moves'
 import { MOVE_DESCRIPTIONS, MOVE_REFERENCES } from '../content/move-details'
 import { searchKey } from '../domain/geography'
@@ -49,6 +49,7 @@ type Props = {
 const lockedFor = (profile: Profile, move: Move) => Boolean(move.unlock && !profile.unlockedMoves?.includes(move.id))
 
 export default function Moveset({ profile, disabled, onEquip, onRemove, onUnlock, unlockIssue }: Props) {
+  const categoryId = useId()
   const [kind, setKind] = useState<MoveKind | 'all'>('all')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
@@ -72,10 +73,13 @@ export default function Moveset({ profile, disabled, onEquip, onRemove, onUnlock
       <div className="move-list">
         <div className="move-filters">
           <label>Buscar golpe<input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label>
-          <label>Categoria<select value={kind} onChange={event => setKind(event.target.value as typeof kind)}>
-            <option value="all">Todas</option>
-            {MOVE_KINDS.map(type => <option key={type} value={type}>{MOVE_KIND_LABEL[type]}</option>)}
-          </select></label>
+          <div className="field">
+            <label htmlFor={categoryId}>Categoria</label>
+            <select id={categoryId} value={kind} onChange={event => setKind(event.target.value as typeof kind)}>
+              <option value="all">Todas</option>
+              {MOVE_KINDS.map(type => <option key={type} value={type}>{MOVE_KIND_LABEL[type]}</option>)}
+            </select>
+          </div>
         </div>
         <ul className="rows" aria-label="Golpes disponíveis para consulta">{moves.map(entry => {
           const alias = MOVE_REFERENCES[entry.id]?.find(reference => reference.alias !== entry.name)?.alias

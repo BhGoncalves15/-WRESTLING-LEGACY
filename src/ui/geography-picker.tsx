@@ -107,8 +107,10 @@ function CountryPicker({ index, country, onCountry }: {
 export function GeographyPicker({ value, change, geography }: {
   value: LocationDraft; change: (next: LocationDraft) => void; geography: ReturnType<typeof useGeography>
 }) {
+  const fieldId = useId()
   const [cityQuery, setCityQuery] = useState('')
   const { index, country, catalog, error, retry } = geography
+  const divisionLabel = regionLabel(value.countryCode, catalog?.[0] ?? [])
   const regions = useMemo(() => [...(catalog?.[0] ?? [])].sort((a, b) => sorted(a[1], b[1])), [catalog])
   const region = regions.find(row => regionId(value.countryCode, row) === value.regionId)
   const cities = useMemo(() => [...(region?.[3] ?? catalog?.[1] ?? [])].sort((a, b) => sorted(a[1], b[1])), [region, catalog])
@@ -132,12 +134,13 @@ export function GeographyPicker({ value, change, geography }: {
     <div className="geography-fields">
       <CountryPicker index={index} country={country} onCountry={selectCountry} />
       <div className="geography-field">
-        {regions.length > 0 && <label>{regionLabel(value.countryCode, regions)}
-          <select value={value.regionId} onChange={event => selectRegion(event.target.value)}>
+        {regions.length > 0 && <div className="field">
+          <label htmlFor={fieldId + '-region'}>{divisionLabel}</label>
+          <select id={fieldId + '-region'} value={value.regionId} onChange={event => selectRegion(event.target.value)}>
             <option value="">{catalog?.[1].length ? 'Sem divisão cadastrada' : 'Selecione'}</option>
             {regions.map(row => <option value={regionId(value.countryCode, row)} key={row[0]}>{row[1]}</option>)}
           </select>
-        </label>}
+        </div>}
         {country && !catalog && !error && <small role="status">Carregando localidades de {country[1]}…</small>}
         {catalog && !regions.length && <small>O catálogo não lista subdivisões para esta origem.</small>}
       </div>
@@ -145,11 +148,14 @@ export function GeographyPicker({ value, change, geography }: {
         {!value.manual && <>
           <label>Buscar cidade <input type="search" value={cityQuery} disabled={!cities.length}
             onChange={event => setCityQuery(event.target.value)} /></label>
-          <label>Cidade <select value={value.cityId} disabled={!cities.length}
-            onChange={event => change({ ...value, cityId: event.target.value })}>
-            <option value="">Selecione</option>
-            {visibleCities.map(city => <option value={cityId(value.countryCode, region, city)} key={city[0]}>{city[1]}</option>)}
-          </select></label>
+          <div className="field">
+            <label htmlFor={fieldId + '-city'}>Cidade</label>
+            <select id={fieldId + '-city'} value={value.cityId} disabled={!cities.length}
+              onChange={event => change({ ...value, cityId: event.target.value })}>
+              <option value="">Selecione</option>
+              {visibleCities.map(city => <option value={cityId(value.countryCode, region, city)} key={city[0]}>{city[1]}</option>)}
+            </select>
+          </div>
           {results.length > 80 && <small>Mostrando 80 de {results.length}. Digite o nome para refinar.</small>}
         </>}
         {value.manual && <label>Cidade fora do catálogo <input value={value.manualCity} maxLength={100}

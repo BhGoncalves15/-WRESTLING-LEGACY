@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { LOOK_OPTIONS, defaultAppearance, type Appearance } from '../domain/appearance'
 import { AvatarPreview } from './avatar'
 
@@ -16,6 +16,7 @@ const skinTones = ['#f6d7c0', '#e5b394', '#ce946e', '#a86b4d', '#86543b', '#613b
 
 export default function AppearanceEditor({ value, onChange }: { value?: Appearance; onChange: (value: Appearance) => void }) {
   const look = value ?? defaultAppearance()
+  const fieldId = useId()
   const [back, setBack] = useState(false)
   const [zoom, setZoom] = useState(false)
   const [clothing, setClothing] = useState(false)
@@ -23,9 +24,13 @@ export default function AppearanceEditor({ value, onChange }: { value?: Appearan
     onChange({ ...look, [key]: field })
   }
   function options(key: keyof typeof LOOK_OPTIONS, label: string) {
-    return <label key={key}>{label}<select value={look[key]} onChange={event => update(key, event.target.value as Appearance[typeof key])}>
-      {Object.entries(LOOK_OPTIONS[key]).map(([id, name]) => <option value={id} key={id}>{name}</option>)}
-    </select></label>
+    const id = fieldId + '-' + key
+    return <div className="field" key={key}>
+      <label htmlFor={id}>{label}</label>
+      <select id={id} value={look[key]} onChange={event => update(key, event.target.value as Appearance[typeof key])}>
+        {Object.entries(LOOK_OPTIONS[key]).map(([id, name]) => <option value={id} key={id}>{name}</option>)}
+      </select>
+    </div>
   }
   function color(key: 'skin' | 'hair' | 'eyes' | 'primary' | 'accent', label: string) {
     return <label>{label}<input type="color" value={look[key]} onChange={event => update(key, event.target.value)} /></label>

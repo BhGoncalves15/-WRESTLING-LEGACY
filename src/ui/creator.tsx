@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Minus, Plus, Sparkles } from 'lucide-react'
-import { lazy, Suspense, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useId, useState, type FormEvent } from 'react'
 import {
   ALIGNMENTS, ATTRIBUTES, ATTRIBUTE_NAMES, DIFFICULTIES, DIFFICULTY_LABEL, DIVISIONS, DIVISION_LABEL, INITIAL_ATTRIBUTE, INITIAL_BUDGET,
   INITIAL_LIMIT, MAX_RING_WEIGHT_KG, MIN_RING_WEIGHT_KG, MAX_STARTING_AGE, MIN_STARTING_AGE, STARTING_AGE_MESSAGE, STYLES, clamp, overall, pointsSpent, startingAttributes,
@@ -32,6 +32,7 @@ export function Creator({ initialDifficulty, pending, onCancel, onCreate }: {
   const [location, setLocation] = useState<LocationDraft>(openingLocation)
   const [error, setError] = useState('')
   const [ageError, setAgeError] = useState(false)
+  const fieldId = useId()
   const geography = useGeography(location.countryCode)
   const place = selectedPlace(location, geography.catalog)
   const [difficulty, setDifficulty] = useState(initialDifficulty)
@@ -84,21 +85,31 @@ export function Creator({ initialDifficulty, pending, onCancel, onCreate }: {
         <div className="form-grid">
           {textField('name', 'Nome de ringue', true)}
           {textField('nickname', 'Apelido')}
-          <label>Idade inicial <input name="age" type="number" inputMode="numeric" min={MIN_STARTING_AGE} max={MAX_STARTING_AGE} step={1}
+          <div className="field">
+            <label htmlFor={fieldId + '-age'}>Idade inicial</label>
+            <input id={fieldId + '-age'} name="age" type="number" inputMode="numeric" min={MIN_STARTING_AGE} max={MAX_STARTING_AGE} step={1}
             value={profile.age || ''} required aria-describedby="starting-age" aria-invalid={ageError || undefined}
             onInvalid={event => { event.preventDefault(); setAgeError(true); event.currentTarget.focus() }}
             onChange={event => { const age = Number(event.target.value); update('age', age); setAgeError(!validStartingAge(age)) }} />
             <small id="starting-age" className={ageError ? 'field-error' : undefined} role={ageError ? 'alert' : undefined}>
               {ageError ? STARTING_AGE_MESSAGE : '18 a 24 anos'}
-            </small></label>
+            </small>
+          </div>
           <label>Peso de ringue (kg)<input name="ringWeightKg" type="number" min={MIN_RING_WEIGHT_KG} max={MAX_RING_WEIGHT_KG}
             value={profile.ringWeightKg ?? ''} required onChange={event => update('ringWeightKg', event.target.value === '' ? null : Number(event.target.value))} /></label>
-          <label>Divisão<select value={profile.division} onChange={event => update('division', event.target.value as Profile['division'])}>
-            {DIVISIONS.map(division => <option key={division} value={division}>{DIVISION_LABEL[division]}</option>)}</select></label>
-          <label>Estilo<select value={profile.style} onChange={event => {
-            const style = event.target.value as Profile['style']
-            setProfile(current => ({ ...current, style, moves: defaultMoves(style) }))
-          }}>{STYLES.map(style => <option key={style}>{style}</option>)}</select></label>
+          <div className="field">
+            <label htmlFor={fieldId + '-division'}>Divisão</label>
+            <select id={fieldId + '-division'} value={profile.division} onChange={event => update('division', event.target.value as Profile['division'])}>
+              {DIVISIONS.map(division => <option key={division} value={division}>{DIVISION_LABEL[division]}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={fieldId + '-style'}>Estilo</label>
+            <select id={fieldId + '-style'} value={profile.style} onChange={event => {
+              const style = event.target.value as Profile['style']
+              setProfile(current => ({ ...current, style, moves: defaultMoves(style) }))
+            }}>{STYLES.map(style => <option key={style}>{style}</option>)}</select>
+          </div>
           <label>Alinhamento<select value={profile.alignment} onChange={event => update('alignment', event.target.value as Profile['alignment'])}>
             {ALIGNMENTS.map(alignment => <option key={alignment}>{alignment}</option>)}</select></label>
           {textField('personality', 'Personalidade', true)}
