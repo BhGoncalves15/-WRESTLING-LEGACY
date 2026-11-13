@@ -111,6 +111,7 @@ test('abre a demonstração sob demanda, pausa, revê, troca golpes e lida com f
   await page.goto('./')
   await main.getByRole('button', { name: 'Nova carreira' }).click()
   await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
+  await expect(main.getByLabel('Cidade', { exact: true })).toHaveValue('BR:50:5008305')
   for (let index = 0; index < 3; index++) await main.getByRole('button', { name: 'Continuar' }).click()
   const catalog = main.getByRole('region', { name: 'Catálogo de golpes' })
   await expect(catalog.getByRole('searchbox', { name: 'Buscar golpe' })).toBeVisible()

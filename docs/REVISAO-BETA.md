@@ -10,6 +10,7 @@ A revisão parte da [beta anterior](https://github.com/BhGoncalves15/-WRESTLING-
 | Bug | O relato de recuperação dizia que o lutador ficou em pé mesmo se já estivesse de pé ou no corner. | A narração acompanha a posição de partida. |
 | Qualidade de vida | Após o fim do contrato, a empresa atual podia ficar fora da próxima lista de propostas. | A renovação entra na lista de três propostas quando o elenco tem a divisão correspondente. O pagamento ofertado considera o contrato anterior e pode ser renegociado. |
 | Qualidade de vida | A escolha de golpe dependia de percorrer 20 seletores. | O catálogo tem busca, filtro, contagem por categoria e substituição no mesmo tipo. |
+| Bug | Servidores que descompactam arquivos do catálogo durante o transporte podiam impedir a criação. | O leitor reconhece o conteúdo entregue e abre tanto os dados já descompactados quanto o gzip do iniciador local. |
 | Qualidade de vida | A mídia acrescentaria espera na criação. | Editor e catálogo carregam ao abrir. O jogo pede somente o vídeo selecionado e preserva a descrição se a mídia falhar. |
 | Reformulação | Origem, aparência, traje e entrada eram campos de texto. | Origem vinculada ao catálogo, editor 2D e retirada da entrada da interface. Os textos anteriores continuam no JSON legado. |
 | Reformulação | A lista de campeonatos mostrava sobretudo nomes e reinados. | Cards com fotos atribuídas, busca, prestígio, status, versões e histórico de reinados. |
@@ -26,7 +27,7 @@ A revisão parte da [beta anterior](https://github.com/BhGoncalves15/-WRESTLING-
 
 ## Cinturões
 
-- A galeria inclui **14 fotografias licenciadas, cobrindo 12 títulos**. Onze têm imagem da edição de abertura e o NXT Championship tem uma foto histórica anterior à abertura. Quando falta uma imagem verificada, o card indica a pendência e oferece a fonte do título. Os recortes de fotografias mantêm placas e cores e são distribuídos com créditos e licenças. [Créditos das imagens](../public/belts/SOURCES.md)
+- A galeria inclui **18 fotografias licenciadas, cobrindo 16 títulos**. Treze têm imagem da edição de abertura. NXT Championship, TNA World e TNA Knockouts World têm fotos de edições históricas. Quando falta uma imagem verificada, o card indica a pendência e oferece a fonte do título. Os recortes de fotografias mantêm placas e cores e são distribuídos com créditos e licenças. [Créditos das imagens](../public/belts/SOURCES.md)
 - A diretoria decide depois dos cards de um evento especial. Para uma unificação, os títulos precisam ter a mesma agenda, divisão, formato, regras e política de compartilhamento. O campeão ou a equipe precisa ter defendido os dois cinturões. O algoritmo considera defesas e diferença de prestígio e pode recusar uma proposta. Com a unificação aprovada, a linhagem incorporada deixa de ser defendida, a principal continua com novo design e os dois registros históricos permanecem consultáveis.
 - A reformulação usa um marco narrativo do reinado ou do ciclo de campeões, com quatro temporadas como referência. A homenagem requer quatro defesas e pelo menos 100 dias de reinado. Essas regras são parâmetros de beta e ficam registradas na simulação por carreira.
 - A diretoria usa um gerador visual local para montar placa, material, correia, ornamentos e inscrições a partir de nome, empresa, prestígio e linhagens. O gerador produz SVG a partir dos dados salvos. Imagens históricas ficam no catálogo de fotografias. O resultado fictício é indicado no card.
@@ -34,13 +35,13 @@ A revisão parte da [beta anterior](https://github.com/BhGoncalves15/-WRESTLING-
 
 ## Simulações de jogo
 
-- Simulei três temporadas em cada dificuldade com a mesma semente para verificar a continuidade do calendário. Cada carreira avançou por 1.590 shows nas nove agendas e 51 torneios. O personagem começou com 24 anos, chegou aos 27 e o save exportado tinha 2,32 MB. Cada universo produziu 27 reformulações, cinco homenagens e três unificações. O teste de importação verificou que os títulos incorporados saíram apenas dos cards posteriores e que outra carreira manteve seu próprio catálogo.
+- Simulei três temporadas em cada dificuldade com a mesma semente para verificar a continuidade do calendário. Cada carreira avançou por 1.590 shows nas nove agendas e 51 torneios. O personagem começou com 24 anos, chegou aos 27 e o save exportado tinha 2,32 MB. Cada universo produziu 26 reformulações, onze homenagens e cinco unificações. O teste de importação verificou que os títulos incorporados saíram apenas dos cards posteriores e que outra carreira manteve seu próprio catálogo.
 - Joguei 91 combates individuais no motor até o fim de cinco contratos, com estratégias variadas, Dropkick repetido e recuperação passiva. As médias por carreira ficaram entre 7,8 e 9,4 turnos. Houve pinfall, submissão, uso de corner, reversões, signatures e finishers. A recuperação passiva perdeu os 18 combates da amostra no NXT. A sequência de Dropkick venceu cinco de cinco na amostra pequena da BWF. Uma amostra maior é necessária antes de alterar o equilíbrio por empresa.
 - Conferi valores negociados, participação e bônus, renovação, mudança de empresa e retomada de lutas salvas. O conjunto de navegador também cobre Tag Team, Trios, Duplas mistas, Triple Threat, Fatal 4-Way, finalizações interrompíveis, torneios e o calendário em 320 px.
 
 ## Pendências do Documento Mestre
 
-- Completar fotos das 60 edições de abertura restantes e o arquivo de versões antigas. A pesquisa de signatures e finishers continua para os demais lutadores.
+- Completar fotos das 58 edições de abertura restantes e o arquivo de versões antigas. A pesquisa de signatures e finishers continua para os demais lutadores.
 - Implementar criação de campeonatos independentes, outras reorganizações de brand, arte externa opcional e um sistema de gestão dos elencos com XP, mudanças de empresa, dispensas, aposentadorias e novos talentos.
 - Expandir contratos com rescisão antecipada, duração negociável, exclusividade e oportunidades. A beta permite acompanhar o vencimento e decidir entre renovação ou mudança.
 - Ampliar estipulações com regras próprias, Carreira História, promos, facções, economia, sincronização e balanço de longo prazo.

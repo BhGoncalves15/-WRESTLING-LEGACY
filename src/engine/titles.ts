@@ -108,7 +108,7 @@ export function applyTitleChange(states: BeltStates, show: Show | undefined, cha
   const title = TITLES_BY_ID.get(titleId)
   const state = states.get(titleId)
   if (!title || !state || state.retiredBy || !show?.special || show.id !== change.showId || show.date !== date
-    || show.promotion !== title.promotion || !showSupportsTitle(show, title)) throw new Error('Evento inválido para a mudança do cinturão.')
+    || !showSupportsTitle(show, title)) throw new Error('Evento inválido para a mudança do cinturão.')
   if (change.kind === 'unification') {
     if (!canUnify(states, change)) throw new Error('Os campeonatos não podem ser unificados.')
     const retired = states.get(change.secondaryId)!
@@ -116,7 +116,6 @@ export function applyTitleChange(states: BeltStates, show: Show | undefined, cha
     retired.retiredOn = date
     retired.events.push({ date, from: retired.holders, to: null, kind: 'retired' })
     retired.holders = null
-    state.lastDefense = date
   } else if (!canRedesign(state, date) || !state.events.some(event => event.kind === 'defense') || (change.kind === 'personalized'
     && (!state.holders || !sameTeam(state.holders, change.champion) || state.defenses < 4 || dayDistance(state.heldFrom, date) < 100))) {
     throw new Error('Histórico de design do cinturão inválido.')

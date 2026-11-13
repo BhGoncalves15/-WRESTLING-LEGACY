@@ -163,7 +163,7 @@ export function validateCareer(input: unknown): Career {
   const availableMove = (id: string) => MOVE_BY_ID.has(id) && (!MOVE_BY_ID.get(id)!.unlock || unlocked.includes(id))
   if (
     (profile.place && profile.city !== profile.place.city)
-    || !unique(career.titleChanges.map(change => change.showId))
+    || !unique(career.titleChanges.map(change => change.showId + ':' + TITLES_BY_ID.get(change.titleId)?.promotion))
     || !validMoveset(profile.moves) || [...profile.moves, ...Object.keys(profile.moveLevels)].some(id => !availableMove(id))
     || !unique(unlocked) || unlocked.some(id => !MOVE_BY_ID.get(id)?.unlock)
     || career.date < START_DATE || career.worldThrough < addDays(START_DATE, -1) || career.worldThrough > career.date

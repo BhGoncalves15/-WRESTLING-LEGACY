@@ -558,21 +558,22 @@ function officeApproves(states: BeltStates, pair: TitlePair) {
 }
 
 function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltStates) {
-  for (const show of shows) {
-    if (!show.special) continue
-    const titles = OPENING_TITLES.filter(title => title.promotion === show.promotion && showSupportsTitle(show, title))
+  const agendas = shows.filter(show => show.special)
+    .flatMap(show => showPromotions(show).map(promotion => ({ show, promotion })))
+  for (const { show, promotion } of agendas) {
+    const titles = OPENING_TITLES.filter(title => title.promotion === promotion && showSupportsTitle(show, title))
     const proposal = career.titleProposal
     const requested = proposal && titles.some(title => title.id === proposal.titleId) ? proposal : null
     let pair: TitlePair | undefined
     let proposed = false
     if (requested) {
       career.titleProposal = null
-      if (career.contract?.status === 'active' && career.contract.promotion === show.promotion && show.date < career.contract.end
+      if (career.contract?.status === 'active' && career.contract.promotion === promotion && show.date < career.contract.end
         && states.get(requested.titleId)?.holders?.includes(PLAYER_ID) && canUnify(states, requested) && officeApproves(states, requested)) {
         pair = requested
         proposed = true
       } else {
-        addHistory(career, 'title', 'Unificação recusada', 'A diretoria decidiu manter as linhagens separadas. Ela considerou o vínculo, os reinados, as defesas e o prestígio.', show.promotion)
+        addHistory(career, 'title', 'Unificação recusada', 'A diretoria decidiu manter as linhagens separadas. Ela considerou o vínculo, os reinados, as defesas e o prestígio.', promotion)
       }
     }
     if (!pair && !requested) {
@@ -588,7 +589,7 @@ function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltSta
         }
       }
     }
-    const lastChange = career.titleChanges.filter(change => TITLES_BY_ID.get(change.titleId)?.promotion === show.promotion).at(-1)
+    const lastChange = career.titleChanges.filter(change => TITLES_BY_ID.get(change.titleId)?.promotion === promotion).at(-1)
     const redesign = !pair && (!lastChange || dayDistance(lastChange.date, show.date) >= 150) ? titles.find(title => {
       const state = states.get(title.id)!
       return canRedesign(state, show.date) && state.events.some(event => event.kind === 'defense')
@@ -602,7 +603,7 @@ function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltSta
     const name = pair ? unifiedTitleName(title) : titleName(career, title)
     const secondaryName = pair && TITLES_BY_ID.get(pair.secondaryId)!.name
     const artwork = beltArtworkFor({
-      title: name, promotion: ORGANIZATIONS[show.promotion].name, accent: ORGANIZATIONS[show.promotion].accent,
+      title: name, promotion: ORGANIZATIONS[promotion].name, accent: ORGANIZATIONS[promotion].accent,
       prestige, lineage: [title.name, ...(secondaryName ? [secondaryName] : [])],
       reason: kind, formerDesign: state.designs?.at(-1)?.artwork, seed: career.rng + '|' + show.id,
     })
@@ -615,7 +616,7 @@ function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltSta
       : champion ? 'A diretoria homenageou o reinado de ' + fighterNames(career, champion) + '.'
         : 'A diretoria atualizou a identidade visual após um ciclo de mudanças de campeão.'
     addHistory(career, 'title', pair ? 'Unificação de campeonatos' : 'Novo design de cinturão',
-      name + ' · ' + detail + ' ' + show.name + '.', show.promotion)
+      name + ' · ' + detail + ' ' + show.name + '.', promotion)
   }
 }
 

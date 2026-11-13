@@ -39,6 +39,10 @@ const photos: Record<string, BeltPhoto[]> = {
   'aew-women': [photo('aew-women-2022', '2022-03-06', 'Mariah May AEW Grand Slam.jpg', 'zuko1312', 'CC BY 2.0')],
   'aew-tnt': [photo('aew-tnt-2024', '2024-07-24', 'Jack Perry as AEW TNT Champion (cropped).jpg', 'McPhail', 'CC0', '2024-11-23'),
     photo('aew-tnt-2025', '2025-07-31', 'Kyle Fletcher, August 30 2025.jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0')],
+  'tna-world': [photo('tna-world-2018', '2018-04-22', 'Johnny Impact Feb 2019-2.jpg', 'Tabercil', 'CC BY-SA 3.0', '2021-08-19')],
+  'tna-knockouts': [photo('tna-knockouts-2007', '2007-10-14', "TNA Women's Knockout Championship Belt.png", 'Pedrohoneto', 'CC BY-SA 3.0', '2014-12-25')],
+  'aaa-mega': [photo('aaa-mega-2012', '2012-03-18', 'El Hijo del Vikingo, Jan 2023.jpg', 'Earl Gardner', 'CC BY-SA 2.0', '2026-03-14')],
+  'roh-world': [photo('roh-world-2023', '2023-03-31', 'Bandido ROH.jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0')],
   'njpw-iwgp': [photo('njpw-iwgp-2021', '2021-03-30', 'Zack Sabre Jr, IWGP Champion.jpg', 'Sceptre', 'CC BY 4.0', '2026-01-05')],
 }
 

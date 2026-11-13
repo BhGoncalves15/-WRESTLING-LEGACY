@@ -22,7 +22,11 @@ async function openBeta(page: Page, baseURL: string) {
   await page.context().route(localNetwork.origin + '/**', async route => {
     const target = new URL(route.request().url())
     target.host = preview.host
-    await route.fulfill({ response: await route.fetch({ url: target.href }) })
+    const response = await route.fetch({ url: target.href })
+    const headers = response.headers()
+    delete headers['content-encoding']
+    delete headers['content-length']
+    await route.fulfill({ response, headers, body: await response.body() })
   })
   await page.goto(localNetwork.href)
   expect(await page.evaluate(() => window.isSecureContext)).toBe(false)

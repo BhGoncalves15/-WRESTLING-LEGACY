@@ -28,10 +28,14 @@ export async function placesFor(country: Country): Promise<CountryPlaces> {
   const [code, , , shard] = country
   let data = shards.get(shard)
   if (!data) {
-    data = fetchData('places-' + shard + '.json.gz').then(response => {
-      const stream = response.body
-      if (!stream) throw new Error('Catálogo vazio.')
-      return new Response(stream.pipeThrough(new DecompressionStream('gzip'))).json()
+    data = fetchData('places-' + shard + '.json.gz').then(async response => {
+      const bytes = await response.arrayBuffer()
+      if (!bytes.byteLength) throw new Error('Catálogo vazio.')
+      const header = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength))
+      if (header[0] === 0x1f && header[1] === 0x8b) {
+        return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json()
+      }
+      return JSON.parse(new TextDecoder().decode(bytes))
     }).catch(error => {
       shards.delete(shard)
       throw error
