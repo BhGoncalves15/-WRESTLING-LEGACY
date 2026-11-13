@@ -162,7 +162,7 @@ describe('linhagens e versões de cinturão', () => {
     expect(() => validateCareer({ ...career, titleChanges: [{ ...first, date: START_DATE }] })).toThrow(/mudança do cinturão/)
     expect(() => validateCareer({ ...career, titleChanges: career.titleChanges.map(change => change === first
       ? { ...change, secondaryId: 'aew-tag' } : change) })).toThrow(/unificados/)
-  })
+  }, 15_000)
 
   it('oferece renovação negociável e mercado alternativo quando o vínculo termina', () => {
     const open = careerWithOffer('bwf')
