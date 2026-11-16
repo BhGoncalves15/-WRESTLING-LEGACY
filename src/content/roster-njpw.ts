@@ -1,0 +1,87 @@
+import { rosterGroup } from './roster-model'
+import { SOURCES } from './sources'
+
+const TAMASHII_ROSTER = rosterGroup('njpw', '2025-07-04', SOURCES.njpwTamashiiColdWar, 'men', [
+  ['magic-mark', 'Magic Mark', 'Brawler', 7, 'Face'],
+  ['pretty-richie', 'Pretty Richie', 'Highflyer', 6, 'Face'],
+  ['trent-hooper', 'Trent Hooper', 'Powerhouse', 5, 'Heel'],
+  ['tj-illes', 'TJ Illes', 'Technician', 5, 'Heel'],
+  ['finn-grant', 'Finn Grant', 'Technician', 3, 'Face'],
+  ['sean-tohi', 'Sean Tohi', 'Brawler', 3, 'Face'],
+])
+
+export const TAMASHII_REGIONAL_IDS = new Set(TAMASHII_ROSTER.map(fighter => fighter.id))
+export const TAMASHII_IDS = new Set([...TAMASHII_REGIONAL_IDS, 'oskar', 'yuto-ice', 'don-fale'])
+
+// Entrants documented in the 2025 Super Jr. Tag League. The list describes this roster snapshot.
+export const NJPW_JUNIOR_IDS = new Set([
+  'douki', 'sho', 'master-wato', 'yoh', 'hiromu-takahashi', 'gedo', 'daiki-nagai', 'ryusuke-taguchi', 'jakob-austin-young',
+  'tiger-mask-iv', 'yoshinobu-kanemaru', 'el-desperado', 'taiji-ishimori', 'kosei-fujita', 'robbie-eagles', 'robbie-x',
+])
+
+export const NJPW_ROSTER = [
+  ...TAMASHII_ROSTER,
+  ...rosterGroup('njpw', '2025-11-01', SOURCES.njpwJuniorBlockB, 'men', [
+    ['robbie-eagles', 'Robbie Eagles', 'Highflyer', 12, 'Face'],
+    ['robbie-x', 'Robbie X', 'Highflyer', 8, 'Heel'],
+  ]),
+  ...rosterGroup('njpw', '2025-11-14', SOURCES.njpwStrongTag, 'men', [
+    ['angel-de-oro', 'Ángel de Oro', 'Highflyer', 12, 'Face'],
+    ['niebla-roja', 'Niebla Roja', 'Technician', 10, 'Face'],
+  ]),
+  ...rosterGroup('njpw', '2025-12-22', SOURCES.njpwDecCard, 'men', [
+    ['el-phantasmo', 'El Phantasmo', 'Highflyer', 13, 'Face'],
+    ['ryusuke-taguchi', 'Ryusuke Taguchi', 'Technician', 8, 'Face'],
+    ['hirooki-goto', 'Hirooki Goto', 'Brawler', 17, 'Face'],
+    ['yoshi-hashi', 'YOSHI-HASHI', 'Brawler', 10, 'Face'],
+    ['boltin-oleg', 'Boltin Oleg', 'Powerhouse', 12, 'Face'],
+    ['taichi', 'Taichi', 'Brawler', 11, 'Tweener'],
+    ['satoshi-kojima', 'Satoshi Kojima', 'Brawler', 13, 'Face'],
+    ['tiger-mask-iv', 'Tiger Mask', 'Highflyer', 8, 'Face'],
+    ['shota-umino', 'Shota Umino', 'All-Rounder', 13, 'Face'],
+    ['yuya-uemura', 'Yuya Uemura', 'Technician', 11, 'Face'],
+    ['toru-yano', 'Toru Yano', 'Brawler', 4, 'Face'],
+    ['yoh', 'YOH', 'Highflyer', 10, 'Face'],
+    ['master-wato', 'Master Wato', 'Highflyer', 11, 'Face'],
+    ['ren-narita', 'Ren Narita', 'Submission Specialist', 10, 'Heel'],
+    ['yoshinobu-kanemaru', 'Yoshinobu Kanemaru', 'Technician', 7, 'Heel'],
+    ['sanada', 'SANADA', 'All-Rounder', 15, 'Heel'],
+    ['yujiro-takahashi', 'Yujiro Takahashi', 'Brawler', 4, 'Heel'],
+    ['evil', 'EVIL', 'Powerhouse', 15, 'Heel'],
+    ['shingo-takagi', 'Shingo Takagi', 'Powerhouse', 19, 'Tweener'],
+    ['hiromu-takahashi', 'Hiromu Takahashi', 'Highflyer', 17, 'Face'],
+    ['gedo', 'Gedo', 'Brawler', 1, 'Heel'],
+    ['great-o-khan', 'Great-O-Khan', 'Submission Specialist', 13, 'Heel'],
+    ['callum-newman', 'Callum Newman', 'Highflyer', 10, 'Heel'],
+    ['jakob-austin-young', 'Jakob Austin Young', 'Highflyer', 2, 'Heel'],
+    ['el-desperado', 'El Desperado', 'Technician', 18, 'Tweener'],
+    ['douki', 'DOUKI', 'Submission Specialist', 13, 'Heel'],
+    ['sho', 'SHO', 'Technician', 11, 'Heel'],
+    ['taiji-ishimori', 'Taiji Ishimori', 'Highflyer', 15, 'Heel'],
+    ['daiki-nagai', 'Daiki Nagai', 'Technician', -4, 'Tweener'],
+    ['yuto-ice', 'Yuto-Ice', 'Brawler', 8, 'Heel'],
+    ['oskar', 'OSKAR', 'Powerhouse', 8, 'Heel'],
+    ['yota-tsuji', 'Yota Tsuji', 'Powerhouse', 18, 'Tweener'],
+    ['zack-sabre-jr', 'Zack Sabre Jr.', 'Submission Specialist', 21, 'Face'],
+    ['ryohei-oiwa', 'Ryohei Oiwa', 'Technician', 8, 'Face'],
+    ['hartley-jackson', 'Hartley Jackson', 'Powerhouse', 7, 'Tweener'],
+    ['hiroshi-tanahashi', 'Hiroshi Tanahashi', 'All-Rounder', 16, 'Face'],
+    ['kosei-fujita', 'Kosei Fujita', 'Technician', 12, 'Face'],
+  ]),
+  ...rosterGroup('njpw', '2025-12-14', SOURCES.njpwTagLeague, 'men', [
+    ['gabe-kidd', 'Gabe Kidd', 'Brawler', 15, 'Tweener'],
+    ['drilla-moloney', 'Drilla Moloney', 'Powerhouse', 10, 'Tweener'],
+    ['don-fale', 'Don Fale', 'Powerhouse', 9, 'Heel'],
+    ['chase-owens', 'Chase Owens', 'Technician', 6, 'Heel'],
+  ]),
+  ...rosterGroup('njpw', '2025-04-11', SOURCES.njpwSnapshot, 'men', [
+    ['tomohiro-ishii', 'Tomohiro Ishii', 'Brawler', 15, 'Face'],
+  ]),
+  ...rosterGroup('njpw', '2025-12-16', SOURCES.njpwWomen, 'women', [
+    ['syuri', 'Syuri', 'Submission Specialist', 18, 'Face'],
+    ['saya-kamitani', 'Saya Kamitani', 'Highflyer', 19, 'Heel'],
+  ]),
+  ...rosterGroup('njpw', '2025-09-27', SOURCES.njpwAzm, 'women', [
+    ['azm', 'AZM', 'Highflyer', 14, 'Face'],
+  ]),
+]

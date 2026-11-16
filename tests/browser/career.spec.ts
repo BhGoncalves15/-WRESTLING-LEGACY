@@ -1,0 +1,408 @@
+import { expect, test, type Page } from '@playwright/test'
+import { tournamentEdition } from '../../src/content/tournaments'
+import { MATCH_FORMAT_LABEL, MULTI_SIZE, type Career } from '../../src/domain/model'
+import { advanceCareer, setMatchPreference, signOffer } from '../../src/engine/career'
+import { exportCareer } from '../../src/storage/save-format'
+import { careerWithOffer, pauseForRivalFall, signedBefore } from '../fixtures'
+
+async function navigate(page: Page, route: string) {
+  const mobile = page.getByRole('button', { name: 'Abrir navegação' })
+  if (await mobile.isVisible()) await mobile.click()
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: route, exact: true }).click()
+}
+
+async function openBeta(page: Page, baseURL: string) {
+  if (process.env.PLAYWRIGHT_BUILD !== '1') {
+    await page.goto(baseURL)
+    return
+  }
+  const preview = new URL(baseURL)
+  const localNetwork = new URL(baseURL)
+  localNetwork.hostname = 'wrestling-legacy.test'
+  await page.context().route(localNetwork.origin + '/**', async route => {
+    const target = new URL(route.request().url())
+    target.host = preview.host
+    const response = await route.fetch({ url: target.href })
+    const headers = response.headers()
+    delete headers['content-encoding']
+    delete headers['content-length']
+    await route.fulfill({ response, headers, body: await response.body() })
+  })
+  await page.goto(localNetwork.href)
+  expect(await page.evaluate(() => window.isSecureContext)).toBe(false)
+}
+
+test('cria BH, negocia, reabre a luta e importa uma cópia pela rede local', async ({ page: firstPage, context, baseURL }, testInfo) => {
+  let page = firstPage
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await openBeta(page, baseURL!)
+  await expect(page.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await expect(page.getByText('Brazilian Wrestling Federation', { exact: true })).toBeVisible()
+  await expect(page.getByText('Wrestle Kingdom 20', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/home-' + testInfo.project.name + '.png', fullPage: true })
+
+  let main = page.getByRole('main')
+  await main.getByRole('button', { name: 'Nova carreira' }).click()
+  await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
+  await expect(main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' })).toHaveValue('80')
+  await expect(main.getByLabel('Nome de ringue')).toHaveValue('BH')
+  await expect(main.getByRole('combobox', { name: /^Estilo\b/ })).toHaveValue('Highflyer')
+  await expect(main.getByLabel('Cidade', { exact: true })).toHaveValue('BR:50:5008305')
+  await main.getByRole('button', { name: 'Continuar' }).click()
+  await expect(main.getByRole('heading', { name: 'Visual do lutador' })).toBeVisible()
+  await main.getByRole('button', { name: 'Continuar' }).click()
+  await expect(main.getByText(/0 de 180 pontos disponíveis/)).toBeVisible()
+  await main.getByRole('button', { name: 'Continuar' }).click()
+  const quota = main.getByRole('list', { name: 'Espaços do moveset' })
+  await expect(quota.getByRole('listitem')).toHaveText(['Rápidos 4/4', 'Fortes 4/4', 'Técnicos 3/3', 'Aéreos 2/2',
+    'Reversões 3/3', 'Signatures 2/2', 'Finishers 2/2'])
+  await main.getByRole('button', { name: 'Criar carreira' }).click()
+  await expect(main.getByRole('button', { name: /Assinar com/ })).toHaveCount(3)
+  const offer = main.locator('.offer').first()
+  await offer.getByText('Negociar pagamento').click()
+  await offer.getByRole('button', { name: 'Enviar contraproposta' }).click()
+  await expect(offer.getByText(/Contraproposta aceita|Proposta original mantida/)).toBeVisible()
+  await offer.getByRole('button', { name: /^Assinar com/ }).click()
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText('Turno 1', { exact: true })).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/fight-' + testInfo.project.name + '.png', fullPage: true })
+  await main.getByRole('button', { name: /^Dropkick / }).click()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  const fightUrl = page.url()
+  await page.close()
+  page = await context.newPage()
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto(fightUrl)
+  main = page.getByRole('main')
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+
+  let turns = 0
+  const result = main.getByRole('heading', { name: /Vitória por|Derrota por/ })
+  const readTurn = () => main.locator('.page-title .chip').innerText()
+  while (!(await result.isVisible()) && turns++ < 65) {
+    const before = await readTurn()
+    const rival = main.locator('.rival-corner')
+    const condition = Number(await rival.getByRole('meter', { name: 'Condição' }).getAttribute('aria-valuenow'))
+    const pin = main.getByRole('button', { name: /^Buscar o pinfall/ })
+    const kick = main.getByRole('button', { name: /^Dropkick / })
+    if (condition < 55 && await pin.isEnabled()) await pin.click()
+    else if (await kick.isEnabled()) await kick.click()
+    else await main.getByRole('button', { name: /^Recuperar o fôlego/ }).click()
+    await expect.poll(readTurn).not.toBe(before)
+  }
+  await expect(result).toBeVisible()
+  await expect(main.getByText(/\+\d+ XP/)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await navigate(page, 'Meu lutador')
+  const xp = main.locator('.stat').filter({ hasText: 'XP disponível' }).locator('strong')
+  const previousXp = Number(await xp.textContent())
+  const improvement = main.getByRole('button', { name: /^Melhorar .* por \d+ XP/ }).and(main.locator('button:enabled')).first()
+  const cost = Number((await improvement.getAttribute('aria-label'))?.match(/por (\d+) XP/)?.[1])
+  await improvement.click()
+  await expect(xp).toHaveText(String(previousXp - cost))
+
+  await navigate(page, 'Salvamentos')
+  await main.getByRole('button', { name: 'Salvar agora' }).click()
+  await expect(main.getByText('Carreira salva.')).toBeVisible()
+  const downloaded = page.waitForEvent('download')
+  await main.getByRole('button', { name: 'Exportar' }).click()
+  const download = await downloaded
+  const save = testInfo.outputPath('carreira.json')
+  await download.saveAs(save)
+  await main.getByLabel('Arquivo de carreira').setInputFiles(save)
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  await expect(main.getByRole('button', { name: 'Abrir carreira' })).toHaveCount(2)
+  expect(errors).toEqual([])
+})
+
+test('consulta elencos, cinturões e as duas agendas do universo', async ({ page }) => {
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Empresas')
+  await expect(main.getByRole('button', { name: /WWE Raw/ })).toBeVisible()
+  await expect(main.getByRole('button', { name: /WWE SmackDown/ })).toBeVisible()
+  await main.getByRole('button', { name: /Brazilian Wrestling Federation/ }).click()
+  await main.getByRole('textbox', { name: /Buscar lutador/ }).fill('Victor Boer')
+  await expect(main.getByText('Victor Boer', { exact: true })).toBeVisible()
+  await expect(main.getByText('1 perfil', { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^All Elite Wrestling/ }).click()
+  await main.getByRole('textbox', { name: /Buscar lutador/ }).fill('mascara dorada')
+  await expect(main.getByText('Máscara Dorada', { exact: true })).toBeVisible()
+
+  await navigate(page, 'Campeonatos')
+  await expect(main.getByText('71 títulos · Abertura em 01/01/2026')).toBeVisible()
+  await expect(main.getByText('Trios jogáveis', { exact: true })).toHaveCount(4)
+  await expect(main.getByText('Duplas mistas jogáveis', { exact: true })).toHaveCount(1)
+  await expect(main.getByText('AAA World Cruiserweight Championship', { exact: true })).toHaveCount(1)
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('aew')
+  await expect(main.getByText('10 títulos · Abertura em 01/01/2026')).toBeVisible()
+  await expect(main.getByText('MJF', { exact: true })).toBeVisible()
+  await expect(main.getByText('Tag Team jogável', { exact: true })).toHaveCount(2)
+
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Anunciados', exact: true }).click()
+  await expect(main.getByText('WrestleMania 42 · Noite 1', { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Arquivo real 2026', exact: true }).click()
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('bwf')
+  await expect(main.getByText('BWF In House 31', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+async function importFixture(page: Page, career: Career, fileName: string) {
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: fileName, mimeType: 'application/json', buffer: Buffer.from(exportCareer(career)),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  return main
+}
+
+async function signBhBwfCareer(page: Page) {
+  const main = await importFixture(page, careerWithOffer('bwf'), 'bwf.json')
+  await navigate(page, 'Contratos')
+  await main.getByRole('button', { name: 'Assinar com BWF', exact: true }).click()
+  await expect(main.getByRole('heading', { name: 'Calendário' })).toBeVisible()
+  return main
+}
+
+test('forma uma dupla, faz a tag e retoma o combate pelo apron', async ({ page }) => {
+  const main = await signBhBwfCareer(page)
+  await navigate(page, 'Meu lutador')
+  const team = main.getByRole('region', { name: 'Minha dupla', exact: true })
+  const partner = team.getByRole('combobox', { name: 'Parceiro de dupla' })
+  const partnerName = (await partner.locator('option').nth(1).textContent())!.split(' · ')[0]
+  await partner.selectOption({ index: 1 })
+  await team.getByRole('button', { name: 'Formar dupla', exact: true }).click()
+  await expect(team.getByText(partnerName, { exact: true })).toBeVisible()
+
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(/ · Tag Team$/)).toBeVisible()
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: 'BH', exact: true })).toBeVisible()
+  await expect(main.locator('.apron-card').first().getByText(partnerName, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^Fazer a tag/ }).click()
+  await expect(main.getByRole('heading', { name: 'Ações no apron' })).toBeVisible()
+  await expect(main.getByRole('button', { name: /^Pedir a tag/ })).toBeDisabled()
+  await expect(main.getByRole('button', { name: /^Dropkick / })).toHaveCount(0)
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: partnerName, exact: true })).toBeVisible()
+
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.locator('.apron-card').first().getByText('BH', { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^Acompanhar o turno/ }).click()
+  await expect(main.getByText('Turno 3', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('forma um trio, escolhe quem entra e restaura os quatro reservas do apron', async ({ page }) => {
+  const main = await signBhBwfCareer(page)
+  await navigate(page, 'Meu lutador')
+  const team = main.getByRole('region', { name: 'Meu trio' })
+  const first = team.getByRole('combobox', { name: 'Primeiro parceiro do trio' })
+  const second = team.getByRole('combobox', { name: 'Segundo parceiro do trio' })
+  const form = team.getByRole('button', { name: 'Formar trio' })
+  await first.selectOption({ index: 1 })
+  await expect(form).toBeDisabled()
+  const firstId = await first.inputValue()
+  await expect(second.locator('option[value="' + firstId + '"]')).toHaveCount(0)
+  const secondName = (await second.locator('option').nth(1).textContent())!.split(' · ')[0]
+  await second.selectOption({ index: 1 })
+  await form.click()
+  await expect(team.getByRole('button', { name: 'Encerrar trio' })).toBeVisible()
+  await expect(main.getByRole('combobox', { name: 'Formato preferido nos cards' })).toHaveValue('trios')
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(/ · Trios$/)).toBeVisible()
+  await expect(main.locator('.apron-members li')).toHaveCount(4)
+  const rotations = main.getByRole('button', { name: /^Fazer a tag com/ })
+  await expect(rotations).toHaveCount(2)
+  await rotations.filter({ hasText: secondName }).click()
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: secondName, exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByRole('heading', { name: 'Ações no apron' })).toBeVisible()
+  await expect(main.locator('.apron-card').first().getByText('BH', { exact: true })).toBeVisible()
+  await expect(main.locator('.apron-members li')).toHaveCount(4)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('registra o peso, forma uma dupla mista e retoma a troca sincronizada da AAA', async ({ page }) => {
+  const opening = careerWithOffer('aaa')
+  const signed = signOffer(opening, opening.offers.find(offer => offer.promotion === 'aaa')!.id)
+  const saved = exportCareer({ ...signed, profile: { ...signed.profile, ringWeightKg: null } })
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({ name: 'aaa.json', mimeType: 'application/json', buffer: Buffer.from(saved) })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+  await navigate(page, 'Meu lutador')
+  await main.getByRole('spinbutton', { name: 'Peso de ringue (kg)' }).fill('100')
+  await main.getByRole('button', { name: 'Registrar peso' }).click()
+  await expect(main.getByText(/100 kg · Competitivo/)).toBeVisible()
+  const regular = main.getByRole('region', { name: 'Minha dupla', exact: true })
+  await expect(regular.getByRole('button', { name: 'Formar dupla', exact: true })).toBeVisible()
+  const panel = main.getByRole('region', { name: 'Minha dupla mista' })
+  await panel.getByRole('combobox', { name: 'Parceiro da dupla mista' }).selectOption('faby-apache')
+  await panel.getByRole('button', { name: 'Formar dupla mista' }).click()
+  await expect(panel.getByRole('button', { name: 'Encerrar dupla mista' })).toBeVisible()
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(/ · Duplas mistas$/)).toBeVisible()
+  const opponent = main.locator('.rival-corner h2')
+  const starter = await opponent.innerText()
+  await main.getByRole('button', { name: /^Fazer a tag/ }).click()
+  await expect(main.locator('.ring-corner').first().getByRole('heading', { name: 'Faby Apache', exact: true })).toBeVisible()
+  await expect(opponent).not.toHaveText(starter)
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.locator('.apron-card').last().getByText(starter, { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('inscreve BH em uma copa, abre a chave e retoma a semifinal', async ({ page }, testInfo) => {
+  const edition = tournamentEdition('nxt-cup@2026/men')!
+  const signed = signedBefore('nxt', edition.shows[0].date)
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'O ringue é seu.' })).toBeVisible()
+  await navigate(page, 'Salvamentos')
+  await main.getByLabel('Arquivo de carreira').setInputFiles({
+    name: 'nxt.json', mimeType: 'application/json', buffer: Buffer.from(exportCareer(signed)),
+  })
+  await expect(main.getByText('Carreira importada como uma cópia independente.')).toBeVisible()
+
+  await navigate(page, 'Competições')
+  const table = main.getByRole('table', { name: /Ranking individual/ })
+  await expect(table.getByRole('rowheader', { name: /^BH/ })).toBeVisible()
+  await main.getByRole('button', { name: 'Rivalidades', exact: true }).click()
+  await expect(main.getByRole('heading', { name: 'Séries de rivalidade' })).toBeVisible()
+  await main.getByRole('button', { name: 'Só minhas rivalidades' }).click()
+  await expect(main.getByText('Nenhuma rivalidade registrada neste filtro.')).toBeVisible()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  const card = main.locator('.tournament-card').filter({ hasText: edition.name })
+  await card.locator('summary').click()
+  const rounds = card.getByRole('list', { name: 'Rodadas do torneio' })
+  await expect(rounds.getByRole('listitem')).toHaveCount(3)
+  await card.getByRole('button', { name: 'Inscrever-se', exact: true }).click()
+  await expect(card.getByRole('button', { name: 'Cancelar inscrição', exact: true })).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/copa-' + testInfo.project.name + '.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await page.reload()
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await expect(card.getByText('Inscrição confirmada', { exact: true })).toBeVisible()
+  await navigate(page, 'Calendário')
+  const stage = edition.name + ' · Semifinal 1'
+  await expect(main.getByText(stage + ' · chave simulada', { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Avançar calendário' }).click()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^Dropkick / }).click()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+
+  await navigate(page, 'Competições')
+  await main.getByRole('button', { name: 'Torneios', exact: true }).click()
+  await card.locator('summary').click()
+  await expect(card.getByText('Em andamento', { exact: true })).toBeVisible()
+  await expect(card.getByText(/× BH$|^BH ×/)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+for (const format of ['triple-threat', 'fatal-4-way'] as const) {
+  const name = MATCH_FORMAT_LABEL[format]
+  test('escala ' + name + ' pelo perfil e salva a troca de alvo', async ({ page }, testInfo) => {
+    const main = await importFixture(page, signedBefore('nxt', '2026-01-01'), 'nxt.json')
+    await navigate(page, 'Meu lutador')
+    await main.getByRole('combobox', { name: 'Formato preferido nos cards' }).selectOption(format)
+    await expect(main.getByRole('combobox', { name: 'Formato preferido nos cards' })).toHaveValue(format)
+    await navigate(page, 'Calendário')
+    await main.getByRole('button', { name: 'Avançar calendário' }).click()
+    await expect(main.getByText('WWE NXT · ' + name, { exact: true })).toBeVisible()
+    await expect(main.locator('.ring-corner')).toHaveCount(MULTI_SIZE[format])
+    const target = main.getByRole('combobox', { name: 'Alvo da sua ação' })
+    const chosen = (await target.locator('option').last().getAttribute('value'))!
+    await target.selectOption(chosen)
+    await expect(target).toHaveValue(chosen)
+    await expect(main.getByText('Turno 1', { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(target).toHaveValue(chosen)
+    await expect(main.getByText('Turno 1', { exact: true })).toBeVisible()
+    await main.getByRole('button', { name: /^Fechar a guarda/ }).click()
+    await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/' + format + '-' + testInfo.project.name + '.png', fullPage: true })
+  })
+}
+
+test('reabre um save com a queda em curso e interrompe o pinfall no navegador', async ({ page }) => {
+  const signed = setMatchPreference(signedBefore('nxt', '2026-01-01'), 'triple-threat')
+  const main = await importFixture(page, pauseForRivalFall(advanceCareer(signed)), 'finalizacao.json')
+  await main.getByRole('button', { name: 'Abrir carreira', exact: true }).click()
+  const reaction = main.getByRole('region', { name: 'Interromper a finalização' })
+  await expect(reaction).toBeVisible()
+  await page.reload()
+  await expect(reaction).toBeVisible()
+  await reaction.getByRole('button', { name: /^Interromper · 12 de stamina/ }).click()
+  await expect(reaction).toHaveCount(0)
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByText(/^BH interrompeu a contagem de /)).toBeVisible()
+  await page.reload()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await expect(main.getByText(/^BH interrompeu a contagem de /)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('navega em 320 px e pagina o calendário de uma carreira longa', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 720 })
+  let career = careerWithOffer('nxt')
+  while (career.date < '2029-01-01') career = advanceCareer(career)
+  const main = await importFixture(page, career, 'temporadas.json')
+  const menuToggle = page.getByRole('button', { name: 'Abrir navegação' })
+  await menuToggle.click()
+  const menu = page.getByRole('dialog', { name: 'Barra lateral' })
+  await expect(menu.getByRole('link', { name: 'Salvamentos', exact: true })).toBeFocused()
+  await expect(page.locator('.app-body')).toHaveJSProperty('inert', true)
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(menuToggle).toBeFocused()
+
+  await navigate(page, 'Calendário')
+  await main.getByRole('button', { name: 'Resultados', exact: true }).click()
+  const pager = main.getByRole('navigation', { name: 'Páginas de resultados' })
+  const reports = main.locator('details.report')
+  const summary = reports.first().locator('summary')
+  await expect(pager.getByText('Página 1 de ' + Math.ceil(career.shows.length / 20))).toBeVisible()
+  await expect(reports).toHaveCount(20)
+  const first = await summary.innerText()
+  await summary.click()
+  await expect(reports.first().locator('.match-results')).toBeVisible()
+  await pager.getByRole('button', { name: 'Próxima página' }).click()
+  await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
+  await expect(reports).toHaveCount(20)
+  await expect(summary).not.toHaveText(first, { useInnerText: true })
+  await pager.getByRole('button', { name: 'Página anterior' }).click()
+  await expect(summary).toHaveText(first, { useInnerText: true })
+  await pager.getByRole('button', { name: 'Próxima página' }).click()
+  await expect(pager.getByText(/^Página 2 de /)).toBeVisible()
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('bwf')
+  await expect(pager.getByText(/^Página 1 de /)).toBeVisible()
+  await expect(summary.getByText('BWF', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/calendario-320-' + testInfo.project.name + '.png' })
+
+  for (const route of ['Meu lutador', 'Campeonatos', 'Competições', 'Empresas', 'Contratos', 'Notícias', 'Histórico', 'Configurações']) {
+    await navigate(page, route)
+    await expect(main.getByRole('heading', { name: route, exact: true })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), route).toBeLessThanOrEqual(320)
+  }
+})

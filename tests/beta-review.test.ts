@@ -1,0 +1,308 @@
+import { createHash } from 'node:crypto'
+import { readFileSync, readdirSync } from 'node:fs'
+import { gunzipSync } from 'node:zlib'
+import { describe, expect, it } from 'vitest'
+import { beltArtworkFor, titleName, type BeltArtBrief } from '../src/content/belt-designs'
+import { beltPhotoOn, realBeltDesigns } from '../src/content/belt-photos'
+import { STUDIO_BRANDS, STUDIO_VARIANTS, beltVisualFor } from '../src/content/belt-catalog'
+import { OPENING_TITLES, ROSTER_BY_ID, TITLES_BY_ID, showsThrough } from '../src/content/catalog'
+import { editionsForSeason } from '../src/content/tournaments'
+import { makePlace, type Country, type CountryPlaces } from '../src/content/geography'
+import { MOVE_DESCRIPTIONS, MOVE_REFERENCES } from '../src/content/move-details'
+import { MOVES, validMoveset } from '../src/content/moves'
+import { defaultAppearance } from '../src/domain/appearance'
+import { searchKey } from '../src/domain/geography'
+import { MULTI_DATA_VERSION, REVIEW_DATA_VERSION, SAVE_VERSION, START_DATE, addDays, ageOn } from '../src/domain/model'
+import {
+  advanceCalendarBy, advanceCareer, changeCareerMove, exampleProfile, hasLiveBout, improveMove, negotiate, newCareer,
+  pendingUnificationBout, resolvePlayerTurn, setTitleProposal, signOffer, unlockMove, updateAppearance,
+} from '../src/engine/career'
+import { beltsDue, compatibleTitles, titleStates } from '../src/engine/titles'
+import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
+import { careerWithOffer, duelBoutFor, smackdownDoubleChampion, smackdownPair, winSinglesFixture } from './fixtures'
+
+describe('revisão da criação e do moveset', () => {
+  it('aceita somente idades iniciais inteiras de 18 a 24 e envelhece ao virar o ano', () => {
+    const profile = exampleProfile()
+    for (const age of [17, 25, 23.5, NaN]) expect(() => newCareer({ ...profile, age }, 'normal')).toThrow(/18 e 24/)
+    for (const age of [18, 24]) expect(newCareer({ ...profile, age }, 'normal').profile.age).toBe(age)
+    expect(ageOn(24, '2026-12-31')).toBe(24)
+    expect(ageOn(24, '2027-01-01')).toBe(25)
+  })
+
+  it('migra um save v7 com idade antiga, origem, traje e luta em andamento', () => {
+    const opening = careerWithOffer('nxt', 'men', 'legacy')
+    const active = advanceCareer(signOffer(opening, opening.offers.find(offer => offer.promotion === 'nxt')!.id))
+    const { look: _look, ...profile } = active.profile
+    const legacy = { ...active, profile: { ...profile, age: 34, gear: 'Jaqueta antiga', entrance: 'Entrada antiga' },
+      schemaVersion: 7, dataVersion: MULTI_DATA_VERSION, titleChanges: undefined, titleProposal: undefined }
+    const imported = importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 7, career: legacy }))
+    expect(imported.schemaVersion).toBe(SAVE_VERSION)
+    expect(imported.bout).toEqual(active.bout)
+    expect(imported.profile).toMatchObject({ age: 34, gear: 'Jaqueta antiga', entrance: 'Entrada antiga' })
+    expect(imported.titleChanges).toEqual([])
+    const look = { ...defaultAppearance(), top: 'jacket', mask: 'lucha', bottom: 'board', heightCm: 220, primary: '#ef8627' } as const
+    const updated = updateAppearance(imported, look)
+    const roundTrip = importCareer(exportCareer(resolvePlayerTurn(updated, 'guard')))
+    expect(roundTrip.profile.look).toEqual(look)
+    expect(roundTrip.bout?.turn).toBe(1)
+    expect(() => updateAppearance(updated, { ...look, heightCm: 221 })).toThrow()
+  })
+
+  it('vincula regiões e cidades a seus IDs no catálogo distribuído e permite registrar uma cidade ausente', () => {
+    const data = (path: string) => readFileSync(new URL('../public/geography/' + path, import.meta.url))
+    const index: Country[] = JSON.parse(data('countries.json').toString())
+    expect(index).toHaveLength(250)
+    const brazil = index.find(([code]) => code === 'BR')!
+    const catalog: CountryPlaces = JSON.parse(gunzipSync(data('places-' + brazil[3] + '.json.gz')).toString()).BR
+    expect(catalog[0]).toHaveLength(27)
+    expect(makePlace('BR', catalog, 'BR:50', 'BR:50:5008305', '')).toEqual({
+      countryCode: 'BR', regionId: 'BR:50', region: 'Mato Grosso do Sul', cityId: 'BR:50:5008305', city: 'Três Lagoas',
+    })
+    expect(() => makePlace('BR', catalog, 'BR:35', 'BR:50:5008305', '')).toThrow()
+    expect(() => makePlace('BR', catalog, 'CA:50', '', 'Outra cidade')).toThrow()
+    expect(makePlace('BR', catalog, 'BR:50', '', '  Outra cidade  ')).toMatchObject({ cityId: null, city: 'Outra cidade' })
+    expect(searchKey('Três Lagoas')).toBe(searchKey('TRES LAGOAS'))
+  })
+
+  it('guarda XP, requisitos, especialização dos golpes e os 20 espaços após a troca', () => {
+    const career = newCareer(exampleProfile(), 'normal')
+    const prepared = { ...career, xp: 90, profile: { ...career.profile, attributes: { ...career.profile.attributes, strength: 65 } } }
+    expect(() => unlockMove({ ...prepared, xp: 39 }, 'spear')).toThrow(/40 XP/)
+    expect(() => unlockMove({ ...prepared, profile: career.profile }, 'spear')).toThrow(/Força/)
+    expect(() => changeCareerMove(prepared, 'spear', 'cutter')).toThrow(/Aprenda/)
+    let next = improveMove(prepared, 'cutter')
+    next = unlockMove(next, 'spear')
+    expect(() => unlockMove(next, 'spear')).toThrow(/disponível/)
+    expect(() => changeCareerMove(next, 'spear', 'dropkick')).toThrow(/mesma categoria/)
+    next = changeCareerMove(next, 'spear', 'cutter')
+    expect(next.xp).toBe(32)
+    expect(next.profile.moves).toHaveLength(20)
+    expect(validMoveset([...next.profile.moves, 'inventado'])).toBe(false)
+    const imported = importCareer(exportCareer(next))
+    expect(imported.profile.unlockedMoves).toEqual(['spear'])
+    expect(imported.profile.moveLevels.cutter).toBe(1)
+    expect(changeCareerMove(imported, 'cutter', 'spear').profile.moveLevels.cutter).toBe(1)
+  })
+
+  it('inclui descrição e demonstração local única para cada golpe', () => {
+    expect(new Set(MOVES.map(move => move.id)).size).toBe(MOVES.length)
+    const signatures = new Set<string>()
+    for (const move of MOVES) {
+      expect(MOVE_DESCRIPTIONS[move.id]?.length).toBeGreaterThan(20)
+      const video = readFileSync(new URL('../public/moves/' + move.id + '.mp4', import.meta.url))
+      expect(video.subarray(4, 8).toString()).toBe('ftyp')
+      signatures.add(video.toString('base64'))
+    }
+    expect(signatures.size).toBe(30)
+    expect(MOVE_REFERENCES.cutter[0]).toMatchObject({ alias: 'RKO', fighter: 'Randy Orton' })
+    expect(MOVE_REFERENCES.spear[0].fighter).toBe('Roman Reigns')
+    expect(ROSTER_BY_ID.get('roman-reigns')?.moves).toContain('spear')
+    expect(ROSTER_BY_ID.get('bron-breakker')?.moves).toContain('spear')
+    expect(ROSTER_BY_ID.get('dominik-mysterio')?.moves).toContain('splash')
+    expect(ROSTER_BY_ID.get('iyo-sky')?.moves).toContain('moonsault')
+  })
+})
+
+describe('linhagens e versões de cinturão', () => {
+  it('confere fotos locais, versões de abertura e fotografias apenas históricas', () => {
+    const assets = OPENING_TITLES.flatMap(realBeltDesigns)
+    expect(assets.length).toBeGreaterThanOrEqual(2)
+    expect(new Set(assets.map(asset => asset.id)).size).toBe(assets.length)
+    for (const asset of assets) {
+      const file = readFileSync(new URL('../public/belts/' + asset.id + '.webp', import.meta.url))
+      expect(file.subarray(8, 12).toString()).toBe('WEBP')
+      expect(asset.source).toMatch(/^https:\/\/commons\.wikimedia\.org/)
+      expect(asset.licenseUrl).toMatch(/^https:\/\/creativecommons\.org/)
+    }
+    expect(beltPhotoOn(TITLES_BY_ID.get('sd-world')!, '2022-01-01')?.id).toBe('sd-world-2014')
+    expect(beltPhotoOn(TITLES_BY_ID.get('nxt-na')!)).toBeUndefined()
+    for (const title of OPENING_TITLES) {
+      const visual = beltVisualFor(title, null)
+      expect(visual.kind).toBe(beltPhotoOn(title) ? 'photo' : 'catalog')
+    }
+  })
+
+  it('embala uma imagem WebP diferente por título e confere todas as referências públicas', () => {
+    const directory = new URL('../public/belts/catalog/', import.meta.url)
+    const designById = JSON.parse(readFileSync(new URL('../scripts/belt-catalog-designs.json', import.meta.url), 'utf8'))
+    const ids = OPENING_TITLES.map(title => title.id)
+    expect(Object.keys(designById).sort()).toEqual([...ids].sort())
+    expect(readdirSync(directory).sort()).toEqual(ids.map(id => id + '.webp').sort())
+
+    const signatures = new Set<string>()
+    for (const title of OPENING_TITLES) {
+      const model = beltVisualFor(title, null, { edition: { photo: undefined } })
+      expect(model).toMatchObject({ kind: 'catalog', asset: 'belts/catalog/' + title.id + '.webp' })
+      const file = readFileSync(new URL(title.id + '.webp', directory))
+      expect(file.subarray(0, 4).toString(), title.id).toBe('RIFF')
+      expect(file.subarray(8, 12).toString(), title.id).toBe('WEBP')
+      expect(file.readUInt32LE(4) + 8, title.id).toBe(file.length)
+      signatures.add(createHash('sha256').update(file).digest('hex'))
+    }
+    expect(signatures.size).toBe(ids.length)
+  })
+
+  it('entrega modelos locais distintos para todas as edições nas oito identidades', () => {
+    const modeled = new Set<string>()
+    for (const title of OPENING_TITLES) {
+      const original = beltVisualFor({ ...title, id: 'novo-' + title.id, origin: 'fictional' }, null)
+      const joined = beltVisualFor(title, null, { preview: title })
+      expect(original.kind).toBe('studio')
+      expect(joined).toMatchObject({ kind: 'studio', lineage: [`belts/catalog/${title.id}.webp`, `belts/catalog/${title.id}.webp`] })
+      for (const visual of [original, joined]) {
+        if (visual.kind !== 'studio' || modeled.has(visual.asset)) continue
+        const file = readFileSync(new URL('../public/' + visual.asset, import.meta.url))
+        expect(file.subarray(8, 12).toString()).toBe('WEBP')
+        modeled.add(visual.asset)
+      }
+    }
+    expect(modeled.size).toBe(STUDIO_BRANDS.length * 2)
+    const studioFiles = STUDIO_BRANDS.flatMap(brand => STUDIO_VARIANTS.map(variant => {
+      const file = readFileSync(new URL('../public/belts/studio/' + brand + '-' + variant + '.webp', import.meta.url))
+      expect(file.subarray(8, 12).toString()).toBe('WEBP')
+      return file.toString('base64')
+    }))
+    expect(new Set(studioFiles).size).toBe(STUDIO_BRANDS.length * STUDIO_VARIANTS.length)
+  })
+
+  it('gera arte reproduzível, varia as placas e reserva um motivo para a unificação', () => {
+    const brief: BeltArtBrief = { title: 'Campeonato A', promotion: 'NXT', accent: '#cdefff', prestige: 73,
+      lineage: ['A', 'B'], reason: 'unification', seed: '2027' }
+    const first = beltArtworkFor(brief)
+    expect(first).toEqual(beltArtworkFor(brief))
+    expect(first.motif).toBe('interlocked')
+    expect(first.sidePlates).toBe(4)
+    const next = beltArtworkFor({ ...brief, reason: 'redesign', formerDesign: first })
+    expect(next.plate).not.toBe(first.plate)
+    expect(next.strap).not.toBe(first.strap)
+  })
+
+  it('simula três temporadas, preserva títulos incompatíveis e encerra os incorporados somente dali em diante', () => {
+    let career = newCareer({ ...exampleProfile(), age: 24 }, 'normal', { seed: 73958 })
+    const second = newCareer(exampleProfile(), 'normal', { seed: 44 })
+    while (career.date < '2029-01-01') career = advanceCareer(career)
+    expect(career.shows).toHaveLength(showsThrough(addDays(START_DATE, -1), career.date).length)
+    expect(career.tournamentFields).toHaveLength([2026, 2027, 2028].flatMap(year => editionsForSeason(year)).length)
+    expect(ageOn(career.profile.age, career.date)).toBe(27)
+    const redesign = career.titleChanges.find(change => change.kind === 'redesign')!
+    expect(redesign).toBeDefined()
+    const redesignTitle = TITLES_BY_ID.get(redesign.titleId)!
+    expect(beltVisualFor(redesignTitle, career, { edition: { change: redesign } }))
+      .toMatchObject({ kind: 'studio', asset: expect.stringMatching(/-redesign\.webp$/) })
+    const tribute = career.titleChanges.find(change => change.kind === 'personalized')!
+    expect(tribute).toBeDefined()
+    const tributeTitle = TITLES_BY_ID.get(tribute.titleId)!
+    const tributeVisual = beltVisualFor(tributeTitle, career, { edition: { change: tribute } })
+    expect(tributeVisual).toMatchObject({ kind: 'studio', asset: expect.stringMatching(/-tribute\.webp$/), inscription: expect.stringContaining(' / ') })
+    const unifications = career.titleChanges.filter(change => change.kind === 'unification')
+    expect(unifications.length).toBeGreaterThan(0)
+    const imported = importCareer(exportCareer(career))
+    const states = titleStates(imported)
+    for (const change of unifications) {
+      const original = TITLES_BY_ID.get(change.titleId)!
+      const secondary = TITLES_BY_ID.get(change.secondaryId)!
+      expect(compatibleTitles(original, secondary)).toBe(true)
+      expect(titleName(imported, original, change.date)).toBe(original.name)
+      expect(titleName(imported, original)).toMatch(/Unificado/)
+      expect(states.get(secondary.id)?.events.at(-1)?.kind).toBe('retired')
+      expect(states.get(secondary.id)?.events.some(event => event.kind === 'defense')).toBe(true)
+      expect(states.get(secondary.id)?.retiredBy).toBe(original.id)
+      expect(states.get(secondary.id)?.holders).toBeNull()
+      expect(career.shows.some(show => show.date > change.date && show.matches.some(match => match.titleId === secondary.id))).toBe(false)
+      expect(beltsDue({ id: 'future', promotion: secondary.promotion, name: 'Evento', date: '2030-01-01',
+        origin: 'generated', special: true }, states, 0).some(title => title.id === secondary.id)).toBe(false)
+    }
+    expect(imported.titleChanges).toEqual(career.titleChanges)
+    expect(titleStates(second).size).toBe(62)
+    expect(second.titleChanges).toEqual([])
+    const first = unifications[0]
+    expect(() => validateCareer({ ...career, titleChanges: [{ ...first, date: START_DATE }] })).toThrow(/mudança do cinturão/)
+    expect(() => validateCareer({ ...career, titleChanges: career.titleChanges.map(change => change === first
+      ? { ...change, secondaryId: 'aew-tag' } : change) })).toThrow(/unificados/)
+  }, 15_000)
+
+  it('avalia em três dias e registra a defesa que unificou os cinturões da brand', () => {
+    let career = smackdownDoubleChampion()
+    const pair = smackdownPair
+    expect(() => setTitleProposal(career, { ...pair, secondaryId: 'raw-world' })).toThrow(/brand responsável/)
+    expect(() => setTitleProposal(career, { ...pair, secondaryId: 'aew-world' })).toThrow(/linhagens independentes/)
+    career = setTitleProposal({ ...career, popularity: 40 }, pair)
+    const reviewOn = addDays(career.date, 3)
+    expect(setTitleProposal(career, null).titleDecision?.status).toBe('cancelled')
+    expect(importCareer(exportCareer(career)).titleProposal).toMatchObject({ ...pair, reviewOn, approvedOn: null })
+    career = advanceCalendarBy(advanceCalendarBy(career, 1), 1)
+    expect(career.titleDecision).toBeNull()
+    career = advanceCalendarBy(career, 1)
+    expect(career.titleDecision).toMatchObject({ status: 'approved', date: reviewOn })
+    career = advanceCareer(career)
+    expect(pendingUnificationBout(career)).toBe(true)
+    career = winSinglesFixture(importCareer(exportCareer(career)))
+    const decision = career.titleChanges.find(change => change.kind === 'unification' && change.proposed)
+    expect(decision).toMatchObject({ ...pair, matchId: career.bout?.id, champions: ['career-player'] })
+    expect(titleStates(importCareer(exportCareer(career))).get(pair.secondaryId)?.retiredBy).toBe(pair.titleId)
+    expect(career.titleProposal).toBeNull()
+    expect(career.titleDecision?.status).toBe('unified')
+    const title = TITLES_BY_ID.get(pair.titleId)!
+    const current = beltVisualFor(title, career)
+    expect(current).toMatchObject({ kind: 'studio', brand: 'wwe', asset: 'belts/studio/wwe-unified.webp',
+      lineage: ['belts/catalog/sd-us.webp', 'belts/catalog/sd-world.webp'] })
+    expect(beltVisualFor(title, career, { date: career.date })).toEqual(beltVisualFor(title, null))
+    expect(beltVisualFor(title, career, { date: career.date, unificationMatch: career.bout!.id })).toEqual(current)
+    expect(beltVisualFor(title, importCareer(exportCareer(career)))).toEqual(current)
+  })
+
+  it('aprova imediatamente com defesas e popularidade e cancela se o campeão perder', () => {
+    let double = smackdownDoubleChampion()
+    while (double.date < '2026-04-03') {
+      double = advanceCareer(double)
+      if (hasLiveBout(double)) double = winSinglesFixture(double)
+    }
+    const career = setTitleProposal({ ...double, popularity: 100 }, smackdownPair)
+    expect(career.titleDecision?.status).toBe('approved')
+    expect(career.titleProposal?.approvedOn).toBe(career.date)
+    const fight = advanceCareer(career)
+    expect(pendingUnificationBout(fight)).toBe(true)
+    const bout = duelBoutFor(fight)
+    const lost = resolvePlayerTurn({
+      ...fight, bout: { ...bout, plan: 'pin', player: { ...bout.player, condition: 0, position: 'grounded' } },
+    }, 'guard')
+    expect(lost.bout?.finish).toMatchObject({ winner: 'rival' })
+    expect(lost.titleDecision).toMatchObject({ status: 'cancelled', reason: expect.stringMatching(/perda do título principal/) })
+    const states = titleStates(importCareer(exportCareer(lost)))
+    expect(states.get(smackdownPair.titleId)?.holders).not.toContain('career-player')
+    expect(states.get(smackdownPair.secondaryId)?.holders).toContain('career-player')
+    expect(states.get(smackdownPair.secondaryId)?.retiredBy).toBeUndefined()
+  })
+
+  it('migra uma proposta antiga com data de avaliação e encerra pedidos obsoletos', () => {
+    const career = smackdownDoubleChampion('legacy')
+    const old = { ...career, schemaVersion: 8, dataVersion: REVIEW_DATA_VERSION, titleProposal: smackdownPair }
+    const restore = (save: object) => importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 8, career: save }))
+    const restored = restore(old)
+    expect(restored.shows).toEqual(career.shows)
+    expect(restored.calendar).toBe('legacy')
+    expect(restored.titleProposal).toMatchObject({ ...smackdownPair, reviewOn: addDays(career.date, 3) })
+    const snapshot = restore({ ...old, titleProposal: { titleId: 'aew-world', secondaryId: 'aew-tnt' } })
+    expect(snapshot.titleProposal).toBeNull()
+    expect(snapshot.titleDecision?.reason).toMatch(/contrato/)
+  })
+
+  it('oferece renovação negociável e mercado alternativo quando o vínculo termina', () => {
+    const open = careerWithOffer('bwf')
+    let career = signOffer(open, open.offers.find(offer => offer.promotion === 'bwf')!.id)
+    const terms = career.contract!
+    while (career.contract?.status === 'active') {
+      career = advanceCareer(career)
+      while (hasLiveBout(career)) career = resolvePlayerTurn(career, 'breathe')
+    }
+    const renewal = career.offers.find(offer => offer.promotion === 'bwf')!
+    expect(renewal.pay).toBeGreaterThanOrEqual(terms.pay)
+    const negotiated = negotiate(career, renewal.id, Math.round(renewal.pay * 1.1))
+    const signed = signOffer(negotiated, renewal.id)
+    expect(signed.contract?.start).toBe(terms.end)
+    expect(signed.history.at(-1)?.title).toMatch(/^Renovação/)
+    const alternate = career.offers.find(offer => offer.promotion !== 'bwf')!
+    expect(validateCareer(signOffer(career, alternate.id)).contract?.promotion).toBe(alternate.promotion)
+  })
+})

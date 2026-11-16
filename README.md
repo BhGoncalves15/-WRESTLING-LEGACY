@@ -2,13 +2,17 @@
 
 Simulador de carreira de wrestling profissional para computador e celular. Você cria um lutador e toma as decisões dele. Lutadores, cards e empresas são administrados pela simulação.
 
+## Beta da Carreira Livre
+
+A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A atualização de 2026 integra datas verificadas à carreira, apresenta 30 demonstrações de golpes e leva a unificação de títulos ao ringue. [Como jogar](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da temporada 2026](docs/ATUALIZACAO-2026.md) · [Catálogo de cinturões](docs/CATALOGO-CINTUROES.md)
+
 ## Escopo aprovado
 
 - Carreira a partir de 1º de janeiro de 2026. Cadastro histórico com cobertura até 12 de novembro de 2026. Cada carreira tem seu próprio universo a partir da data inicial.
-- Escopo final com WWE Raw, SmackDown e NXT, AEW, NJPW, TNA, AAA, ROH e BWF. O piloto da Carreira Livre usa NXT, TNA e ROH. Carreira História será adicionada na etapa G.
+- Carreira Livre com WWE Raw, SmackDown e NXT, AEW, NJPW, TNA, AAA, ROH e BWF. Carreira História será adicionada na etapa G.
 - Três propostas iniciais, negociação e calendário. Criação com seis estilos, nove atributos e 20 espaços de golpes. Balanceamento inicial com 40 por atributo, 180 distribuíveis, 90 de limite inicial e 100 de teto evolutivo.
 - XP evolui atributos e golpes. A economia da carreira tem registro próprio. Os três níveis de dificuldade usam o mesmo OVR base. Lesões geradas pela simulação ficam desativadas.
-- Combates por turnos. Singles no piloto, com expansão para as 29 estipulações do Documento Mestre. O resultado depende das regras da luta e das decisões de cada lutador.
+- Combates por turnos. Singles, Tag Team, Trios, duplas mistas, Triple Threat e Fatal 4-Way jogáveis, com expansão planejada para as 29 estipulações do Documento Mestre. O resultado depende das regras da luta e das decisões de cada lutador.
 - Catálogo de referência de 72 entradas para 71 títulos, com o AAA World Cruiserweight Championship compartilhando a identidade nas listas WWE e AAA. Regras próprias para elegibilidade, linhagem, unificações, designs e torneios.
 - Múltiplas carreiras com autosave, save manual, exportação, importação e recuperação local. As páginas refletem o estado salvo da carreira.
 
@@ -35,7 +39,7 @@ Simulador de carreira de wrestling profissional para computador e celular. Você
 
 ## Fontes iniciais
 
-O calendário inicial inclui anúncios verificáveis conhecidos até 01/01/2026. Datas posteriores são referências da pesquisa. Cards e resultados da carreira são simulados. Dados de jogo como OVR, estilos, alinhamentos e salários recebem indicação própria.
+O calendário de 2026 inclui datas publicadas pelas empresas, datas documentadas em outras fontes e programação simulada nas lacunas. Cada data recebe seu rótulo no jogo. Lutas e resultados da carreira são simulados. Dados de jogo como OVR, estilos, alinhamentos e salários recebem indicação própria. [Fontes por evento](src/content/calendar-2026.ts)
 
 - [NXT em 30/12/2025](https://www.wwe.com/shows/wwenxt/2025-12-30/results) e [linhagem do NXT Championship](https://www.wwe.com/titlehistory/nxt-championship).
 - [TNA iMPACT! de 18/12/2025](https://tnawrestling.com/news/tna-impact-results-december-18-2025) e [anúncio de iMPACT! e Genesis](https://tnawrestling.com/news/tna-wrestling-to-make-history-over-two-special-nights-in-dallas).
@@ -46,3 +50,11 @@ O calendário inicial inclui anúncios verificáveis conhecidos até 01/01/2026.
 - [Elenco oficial da BWF](https://bwf.com.br/lutadores/) e [histórico do Cinturão do Maremoto](https://bwf.com.br/maremoto-volta-a-bwf-em-show-no-proximo-sabado-conheca-sua-historia/).
 
 Arte original identifica as ilustrações do piloto enquanto as autorizações de imagens históricas são verificadas. A documentação técnica acompanha as entregas no repositório oficial.
+
+## Primeira versão jogável
+
+Veja [como rodar o piloto](docs/PILOTO.md), o recorte de dados e os testes.
+
+## Expansão do Universo 2026
+
+O [Universo de 2026](docs/UNIVERSO-2026.md) inclui as sete empresas, os elencos de abertura, 62 cinturões disputáveis e as agendas da carreira, incluindo o circuito TAMASHII da NJPW.
