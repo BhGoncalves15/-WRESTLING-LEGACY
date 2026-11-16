@@ -1,7 +1,7 @@
 """Render the original studio models with Blender 4.3.
 
 blender -b -t 4 -P scripts/render-belt-studio.py -- --out /tmp/belt-studio
-Use --brand to render one brand. The shipped WebP files are offline assets.
+Use --brand or --variant to render a subset. The shipped WebP files are offline assets.
 """
 
 import argparse
@@ -44,6 +44,15 @@ BRANDS = {
     'aaa': ('AAA', SUNSTONE, (2.20, 2.05), '3a141c', '441620', 'b92336', 'sun', SUNSTONE),
     'roh': ('ROH', OCTAGON, (2.03, 1.84), '191722', '221d29', '62416b', 'diamond', PLAQUE),
     'bwf': ('BWF', ELLIPSE, (2.23, 1.87), '16221b', '123b27', 'dfaa39', 'laurel', CREST),
+}
+VARIANTS = ('standard', 'unified', 'redesign', 'tribute')
+REDESIGN_OUTLINES = {
+    'wwe': OCTAGON, 'nxt': PLAQUE, 'aew': CREST, 'njpw': ELLIPSE,
+    'tna': OCTAGON, 'aaa': CREST, 'roh': WORLD, 'bwf': PLAQUE,
+}
+TRIBUTE_LEATHER = {
+    'wwe': '2f1422', 'nxt': '2b2015', 'aew': '2e1825', 'njpw': '471823',
+    'tna': '291421', 'aaa': '522024', 'roh': '251c39', 'bwf': '19382a',
 }
 
 
@@ -202,12 +211,20 @@ def source_light(name, location, power, width, height, color=(1, 1, 1)):
     fixture.rotation_euler = (Vector((0, 0, .25)) - fixture.location).to_track_quat('-Z', 'Y').to_euler()
 
 
-def studio(brand, unified, output, samples, width):
+def studio(brand, variant, output, samples, width):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     mark, outline, (mw, mh), leather, enamel, accent, ornament, side = BRANDS[brand]
+    unified = variant == 'unified'
+    redesigned = variant == 'redesign'
+    tribute = variant == 'tribute'
+    if redesigned:
+        outline = REDESIGN_OUTLINES[brand]
+        mw, mh = mw * 1.08, mh * .93
+    if tribute:
+        leather = TRIBUTE_LEATHER[brand]
     # Recessed enamel is distinct from polished relief and the satin face.
-    gold = brand not in ('roh', 'nxt') or unified
+    gold = (brand in ('roh', 'nxt')) if redesigned else brand not in ('roh', 'nxt') or unified or tribute
     edge = material('Machined edge', 'd7b16e' if gold else 'c5c9cf', .92, .22)
     plate = material('Brushed alloy', 'c29a58' if gold else 'a7abb4', .86, .34, .13, 85)
     lip = material('Polished raised relief', 'e5c282' if gold else 'd7dde5', .95, .24)
@@ -243,8 +260,9 @@ def studio(brand, unified, output, samples, width):
     solid('Satin offset', at(main, mw * .94, mh * .94), .402, .081, plate, .022)
     bg = dark if brand in ('nxt', 'tna', 'roh') else plate
     solid('Stamped inset', at(main, mw * .746, mh * .775), .476, .036, bg, .016)
+    rails = (.765, .88, .94) if tribute else (.765, .94)
     piping('Polished borders', [[(x, y, .483) for x, y in at(main, mw * factor, mh * factor)]
-                                for factor in (.765, .94)], .026, lip, True)
+                                for factor in rails], .026, lip, True)
     filigree(ornament, engraving if bg is plate else lip, mw * .90)
     wreath = []
     for side_sign in (-1, 1):
@@ -275,13 +293,13 @@ def studio(brand, unified, output, samples, width):
                    'aaa': 'LUCHA LIBRE', 'roh': 'RING OF HONOR', 'bwf': 'BRAZILIAN WRESTLING',
                    'nxt': 'NXT WRESTLING', 'wwe': 'WORLD WRESTLING'}
     lettering(inscription[brand], 0, 1.105, .529, .132, 1.85, engraving if bg is plate else lip)
-    lettering('UNIFICADO' if unified else 'CHAMPIONSHIP' if brand != 'bwf' else 'CAMPEONATO',
+    lettering('UNIFICADO' if unified else 'HOMENAGEM' if tribute else 'CHAMPIONSHIP' if brand != 'bwf' else 'CAMPEONATO',
               0, -.135, .611, .16, 1.30, secondary)
     solid('Inset inscription strip', at(smooth_outline(PLAQUE, 1), 1.30, .29, y=-.91), .512, .048, lip, .014)
     solid('Title inscription surface', at(smooth_outline(PLAQUE, 1), 1.24, .238, y=-.91), .548, .026, dark, .010)
 
     for sign in (-1, 1):
-        plates = [(3.18, .90), (4.89, .68)] if unified else [(3.63, 1.07)]
+        plates = [(3.18, .90), (4.89, .68)] if unified or tribute else [(3.63, 1.07)]
         for index, (location, size) in enumerate(plates):
             x = sign * location
             contour = smooth_outline(list(side), 1)
@@ -290,7 +308,7 @@ def studio(brand, unified, output, samples, width):
             solid('Side satin metal', at(contour, size * .85, .595, x), .382, .035, plate, .010)
             solid('Side medallion', at(center, size * .50, .43, x), .41, .061, secondary, .016)
             solid('Side colored enamel', at(center, size * .416, .345, x), .464, .025, painted, .009)
-            lettering(mark if index == 0 else 'I I', x, 0, .489, .245, size * .681, lip)
+            lettering(mark if index == 0 else '★' if tribute else 'I I', x, 0, .489, .245, size * .681, lip)
             gems([(a, b, .418, .027) for a, b, _, _ in around(at(contour, size * .74, .54, x), .158)], stone, 31)
 
     scene.render.engine = 'CYCLES'
@@ -332,7 +350,7 @@ def studio(brand, unified, output, samples, width):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = 'PNG'
     scene.render.image_settings.color_mode = 'RGB'
-    scene.render.filepath = str(output / (brand + ('-unified' if unified else '-standard') + '.png'))
+    scene.render.filepath = str(output / f'{brand}-{variant}.png')
     bpy.ops.render.render(write_still=True)
 
 
@@ -340,14 +358,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--brand', choices=BRANDS)
-    parser.add_argument('--variant', choices=('standard', 'unified'))
+    parser.add_argument('--variant', choices=VARIANTS)
     parser.add_argument('--samples', type=int, default=90)
     parser.add_argument('--width', type=int, default=1150)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     args.out.mkdir(exist_ok=True, parents=True)
     for brand in [args.brand] if args.brand else BRANDS:
-        for variant in [args.variant] if args.variant else ('standard', 'unified'):
-            studio(brand, variant == 'unified', args.out, args.samples, args.width)
+        for variant in [args.variant] if args.variant else VARIANTS:
+            studio(brand, variant, args.out, args.samples, args.width)
 
 
 if __name__ == '__main__':

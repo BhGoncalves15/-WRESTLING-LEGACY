@@ -6,6 +6,8 @@ import { ROSTER_BY_ID } from './roster'
 import { TITLES_BY_ID, type TitleRecord } from './titles'
 
 export const STUDIO_BRANDS = ['wwe', 'nxt', 'aew', 'tna', 'njpw', 'aaa', 'roh', 'bwf'] as const
+export const STUDIO_VARIANTS = ['standard', 'unified', 'redesign', 'tribute'] as const
+type StudioVariant = typeof STUDIO_VARIANTS[number]
 
 export type BeltEdition = { photo: BeltPhoto | undefined } | { change: TitleChange }
 export type BeltVisualRecord =
@@ -20,9 +22,9 @@ type VisualOptions = {
   preview?: TitleRecord
 }
 
-function studio(title: TitleRecord, name: string, inscription: string, unified: boolean): BeltVisualRecord {
+function studio(title: TitleRecord, name: string, inscription: string, variant: StudioVariant): BeltVisualRecord {
   const brand = title.promotion === 'nxt' ? 'nxt' : ORGANIZATIONS[title.promotion].company
-  return { kind: 'studio', name, brand, inscription, asset: 'belts/studio/' + brand + (unified ? '-unified.webp' : '-standard.webp') }
+  return { kind: 'studio', name, brand, inscription, asset: 'belts/studio/' + brand + '-' + variant + '.webp' }
 }
 
 function shortName(name: string) {
@@ -33,7 +35,7 @@ function shortName(name: string) {
 export function beltVisualFor(title: TitleRecord, career: Career | null, options: VisualOptions = {}): BeltVisualRecord {
   const { date, unificationMatch, edition, preview } = options
   if (preview) {
-    return studio(title, unifiedTitleName(title, preview), shortName(title.name) + ' / ' + shortName(preview.name), true)
+    return studio(title, unifiedTitleName(title, preview), shortName(title.name) + ' / ' + shortName(preview.name), 'unified')
   }
   const change = edition ? ('change' in edition ? edition.change : undefined)
     : career?.titleChanges.filter(change => change.titleId === title.id && (!date || change.date < date
@@ -48,9 +50,10 @@ export function beltVisualFor(title: TitleRecord, career: Career | null, options
       id === 'career-player' ? career?.profile.name : ROSTER_BY_ID.get(id)?.name).filter(Boolean).join(' & ')
     const complementary = honoree || (secondary && shortName(secondary.name))
     const inscription = shortName(title.name) + (complementary ? ' / ' + complementary : '')
-    return studio(title, name, inscription, Boolean(unification))
+    const variant = change.kind === 'personalized' ? 'tribute' : change.kind === 'redesign' ? 'redesign' : 'unified'
+    return studio(title, name, inscription, variant)
   }
-  if (title.origin === 'fictional') return studio(title, title.name, shortName(title.name), false)
+  if (title.origin === 'fictional') return studio(title, title.name, shortName(title.name), 'standard')
   const photo = edition && 'photo' in edition ? edition.photo : beltPhotoOn(title, date ?? career?.date ?? START_DATE)
   return photo ? { kind: 'photo', name: title.name, asset: 'belts/' + photo.id + '.webp', photo }
     : { kind: 'pending', name: date && !edition ? titleName(career, title, date) : title.name, reference: beltReference(title) }
