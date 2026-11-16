@@ -1,14 +1,17 @@
 import { ArrowRight, Building2, CalendarDays, ChevronRight, Flame, Newspaper, Search, Swords, Trophy } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  COMPANY_NAMES, ORGANIZATIONS, evidenceFor, rosterFor, upcomingShows,
+  COMPANY_NAMES, OPENING_TITLES, ORGANIZATIONS, evidenceFor, rosterFor, upcomingShows,
 } from '../content/catalog'
+import { titleName } from '../content/belt-designs'
 import { HISTORICAL_OBSERVATIONS } from '../content/research-2026'
 import { TEAM_REFERENCES } from '../content/tag-teams'
 import { COMPANIES, DIVISION_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId } from '../domain/model'
 import { hasLiveBout, nextCareerShow, PLAYER_ID, recordFor } from '../engine/career'
 import { defaultAppearance } from '../domain/appearance'
+import { titleStates } from '../engine/titles'
 import { FighterAvatar } from './avatar'
+import { BeltVisual } from './belt-art'
 import { CircuitSelect, type CircuitFilter } from './world-filter'
 import { dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
 
@@ -72,6 +75,8 @@ export function Companies({ career }: { career: Career | null }) {
   const roster = rosterFor(selected)
   const teams = TEAM_REFERENCES.filter(team => team.promotion === selected)
   const observations = HISTORICAL_OBSERVATIONS.filter(entry => entry.promotion === selected)
+  const belts = useMemo(() => career ? titleStates(career) : null, [career])
+  const localTitles = OPENING_TITLES.filter(title => title.listings.includes(selected))
   const query = searchKey(search.trim())
   const filtered = roster.filter(fighter => [fighter.name, ...(fighter.aliases ?? [])].some(value => searchKey(value).includes(query)))
   return <>
@@ -87,12 +92,19 @@ export function Companies({ career }: { career: Career | null }) {
         <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome de ringue" /></label><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfis'}</small></div>
       <ul className="rows">{filtered.map(fighter => {
         const record = career && recordFor(career, fighter.id)
-        return <li className="roster-row" key={fighter.id}>
+        const held = localTitles.filter(title => belts
+          ? belts.get(title.id)?.holders?.includes(fighter.id)
+          : title.holderId === fighter.id || title.holderTeam?.includes(fighter.id))
+        return <li className={'roster-row' + (held.length ? ' roster-champion' : '')} key={fighter.id}>
           <div className="row-text"><strong>{fighter.name}</strong><small>{DIVISION_LABEL[fighter.division]} · {fighter.style}
             {fighter.promotion !== selected ? ' · Aparição cruzada' : ''}</small></div>
           <span className="chip">OVR {overall(fighter.attributes, fighter.style)}</span>
           {record && <small>{record.wins} V · {record.losses} D</small>}
           <SourceLink url={evidenceFor(fighter, selected)!.source} />
+          {held.length > 0 && <div className="roster-belts">{held.map(title => <figure key={title.id}>
+            <BeltVisual title={title} career={career} size="thumbnail" />
+            <figcaption>{titleName(career, title)}</figcaption>
+          </figure>)}</div>}
         </li>
       })}</ul>
       {filtered.length === 0 && <p className="empty-line">Nenhum lutador corresponde à busca.</p>}

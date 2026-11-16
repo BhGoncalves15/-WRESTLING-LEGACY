@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { beltArtworkFor, titleName, type BeltArtBrief } from '../src/content/belt-designs'
-import { openingBeltPhoto, realBeltDesigns } from '../src/content/belt-photos'
+import { beltPhotoOn, realBeltDesigns } from '../src/content/belt-photos'
+import { STUDIO_BRANDS, beltVisualFor } from '../src/content/belt-catalog'
 import { OPENING_TITLES, ROSTER_BY_ID, TITLES_BY_ID, showsThrough } from '../src/content/catalog'
 import { editionsForSeason } from '../src/content/tournaments'
 import { makePlace, type Country, type CountryPlaces } from '../src/content/geography'
@@ -105,7 +106,7 @@ describe('revisão da criação e do moveset', () => {
 describe('linhagens e versões de cinturão', () => {
   it('confere fotos locais, versões de abertura e fotografias apenas históricas', () => {
     const assets = OPENING_TITLES.flatMap(realBeltDesigns)
-    expect(assets.length).toBeGreaterThan(8)
+    expect(assets.length).toBeGreaterThanOrEqual(2)
     expect(new Set(assets.map(asset => asset.id)).size).toBe(assets.length)
     for (const asset of assets) {
       const file = readFileSync(new URL('../public/belts/' + asset.id + '.webp', import.meta.url))
@@ -113,8 +114,29 @@ describe('linhagens e versões de cinturão', () => {
       expect(asset.source).toMatch(/^https:\/\/commons\.wikimedia\.org/)
       expect(asset.licenseUrl).toMatch(/^https:\/\/creativecommons\.org/)
     }
-    expect(openingBeltPhoto(TITLES_BY_ID.get('nxt-na')!)?.id).toBe('nxt-na-2018')
-    expect(openingBeltPhoto(TITLES_BY_ID.get('nxt-men')!)).toBeUndefined()
+    expect(beltPhotoOn(TITLES_BY_ID.get('sd-world')!, '2022-01-01')?.id).toBe('sd-world-2014')
+    expect(beltPhotoOn(TITLES_BY_ID.get('nxt-na')!)).toBeUndefined()
+    for (const title of OPENING_TITLES) {
+      const visual = beltVisualFor(title, null)
+      expect(visual.kind).toBe(beltPhotoOn(title) ? 'photo' : 'pending')
+    }
+  })
+
+  it('entrega modelos locais distintos para criações e unificações nas oito identidades', () => {
+    const modeled = new Set<string>()
+    for (const title of OPENING_TITLES) {
+      const original = beltVisualFor({ ...title, origin: 'fictional' }, null)
+      const joined = beltVisualFor(title, null, { preview: title })
+      expect(original.kind).toBe('studio')
+      expect(joined.kind).toBe('studio')
+      for (const visual of [original, joined]) {
+        if (visual.kind !== 'studio' || modeled.has(visual.asset)) continue
+        const file = readFileSync(new URL('../public/' + visual.asset, import.meta.url))
+        expect(file.subarray(8, 12).toString()).toBe('WEBP')
+        modeled.add(visual.asset)
+      }
+    }
+    expect(modeled.size).toBe(STUDIO_BRANDS.length * 2)
   })
 
   it('gera arte reproduzível, varia as placas e reserva um motivo para a unificação', () => {
@@ -137,7 +159,11 @@ describe('linhagens e versões de cinturão', () => {
     expect(career.tournamentFields).toHaveLength([2026, 2027, 2028].flatMap(year => editionsForSeason(year)).length)
     expect(ageOn(career.profile.age, career.date)).toBe(27)
     expect(career.titleChanges.some(change => change.kind === 'redesign')).toBe(true)
-    expect(career.titleChanges.some(change => change.kind === 'personalized')).toBe(true)
+    const tribute = career.titleChanges.find(change => change.kind === 'personalized')!
+    expect(tribute).toBeDefined()
+    const tributeTitle = TITLES_BY_ID.get(tribute.titleId)!
+    const tributeVisual = beltVisualFor(tributeTitle, career, { edition: { change: tribute } })
+    expect(tributeVisual).toMatchObject({ kind: 'studio', inscription: expect.stringContaining(' / ') })
     const unifications = career.titleChanges.filter(change => change.kind === 'unification')
     expect(unifications.length).toBeGreaterThan(0)
     const imported = importCareer(exportCareer(career))
@@ -186,6 +212,12 @@ describe('linhagens e versões de cinturão', () => {
     expect(titleStates(importCareer(exportCareer(career))).get(pair.secondaryId)?.retiredBy).toBe(pair.titleId)
     expect(career.titleProposal).toBeNull()
     expect(career.titleDecision?.status).toBe('unified')
+    const title = TITLES_BY_ID.get(pair.titleId)!
+    const current = beltVisualFor(title, career)
+    expect(current).toMatchObject({ kind: 'studio', brand: 'wwe', asset: 'belts/studio/wwe-unified.webp' })
+    expect(beltVisualFor(title, career, { date: career.date })).toEqual(beltVisualFor(title, null))
+    expect(beltVisualFor(title, career, { date: career.date, unificationMatch: career.bout!.id })).toEqual(current)
+    expect(beltVisualFor(title, importCareer(exportCareer(career)))).toEqual(current)
   })
 
   it('aprova imediatamente com defesas e popularidade e cancela se o campeão perder', () => {

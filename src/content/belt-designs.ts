@@ -78,13 +78,3 @@ export function beltArtworkFor(brief: BeltArtBrief): BeltArtwork {
     lettering: theme?.lettering ?? random.pick(['serif', 'block']), company: brief.company,
   }
 }
-
-export function referenceBeltArtwork(title: TitleRecord) {
-  const org = ORGANIZATIONS[title.promotion]
-  const artwork = beltArtworkFor({
-    title: title.name, promotion: org.name, company: org.company, accent: org.accent,
-    prestige: titlePrestige(title, 0), lineage: [], reason: 'reference', seed: title.id,
-  })
-  if (title.id === 'aaa-mixed') return { ...artwork, strap: 'oxblood' as const, plate: 'sunstone' as const, metal: 'gold' as const }
-  return artwork
-}

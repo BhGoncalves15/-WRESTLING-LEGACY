@@ -1,9 +1,10 @@
+import { TITLES_BY_ID } from '../../src/content/titles'
 import { expect, test, type Page } from '@playwright/test'
 import { MOVES } from '../../src/content/moves'
 import { MULTI_DATA_VERSION } from '../../src/domain/model'
-import { advanceCareer, exampleProfile, newCareer } from '../../src/engine/career'
+import { advanceCalendarBy, advanceCareer, exampleProfile, newCareer, pendingUnificationBout, setTitleProposal } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
-import { smackdownDoubleChampion } from '../fixtures'
+import { duelBoutFor, smackdownDoubleChampion, smackdownPair } from '../fixtures'
 
 async function visit(page: Page, name: string) {
   const menu = page.getByRole('button', { name: 'Abrir navegação' })
@@ -153,40 +154,48 @@ test('abre a demonstração sob demanda, pausa, revê, troca golpes e lida com f
   await expect(main.getByText('Samoan Driver', { exact: true })).toBeVisible()
 })
 
-test('exibe fotografia local e versões anteriores de um cinturão em uma carreira importada', async ({ page }, testInfo) => {
+test('apresenta foto histórica, ausência de foto e designs que a carreira cria', async ({ page }, testInfo) => {
   let career = newCareer(exampleProfile(), 'normal', { seed: 73958 })
-  while (career.date < '2029-01-01' && !career.titleChanges.some(change => change.kind === 'unification')) career = advanceCareer(career)
-  expect(career.titleChanges.some(change => change.kind === 'unification')).toBe(true)
+  while (career.date < '2029-01-01' && !['unification', 'personalized'].every(kind =>
+    career.titleChanges.some(change => change.kind === kind))) career = advanceCareer(career)
+  const tribute = career.titleChanges.find(change => change.kind === 'personalized')!
+  expect(tribute).toBeDefined()
   await page.goto('./')
   await visit(page, 'Campeonatos')
   const main = page.getByRole('main')
-  await main.getByRole('searchbox', { name: 'Buscar cinturão' }).fill('nxt north american')
-  const card = main.locator('.belt-card').filter({ hasText: /NXT North American Championship/ })
-  const photo = card.getByRole('img', { name: 'Fotografia do NXT North American Championship' })
-  await expect.poll(() => photo.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(200)
+  const search = main.getByRole('searchbox', { name: 'Buscar cinturão' })
+  await search.fill('undisputed wwe')
+  const card = main.locator('.belt-card').filter({ hasText: /Undisputed WWE Championship/ })
+  await expect(card.getByText('Foto de catálogo pendente', { exact: true })).toBeVisible()
   await card.locator('summary').first().click()
-  await expect(card.getByText('Histórico visual')).toBeVisible()
-  await expect(card.getByRole('link', { name: 'Miguel Discart' })).toBeVisible()
-  await main.getByRole('searchbox', { name: 'Buscar cinturão' }).fill('roh pure championship')
-  const regional = main.locator('.belt-card').filter({ hasText: 'ROH Pure Championship' })
-  await expect(regional.getByRole('img', { name: 'Ilustração de referência do ROH Pure Championship' })).toBeVisible()
-  await regional.locator('summary').first().click()
-  await regional.getByLabel('Versão do cinturão').selectOption({ label: 'Foto 1 · Referência fotográfica' })
-  const past = regional.getByRole('img', { name: 'Fotografia do ROH Pure Championship' })
-  await expect.poll(() => past.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0)
-  await expect(regional.getByRole('link', { name: 'EditorRock' })).toBeVisible()
+  await expect(card.getByRole('link', { name: 'Consultar referência do campeonato' })).toHaveAttribute('href', /wwe\.com/)
+  await card.getByLabel('Versão do cinturão').selectOption('sd-world-2014')
+  const photo = card.getByRole('img', { name: 'Fotografia do Undisputed WWE Championship' })
+  await expect.poll(() => photo.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(200)
+  await expect(photo).toHaveCSS('object-fit', 'contain')
+  await expect(photo.locator('xpath=..')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await expect(card.getByRole('link', { name: 'DraftSaturn15' })).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/foto-historica-' + testInfo.project.name + '.png' })
   await restore(page, exportCareer(career))
   await visit(page, 'Campeonatos')
+  await search.fill('')
   const unified = main.locator('.belt-card').filter({ hasText: /\(Unificado\)/ }).first()
-  await expect(unified.getByRole('img', { name: /Design fictício/ })).toBeVisible()
+  const studio = unified.locator('summary').first().getByRole('img', { name: /Modelo 3D/ })
+  await expect.poll(() => studio.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(1150)
+  await expect(studio).toHaveCSS('object-fit', 'contain')
+  await expect(studio.locator('xpath=..')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
   await unified.locator('summary').first().click()
   await expect(unified.getByText(/Linhagem incorporada/)).toBeVisible()
-  expect(await unified.getByLabel('Versão do cinturão').locator('option').count()).toBeGreaterThanOrEqual(2)
-  await unified.getByLabel('Versão do cinturão').selectOption({ label: 'Abertura · Edição de referência em 2026' })
-  await expect(unified.getByText('Edição de referência em 2026', { exact: true })).toBeVisible()
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/cinturoes-' + testInfo.project.name + '.png' })
   await page.reload()
-  await expect(main.locator('.belt-card').filter({ hasText: /\(Unificado\)/ }).first().getByRole('img', { name: /Design fictício/ })).toBeVisible()
+  await expect(main.locator('.belt-card').filter({ hasText: /\(Unificado\)/ }).first().getByRole('img', { name: /Modelo 3D/ })).toBeVisible()
+  const title = TITLES_BY_ID.get(tribute.titleId)!
+  await search.fill(title.name)
+  const personalized = main.locator('.belt-card').first()
+  await personalized.locator('summary').first().click()
+  await personalized.getByLabel('Versão do cinturão').selectOption(tribute.showId)
+  await expect(personalized.locator('.design-history').getByText(/Homenagem ao reinado de/)).toBeVisible()
+  expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
 test('importa um personagem antigo acima da idade inicial e desbloqueia o Spear', async ({ page }) => {
@@ -270,6 +279,8 @@ test('acompanha a proposta e reabre a luta de unificação no calendário jogáv
   await visit(page, 'Campeonatos')
   const office = main.getByRole('region', { name: 'Proposta de unificação' })
   await office.getByRole('combobox').selectOption('sd-us|sd-world')
+  const preview = office.getByRole('region', { name: 'Prévia visual da unificação' })
+  await expect(preview.getByRole('img', { name: /Modelo 3D/ })).toHaveAttribute('src', /wwe-unified\.webp$/)
   await office.getByRole('button', { name: 'Enviar à diretoria' }).click()
   await expect(office.getByText(/Em análise · resposta até/)).toBeVisible()
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/unificacao-em-analise-' + testInfo.project.name + '.png' })
@@ -284,4 +295,35 @@ test('acompanha a proposta e reabre a luta de unificação no calendário jogáv
   await visit(page, 'Calendário')
   await expect(main.getByText(/Você está escalado em .*Luta de unificação/)).toBeVisible()
   await expect(main.getByRole('button', { name: 'Entrar no combate' })).toBeVisible()
+})
+
+test('conclui a unificação e mantém o modelo na luta, no perfil e nos resultados', async ({ page }, testInfo) => {
+  const proposal = setTitleProposal({ ...smackdownDoubleChampion(), popularity: 40 }, smackdownPair)
+  const career = advanceCalendarBy(proposal, 7)
+  expect(pendingUnificationBout(career)).toBe(true)
+  const bout = duelBoutFor(career)
+  const fixture = { ...career, bout: { ...bout, plan: 'guard', rival: { ...bout.rival, condition: 0, position: 'grounded' as const } } }
+  await page.goto('./')
+  await restore(page, exportCareer(fixture))
+  const main = page.getByRole('main')
+  await visit(page, 'Calendário')
+  await main.getByRole('button', { name: 'Entrar no combate' }).click()
+  const match = main.getByRole('region', { name: 'Cinturão em disputa' })
+  await expect(match.getByText(/Disputa pelo WWE United States Championship/)).toBeVisible()
+  await main.getByRole('button', { name: /^Buscar o pinfall/ }).click()
+  await expect(main.getByRole('heading', { name: /Vitória por pinfall/ })).toBeVisible()
+  const pattern = /belts\/studio\/wwe-unified\.webp$/
+  const image = match.getByRole('img', { name: /Modelo 3D/ })
+  await expect(image).toHaveAttribute('src', pattern)
+  await expect.poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(1150)
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/unificacao-concluida-' + testInfo.project.name + '.png' })
+  await visit(page, 'Meu lutador')
+  await expect(main.getByRole('img', { name: /Modelo 3D.*Unificado/ })).toHaveAttribute('src', pattern)
+  await visit(page, 'Calendário')
+  await main.getByRole('button', { name: 'Resultados', exact: true }).click()
+  await main.getByLabel('Empresa ou brand').selectOption('smackdown')
+  const recent = main.locator('details.report').first()
+  await recent.locator('summary').click()
+  await expect(recent.getByRole('img', { name: /Modelo 3D.*Unificado/ })).toHaveAttribute('src', pattern)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

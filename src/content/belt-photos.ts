@@ -6,8 +6,6 @@ const licenses = {
   'CC BY-SA 3.0': 'https://creativecommons.org/licenses/by-sa/3.0/',
   'CC BY 4.0': 'https://creativecommons.org/licenses/by/4.0/',
   'CC BY-SA 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/',
-  'CC BY 2.0': 'https://creativecommons.org/licenses/by/2.0/',
-  CC0: 'https://creativecommons.org/publicdomain/zero/1.0/',
 } as const
 
 export type BeltPhoto = {
@@ -18,48 +16,58 @@ export type BeltPhoto = {
   source: string
   license: keyof typeof licenses
   licenseUrl: string
-  front?: boolean
-  note?: string
+  note: string
 }
 
-function photo(id: string, from: string, file: string, author: string, license: BeltPhoto['license'], until?: string,
-  options?: Pick<BeltPhoto, 'front' | 'note'>): BeltPhoto {
+function photo(id: string, from: string, file: string, author: string, license: BeltPhoto['license'],
+  until: string | undefined, note: string): BeltPhoto {
   return { id, from, until, author, source: 'https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(file.replaceAll(' ', '_')),
-    license, licenseUrl: licenses[license], ...options }
+    license, licenseUrl: licenses[license], note }
 }
 
-const photos: Record<string, BeltPhoto[]> = {
-  'raw-world': [photo('raw-world-2023', '2023-04-24', 'Damian Priest WHC - WWE Live Birmingham April 2024.jpg', 'Zippo9310', 'CC BY-SA 4.0')],
-  'raw-women': [photo('raw-women-2023', '2023-06-12', 'Rhea Ripley 2024.jpg', 'Carter Sterling', 'CC BY-SA 2.0')],
-  'nxt-men': [photo('nxt-men-2012', '2012-07-26', 'NXT Champion Finn Balor.jpg', 'Edge4life42', 'CC BY-SA 3.0', '2017-04-01')],
+// Only isolated photographs with a traceable reuse license enter the local catalog.
+const photos: Partial<Record<string, readonly BeltPhoto[]>> = {
   'sd-world': [photo('sd-world-2014', '2014-08-18', 'WWE Championship (2014) commemorative belt.jpg', 'DraftSaturn15', 'CC BY 4.0',
-    '2023-06-02', { note: 'Réplica comemorativa da edição de 2014. Fundo removido e imagem reduzida.' })],
-  'nxt-na': [photo('nxt-na-2018', '2018-04-03', 'Referee with NXT North American Championship.jpg', 'Miguel Discart', 'CC BY-SA 2.0',
-    undefined, { front: true })],
-  'aew-world': [photo('aew-world-2019', '2019-08-31', 'Bryan Danielson as AEW World Champion.jpg', 'McPhail', 'CC0')],
-  'aew-tbs': [photo('aew-tbs-2022', '2022-01-05', 'JC TBS Champion.jpg', 'Gtandersson', 'CC BY-SA 4.0')],
-  'aew-tag': [photo('aew-tag-2019', '2019-10-30', 'FTR in August 2023 as AEW World Tag Team Champions.jpg', 'McPhail', 'CC0')],
-  'aew-continental': [photo('aew-continental-2023', '2023-12-30', 'Kazuchika Okada as AEW Continental Champion in August 2024.jpg', 'McPhail', 'CC0')],
-  'aew-international': [photo('aew-international-2023', '2023-03-15', 'Will Ospreay AEW International Champion.jpg', 'zuko1312', 'CC BY 2.0', '2025-07-12'),
-    photo('aew-international-2025', '2025-07-12', 'Kazuchika Okada as AEW Unified Champion (cropped).jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0', '2026-05-24')],
-  'aew-women': [photo('aew-women-2022', '2022-03-06', 'Mariah May AEW Grand Slam.jpg', 'zuko1312', 'CC BY 2.0')],
-  'aew-tnt': [photo('aew-tnt-2024', '2024-07-24', 'Jack Perry as AEW TNT Champion (cropped).jpg', 'McPhail', 'CC0', '2024-11-23'),
-    photo('aew-tnt-2025', '2025-07-31', 'Kyle Fletcher, August 30 2025.jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0')],
-  'tna-world': [photo('tna-world-2018', '2018-04-22', 'Johnny Impact Feb 2019-2.jpg', 'Tabercil', 'CC BY-SA 3.0', '2021-08-19')],
-  'tna-knockouts': [photo('tna-knockouts-2007', '2007-10-14', "TNA Women's Knockout Championship Belt.png", 'Pedrohoneto', 'CC BY-SA 3.0', '2014-12-25')],
-  'aaa-mega': [photo('aaa-mega-2012', '2012-03-18', 'El Hijo del Vikingo, Jan 2023.jpg', 'Earl Gardner', 'CC BY-SA 2.0', '2026-03-14')],
+    '2023-06-02', 'Réplica comemorativa da edição de 2014. Recorte, fundo branco e redução.')],
   'aaa-mixed': [photo('aaa-mixed-2003', '2003-06-15', 'AAA World Mixed Tag Team Championship belt.jpg', 'Tabercil', 'CC BY-SA 3.0',
-    '2025-04-19', { note: 'Versão vermelha fotografada em 2012. Fundo removido e imagem reduzida.' })],
-  'roh-world': [photo('roh-world-2023', '2023-03-31', 'Bandido ROH.jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0')],
-  'roh-pure': [photo('roh-pure-2004', '2004-07-17', 'ROH Pure Championship Belt.jpg', 'EditorRock', 'CC BY-SA 4.0',
-    '2023-03-31', { note: 'Placas da primeira edição, fotografadas em 2022. Imagem reduzida.' })],
-  'njpw-iwgp': [photo('njpw-iwgp-2021', '2021-03-30', 'Zack Sabre Jr, IWGP Champion.jpg', 'Sceptre', 'CC BY 4.0', '2026-01-05')],
+    '2025-04-19', 'Versão de tira vermelha, fotografada em 2012. Recorte, fundo branco e redução.')],
 }
 
-export function realBeltDesigns(title: TitleRecord): BeltPhoto[] {
+const wweTitleHistory = 'https://www.wwe.com/titlehistory/'
+const references: Partial<Record<string, string>> = {
+  'raw-world': 'https://shop.wwe.com/en/wwe-world-heavyweight-championship-replica-title-belt/p-200116274',
+  'raw-women': wweTitleHistory + 'womens-world-championship',
+  'raw-ic': wweTitleHistory + 'intercontinental-championship',
+  'raw-women-ic': wweTitleHistory + 'womens-intercontinental-championship',
+  'raw-tag': wweTitleHistory + 'world-tag-team-championship',
+  'sd-world': 'https://shop.wwe.com/en/undisputed-wwe-championship-replica-title-belt/p-356688230196121973',
+  'sd-women': wweTitleHistory + 'wwe-womens-championship',
+  'sd-us': 'https://shop.wwe.com/en/collectibles-and-toys/wwe-united-states-championship-replica-title-belt/d-5617346834%2Bf-8242196793%2Bz-7-3614840859?sku=17800200',
+  'sd-women-us': wweTitleHistory + 'womens-united-states-championship',
+  'sd-tag': wweTitleHistory + 'wwe-tag-team-championship',
+  'wwe-women-tag': 'https://shop.wwe.com/en/wwe-womens-tag-team-replica-championship-title-belt/p-15198612957321',
+  'nxt-men': wweTitleHistory + 'nxt-championship',
+  'nxt-women': wweTitleHistory + 'nxt-womens-championship',
+  'nxt-na': wweTitleHistory + 'nxt-north-american-championship',
+  'nxt-women-na': wweTitleHistory + 'nxt-womens-north-american-championship',
+  'nxt-tag': wweTitleHistory + 'nxt-tag-team-championship',
+  'aew-world': 'https://shopaew.com/en-int/products/2024-aew-world-championship-replica',
+  'aew-tnt': 'https://shopaew.com/en-int/products/aew-tnt-championship-black-replica-title-belt-rts',
+  'aew-women': 'https://shopaew.com/en-us/products/aew-women-s-world-championship-replica-belt',
+  'njpw-iwgp': 'https://www.njpw.co.jp/470271',
+  'tna-world': 'https://tnawrestling.com/news/now-available-officially-licensed-authentic-replica-tna-world-championship-belts',
+  'aaa-mixed': 'https://shop.wwe.com/en/aaa-world-mixed-tag-team-championship-replica-title-belt/p-247747206818005147',
+  'bwf-south-america': 'https://bwf.com.br/sul-americano/',
+}
+
+export function beltReference(title: TitleRecord) {
+  return references[title.id] ?? title.source
+}
+
+export function realBeltDesigns(title: TitleRecord): readonly BeltPhoto[] {
   return photos[title.id] ?? []
 }
 
-export function openingBeltPhoto(title: TitleRecord) {
-  return realBeltDesigns(title).find(photo => photo.front && photo.from <= START_DATE && (!photo.until || START_DATE < photo.until))
+export function beltPhotoOn(title: TitleRecord, date = START_DATE) {
+  return [...realBeltDesigns(title)].reverse().find(photo => photo.from <= date && (!photo.until || date < photo.until))
 }

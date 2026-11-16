@@ -1,16 +1,17 @@
 import { ChevronDown, Trophy } from 'lucide-react'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { ORGANIZATIONS, OPENING_TITLES, TITLES_BY_ID } from '../content/catalog'
-import { referenceBeltArtwork, titleName, titlePrestige } from '../content/belt-designs'
-import { openingBeltPhoto, realBeltDesigns, type BeltPhoto } from '../content/belt-photos'
+import { titleName, titlePrestige } from '../content/belt-designs'
+import { beltVisualFor, type BeltEdition } from '../content/belt-catalog'
+import { beltPhotoOn, realBeltDesigns } from '../content/belt-photos'
 import { defenseFormat, JUNIOR_WEIGHT_LIMIT, type TitleRecord, type TitleRule } from '../content/titles'
 import { searchKey } from '../domain/geography'
-import { DIVISION_LABEL, METHOD_LABEL, type Career, type TitleChange, type TitlePair } from '../domain/model'
+import { DIVISION_LABEL, METHOD_LABEL, type Career, type TitlePair } from '../domain/model'
 import { fighterNames, hasLiveBout, PLAYER_ID } from '../engine/career'
 import { unificationStats } from '../engine/title-office'
 import { sameTeam } from '../engine/matches'
 import { canUnify, titleStates, type BeltState, type BeltStates } from '../engine/titles'
-import { SimulatedBelt } from './belt-art'
+import { BeltAttribution, BeltVisual } from './belt-art'
 import { CircuitSelect, type CircuitFilter } from './world-filter'
 import { dateText, OrgMark, PageTitle, SourceLink } from './shared'
 
@@ -19,51 +20,31 @@ const ruleLabel: Record<TitleRule, string> = {
   rookies: 'Rookies', tag: 'Duplas', trios: 'Trios', maremoto: 'Maremoto',
 }
 
-function BeltImage({ title, name, photo, change }: { title: TitleRecord; name: string; photo?: BeltPhoto; change?: TitleChange }) {
-  const [failed, setFailed] = useState(false)
-  const illustrated = !change && (!photo || failed)
-  return <div className={'belt-media' + (photo && !failed ? ' belt-photo' : '')}>
-    {change ? <SimulatedBelt artwork={change.artwork} name={name} initials={ORGANIZATIONS[title.promotion].initials} />
-      : photo && !failed ? <img src={import.meta.env.BASE_URL + 'belts/' + photo.id + '.webp'} loading="lazy" decoding="async"
-        alt={'Fotografia do ' + title.name} onError={() => setFailed(true)} />
-        : <SimulatedBelt artwork={referenceBeltArtwork(title)} name={title.name} initials={ORGANIZATIONS[title.promotion].initials} reference />}
-    {illustrated && <span className="belt-art-kind">Ilustração de referência</span>}
-    {change && <span className="belt-art-kind">Design fictício</span>}
-  </div>
-}
+type Design = { id: string; label: string; from?: string; until?: string; edition: BeltEdition }
 
-function PhotoCredit({ photo }: { photo: BeltPhoto }) {
-  return <p className="belt-credit">Foto de <a href={photo.source} target="_blank" rel="noreferrer">{photo.author}</a> ·
-    {' '}<a href={photo.licenseUrl} target="_blank" rel="noreferrer">{photo.license}</a> · {photo.note ?? 'Recorte e redução.'}</p>
-}
-
-type Design = { id: string; version: string; label: string; from?: string; until?: string; photo?: BeltPhoto; change?: TitleChange }
-
-function visualHistory(title: TitleRecord, state: BeltState | undefined): Design[] {
-  const opening = openingBeltPhoto(title)
+function visualHistory(title: TitleRecord, career: Career | null, state: BeltState | undefined): Design[] {
+  const currentPhoto = beltPhotoOn(title, career?.date)
   const changes = state?.designs ?? []
-  const historical = realBeltDesigns(title).filter(photo => photo !== opening).map((photo, index) => ({
-    id: photo.id, version: 'Foto ' + (index + 1), label: 'Referência fotográfica', from: photo.from, until: photo.until, photo,
+  const photographs = realBeltDesigns(title).filter(photo => photo !== currentPhoto).map(photo => ({
+    id: photo.id, label: 'Fotografia · edição de ' + photo.from.slice(0, 4), from: photo.from, until: photo.until, edition: { photo },
   }))
-  return [...historical, {
-    id: opening?.id ?? title.id + '-opening', version: 'Abertura', label: 'Edição de referência em 2026', photo: opening,
-    from: opening?.from, until: changes[0]?.date ?? state?.retiredOn ?? (state ? undefined : opening?.until),
+  return [...photographs, {
+    id: currentPhoto?.id ?? title.id + '-opening', label: title.origin === 'fictional' ? 'Edição original fictícia' : 'Edição de referência em 2026',
+    from: currentPhoto?.from, until: changes[0]?.date ?? state?.retiredOn ?? currentPhoto?.until, edition: { photo: currentPhoto },
   }, ...changes.map((change, index) => ({
-    id: change.showId, version: 'Simulação ' + (index + 1),
-    label: change.kind === 'unification' ? 'Unificação' : change.kind === 'personalized' ? 'Homenagem ao campeão' : 'Reformulação',
-    from: change.date, until: changes[index + 1]?.date ?? state?.retiredOn, change,
+    id: change.showId, label: change.kind === 'unification' ? 'Unificação' : change.kind === 'personalized' ? 'Homenagem ao campeão' : 'Reformulação',
+    from: change.date, until: changes[index + 1]?.date ?? state?.retiredOn, edition: { change },
   }))]
 }
 
 function BeltCard({ title, career, state }: { title: TitleRecord; career: Career | null; state?: BeltState }) {
   const [version, setVersion] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const designs = visualHistory(title, state)
+  const designs = visualHistory(title, career, state)
   const latest = designs.at(-1)!
   const chosen = designs.find(design => design.id === version) ?? latest
   const name = titleName(career, title)
   const unified = state?.designs?.find(change => change.kind === 'unification')
-  const caption = chosen.change && unified && unified.date <= chosen.change.date ? name : title.name
   const winningShow = unified && career?.shows.find(show => show.id === unified.showId)
   const winningMatch = winningShow?.matches.find(match => match.id === unified?.matchId)
   const opening = title.holder ?? (title.vacant ? 'Vago' : 'A confirmar')
@@ -77,9 +58,7 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
   return <details className="panel report belt-card" onToggle={event => setExpanded(event.currentTarget.open)}
     style={{ '--org-accent': ORGANIZATIONS[title.promotion].accent } as CSSProperties}>
     <summary>
-      <div className="belt-card-art">
-        <BeltImage key={latest.id} title={title} name={name} photo={latest.photo} change={latest.change} />
-      </div>
+      <BeltVisual title={title} career={career} />
       <div className="belt-card-summary"><OrgMark id={title.promotion} small />
         <div className="row-text"><strong>{name}</strong><small>{title.status === 'later' ? 'Estreia posterior a janeiro' : holder}</small></div>
         <ChevronDown size={17} aria-hidden />
@@ -103,16 +82,13 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
       <div className="design-history">
         <h3>Histórico visual</h3>
         {designs.length > 1 && <label>Versão do cinturão<select value={chosen.id} onChange={event => setVersion(event.target.value)}>
-          {[...designs].reverse().map(design => <option key={design.id} value={design.id}>{design.version} · {design.label}</option>)}
+          {[...designs].reverse().map(design => <option key={design.id} value={design.id}>{design.label}{design.from && ' · ' + dateText(design.from)}</option>)}
         </select></label>}
         <p><strong>{chosen.label}</strong>{chosen.from && ' · Desde ' + dateText(chosen.from)}{chosen.until && ' · Até ' + dateText(chosen.until)}</p>
-        {chosen !== latest && <BeltImage key={chosen.id} title={title} name={caption} photo={chosen.photo} change={chosen.change} />}
-        {chosen.photo && <PhotoCredit photo={chosen.photo} />}
-        {chosen.change && career && <p className="belt-credit">
-          Arte original gerada no jogo · Prestígio na estreia {chosen.change.prestige}/100.
-          {' '}{chosen.change.kind === 'unification' ? 'Novo cinturão após defesas dos mesmos campeões nos dois reinados.'
-            : chosen.change.kind === 'personalized' ? 'Homenagem ao reinado de ' + fighterNames(career, chosen.change.champion) + '.'
-              : 'A diretoria atualizou a identidade visual após um ciclo da divisão.'}
+        {chosen !== latest && <BeltVisual title={title} career={career} edition={chosen.edition} />}
+        <BeltAttribution visual={beltVisualFor(title, career, { edition: chosen.edition })} />
+        {'change' in chosen.edition && career && <p className="belt-credit">Prestígio na estreia {chosen.edition.change.prestige}/100.
+          {chosen.edition.change.kind === 'personalized' && ' Homenagem ao reinado de ' + fighterNames(career, chosen.edition.change.champion) + '.'}
         </p>}
       </div>
       {state && state.events.length > 0 && career && <details className="reign-history">
@@ -145,6 +121,9 @@ function UnificationPanel({ career, states, pending, onProposal }: {
   const selection = pairs.find(pair => pair.titleId + '|' + pair.secondaryId === selected)
   const locked = pending || hasLiveBout(career)
   const stats = selection && unificationStats(states, selection)
+  const pair = proposal ?? selection
+  const primary = pair && TITLES_BY_ID.get(pair.titleId)
+  const secondary = pair && TITLES_BY_ID.get(pair.secondaryId)
   const decisions = { approved: 'Aprovada', rejected: 'Recusada', cancelled: 'Cancelada', unified: 'Concluída' }
 
   return <section className="panel unification-panel" aria-label="Proposta de unificação">
@@ -168,6 +147,12 @@ function UnificationPanel({ career, states, pending, onProposal }: {
         <p className="unification-status">Resposta imediata com popularidade 65, quatro defesas somadas e até 24 pontos de diferença de prestígio. Nos demais casos, a análise leva até três dias.
           {stats && <><br /><strong>{stats.defenses} defesas somadas · Diferença de prestígio {stats.gap} · Popularidade {career.popularity}</strong></>}</p>
       </> : <p>É preciso ter dois cinturões da mesma divisão, formato e regulamento, com uma defesa em cada reinado.</p>}
+      {primary && secondary && <section className="unification-preview" aria-label="Prévia visual da unificação">
+        <figure><BeltVisual title={primary} career={career} /><figcaption>{primary.name}</figcaption></figure>
+        <figure><BeltVisual title={secondary} career={career} /><figcaption>{secondary.name}</figcaption></figure>
+        <figure><BeltVisual title={primary} career={career} preview={secondary} />
+          <figcaption>Modelo proposto para a unificação</figcaption></figure>
+      </section>}
     </div>
   </section>
 }

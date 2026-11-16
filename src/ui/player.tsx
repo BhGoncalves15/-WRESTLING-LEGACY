@@ -1,3 +1,4 @@
+import { BeltVisual } from './belt-art'
 import { ArrowUp, Coins, Flame, Swords, Trophy, Users } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { OPENING_TITLES, ORGANIZATIONS, TITLES_BY_ID } from '../content/catalog'
@@ -120,11 +121,15 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
     </div>
     {belts.length > 0 && <section className="panel career-belts">
       <header className="panel-head"><h2><Trophy size={19} aria-hidden /> Cinturões em posse</h2></header>
-      <ul className="rows">{belts.map(([id, state]) => <li className="record-row" key={id}>
-        <div className="row-text"><strong>{titleName(career, TITLES_BY_ID.get(id)!)}</strong>
-          <small>{state.holders && state.holders.length > 1 ? fighterNames(career, state.holders) + ' · ' : ''}Desde {dateText(state.heldFrom)}</small></div>
-        <span className="chip">{state.defenses} defesas</span>
-      </li>)}</ul>
+      <ul className="rows">{belts.map(([id, state]) => {
+        const title = TITLES_BY_ID.get(id)!
+        return <li className="record-row belt-record" key={id}>
+          <BeltVisual title={title} career={career} size="thumbnail" />
+          <div className="row-text"><strong>{titleName(career, title)}</strong>
+            <small>{state.holders && state.holders.length > 1 ? fighterNames(career, state.holders) + ' · ' : ''}Desde {dateText(state.heldFrom)}</small></div>
+          <span className="chip">{state.defenses} defesas</span>
+        </li>
+      })}</ul>
     </section>}
     <div className="panel team-preference">
       <label>Formato preferido nos cards

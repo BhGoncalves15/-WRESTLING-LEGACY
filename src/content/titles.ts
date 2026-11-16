@@ -13,6 +13,7 @@ export type TitleRecord = {
   rule: TitleRule
   qualification?: 'junior' | 'tamashii'
   status: 'active' | 'later' | 'unverified'
+  origin?: 'fictional'
   holder: string | null
   holderId?: string
   holderTeam?: WrestlingTeam
@@ -27,6 +28,7 @@ type SinglesSettings = {
   listings?: readonly PromotionId[]
   vacant?: boolean
   status?: TitleRecord['status']
+  origin?: TitleRecord['origin']
   note?: string
 }
 
@@ -36,15 +38,15 @@ function singles(id: string, name: string, promotion: PromotionId, division: Div
     id, name, promotion, division, holderId, holder, source,
     status: settings.status ?? 'active', listings: settings.listings ?? [promotion], rule: settings.rule ?? 'singles',
     qualification: settings.qualification,
-    vacant: settings.vacant, note: settings.note,
+    vacant: settings.vacant, note: settings.note, ...(settings.origin && { origin: settings.origin }),
   }
 }
 
 function team(id: string, name: string, promotion: PromotionId, division: TitleRecord['division'],
   rule: 'tag' | 'trios', holder: string, source: string, holderTeam?: WrestlingTeam,
-  settings: Pick<SinglesSettings, 'listings' | 'qualification'> = {}): TitleRecord {
+  settings: Pick<SinglesSettings, 'listings' | 'qualification' | 'origin'> = {}): TitleRecord {
   return { id, name, promotion, division, rule, holder, holderTeam, source, status: 'active',
-    listings: settings.listings ?? [promotion], qualification: settings.qualification }
+    listings: settings.listings ?? [promotion], qualification: settings.qualification, ...(settings.origin && { origin: settings.origin }) }
 }
 
 const WWE_BRANDS = ['raw', 'smackdown', 'nxt'] as const

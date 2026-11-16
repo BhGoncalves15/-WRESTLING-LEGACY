@@ -544,12 +544,32 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .belt-card-summary > svg { color: var(--muted); transition: transform 150ms ease; }
 .belt-card[open] .belt-card-summary > svg { transform: rotate(180deg); }
 .belt-card > summary > .chip { justify-self: start; margin-left: 3px; }
-.belt-card-art { position: relative; }
-.belt-media { display: grid; place-items: center; overflow: hidden; min-height: 135px; aspect-ratio: 16 / 9; border-radius: 6px;
-  position: relative; padding: 8px; background: #fff; }
-.belt-media img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.belt-render { width: 100%; height: auto; }
-.belt-art-kind { position: absolute; bottom: 7px; right: 8px; border-radius: 3px; padding: 2px 5px; background: #f5f2ed; font-size: 10px; color: #443d34; }
+.belt-media { display: grid; place-items: center; width: 100%; aspect-ratio: 5 / 2; overflow: hidden; border-radius: 6px;
+  position: relative; background: #fff; isolation: isolate; container-type: inline-size; }
+.belt-media img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+.belt-pending { padding: 6px; color: #56514d; font-size: .8rem; font-weight: 600; line-height: 1.2; text-align: center; }
+.belt-media-thumbnail { flex: 0 0 auto; width: clamp(74px, 16vw, 159px); }
+.belt-media-thumbnail .belt-pending { font-size: .62rem; }
+.belt-inscription { position: absolute; left: 42%; right: 42%; top: 65.25%; transform: translateY(-50%); pointer-events: none;
+  display: grid; gap: 1px; place-items: center; color: #f1d697; font-weight: 800; text-shadow: 0 1px #180e12; }
+.belt-inscription span { font-size: calc(var(--letter-size) * 1cqw); line-height: .98; white-space: nowrap; }
+.belt-record .row-text { min-width: 0; overflow-wrap: anywhere; }
+.fight-belt { display: flex; align-items: center; gap: 14px; padding: 9px; margin-bottom: 12px; }
+.fight-belt .belt-media { flex: 0 0 auto; width: min(42%, 290px); }
+.fight-belt > div:last-child { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: .83rem; color: var(--muted); }
+.fight-belt svg { flex: 0 0 auto; color: var(--lime); }
+.unification-preview { flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.unification-preview figure { margin: 0; min-width: 0; }
+.unification-preview figcaption { color: var(--muted); font-size: .75rem; margin-top: 4px; overflow-wrap: anywhere; }
+.roster-champion { flex-wrap: wrap; }
+.roster-belts { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.roster-belts figure { margin: 0; }
+.roster-belts figcaption { max-width: 159px; margin-top: 3px; color: var(--muted); font-size: .68rem; }
+@media (max-width: 520px) {
+  .unification-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .unification-preview figure:last-child { grid-column: 1 / -1; }
+  .belt-record { flex-wrap: wrap; }
+}
 .belt-detail { display: grid; gap: 9px; padding: 12px 11px; border-top: 1px solid var(--line); font-size: 12px; }
 .belt-detail p, .belt-detail .title-meta { overflow-wrap: anywhere; }
 .belt-detail h3 { font: 700 22px/1 var(--heading); }

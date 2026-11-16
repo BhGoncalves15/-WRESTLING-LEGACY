@@ -1,7 +1,8 @@
+import { BeltVisual } from './belt-art'
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Swords } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ARCHIVE_2026, ORGANIZATIONS, TITLES_BY_ID, showPromotions, showReference, showsThrough, upcomingShows } from '../content/catalog'
-import { titleName } from '../content/belt-designs'
+import { beltVisualFor } from '../content/belt-catalog'
 import { roundName, tournamentEdition, tournamentSlots } from '../content/tournaments'
 import { MATCH_FORMAT_LABEL, METHOD_LABEL, START_DATE, addDays, type Career, type Show, type ShowReport } from '../domain/model'
 import { fighterName, fighterNames, hasLiveBout, nextCareerShow, pendingUnificationBout } from '../engine/career'
@@ -22,12 +23,14 @@ function Results({ report, career }: { report: ShowReport; career: Career }) {
       const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId)
         : match.multi ? ' sobre ' + fighterName(career, match.multi.defeatedId) : ''
       const belt = match.titleId ? TITLES_BY_ID.get(match.titleId) : undefined
+      const beltEdition = { date: report.date, unificationMatch: match.id }
       const edition = match.tournamentId ? tournamentEdition(match.tournamentId, career.calendar) : undefined
-      return <li className="record-row" key={match.id}>
-        {match.player && <FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} />}
+      return <li className={belt ? "record-row belt-record" : "record-row"} key={match.id}>
+        {match.player && !belt && <FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} />}
+        {belt && <BeltVisual title={belt} career={career} {...beltEdition} size="thumbnail" />}
         <div className="row-text"><strong>{sides.map(side => fighterNames(career, side)).join(' × ')}</strong>
           <small>{winner} {match.tag ? 'venceram' : 'venceu'} · {METHOD_LABEL[match.method]}{finisher}</small>
-          {belt && <small className="belt-label">{titleName(career, belt, report.date)}</small>}
+          {belt && <small className="belt-label">{beltVisualFor(belt, career, beltEdition).name}</small>}
           {edition && <small className="belt-label">{edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === report.id))}</small>}
           {(match.tag || match.multi) && match.player && <small>Sua luta</small>}
         </div>

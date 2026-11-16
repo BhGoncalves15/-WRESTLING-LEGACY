@@ -1,8 +1,9 @@
+import { BeltVisual } from './belt-art'
 import { ArrowRight, Crosshair, Flame, HeartPulse, Repeat2, Shield, Swords, Trophy, Zap } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, type Fighter } from '../content/catalog'
 import { defaultAppearance, type Appearance } from '../domain/appearance'
-import { titleName } from '../content/belt-designs'
+import { beltVisualFor } from '../content/belt-catalog'
 import { MOVE_BY_ID } from '../content/moves'
 import { roundName, tournamentEdition } from '../content/tournaments'
 import {
@@ -57,11 +58,15 @@ type ActiveFightProps = Pick<FightProps, 'career' | 'pending' | 'onTurn' | 'onAd
 
 function FightHeading({ career, show, bout, format }: { career: Career; show: Show; bout: Bout; format: MatchFormat }) {
   const belt = bout.titleId ? TITLES_BY_ID.get(bout.titleId) : undefined
+  const edition = { date: show.date, unificationMatch: bout.finish ? bout.id : undefined }
   const status = bout.finish ? 'Encerrado' : bout.multi?.pendingFall ? 'Finalização em curso' : 'Turno ' + (bout.turn + 1)
   return <>
     <PageTitle title={show.name} intro={ORGANIZATIONS[show.promotion].name + ' · ' + MATCH_FORMAT_LABEL[format]}
       action={<span className="chip">{status}</span>} />
-    {belt && <div className="inline-note"><Trophy size={19} aria-hidden /><span>Disputa pelo {titleName(career, belt, show.date)}</span></div>}
+    {belt && <section className="panel fight-belt" aria-label="Cinturão em disputa">
+      <BeltVisual title={belt} career={career} {...edition} size="feature" />
+      <div><Trophy size={19} aria-hidden /><span>Disputa pelo {beltVisualFor(belt, career, edition).name}</span></div>
+    </section>}
   </>
 }
 
