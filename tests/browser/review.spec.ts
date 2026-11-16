@@ -97,7 +97,7 @@ test('valida idade, troca país, personaliza um visual 2D e mantém o traje ao r
   await expect(main.getByLabel('Máscara', { exact: true })).toHaveValue('half')
   await main.getByLabel('Parte de cima').selectOption('singlet')
   await main.getByRole('button', { name: 'Salvar visual' }).click()
-  await expect(main.locator('.profile-card [stop-color="#ff4a23"]').first()).toBeAttached()
+  await expect(page.getByText('Visual salvo.', { exact: true })).toBeVisible()
   await page.reload()
   await main.getByRole('button', { name: 'Editar visual' }).click()
   await main.getByRole('button', { name: 'Traje', exact: true }).click()

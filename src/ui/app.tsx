@@ -261,7 +261,10 @@ export function App() {
       if (route === 'lutador') return <Player key={career.id} career={career} pending={pending}
         onAttribute={attribute => change(current => improveAttribute(current, attribute))}
         onMove={id => change(current => improveMove(current, id))}
-        onLook={look => change(current => updateAppearance(current, look))}
+        onLook={(look, onSaved) => change(current => updateAppearance(current, look), () => {
+          onSaved()
+          setNotice({ text: 'Visual salvo.', error: false })
+        })}
         onEquip={(id, replaced) => change(current => changeCareerMove(current, id, replaced))}
         onUnlock={id => change(current => unlockMove(current, id))}
         onTeam={(format, ids) => change(current => setCareerTeam(current, format, ids))}

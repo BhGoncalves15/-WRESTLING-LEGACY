@@ -68,7 +68,7 @@ function TeamPanel({ career, format, locked, states, onTeam }: {
 export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat, onWeight, onLook, onEquip, onUnlock }: {
   career: Career; pending: boolean; onAttribute: (attribute: Attribute) => void; onMove: (id: string) => void
   onTeam: (format: TeamFormat, ids: string[] | null) => void; onFormat: (format: MatchFormat) => void
-  onWeight: (weight: number) => void; onLook: (look: Appearance) => void
+  onWeight: (weight: number) => void; onLook: (look: Appearance, onSaved: () => void) => void
   onEquip: (id: string, replaced: string) => void; onUnlock: (id: string) => void
 }) {
   const [weight, setWeight] = useState('')
@@ -91,14 +91,16 @@ export function Player({ career, pending, onAttribute, onMove, onTeam, onFormat,
       </div>
       <div className="rating"><strong>{overall(profile.attributes, profile.style)}</strong><span>OVR</span></div>
     </section>
-    {draft ? <section className="panel profile-editor" aria-label="Editar visual">
+    {draft ? <section className="panel profile-editor" aria-label="Editar visual" aria-busy={pending}>
       <header className="panel-head"><h2>Editar visual</h2></header>
       <Suspense fallback={<p className="empty-line" role="status">Carregando o editor 2D…</p>}>
-        <AppearanceEditor value={draft} onChange={setDraft} />
+        <AppearanceEditor value={draft} onChange={look => { if (!pending) setDraft(look) }} />
       </Suspense>
       <div className="form-footer">
-        <button className="button secondary" onClick={() => setDraft(null)}>Cancelar edição</button>
-        <button className="button primary" disabled={pending} onClick={() => { onLook(draft); setDraft(null) }}>Salvar visual</button>
+        <button className="button secondary" disabled={pending} onClick={() => setDraft(null)}>Cancelar edição</button>
+        <button className="button primary" disabled={pending} onClick={() => onLook(draft, () => setDraft(null))}>
+          {pending ? 'Salvando visual…' : 'Salvar visual'}
+        </button>
       </div>
     </section> : <div className="profile-toolbar"><button className="button secondary"
       onClick={() => setDraft(profile.look ?? defaultAppearance())}>Editar visual</button></div>}
