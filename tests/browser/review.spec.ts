@@ -181,6 +181,7 @@ test('apresenta foto histórica, ausência de foto e designs que a carreira cria
   await search.fill('')
   const unified = main.locator('.belt-card').filter({ hasText: /\(Unificado\)/ }).first()
   const studio = unified.locator('summary').first().getByRole('img', { name: /Modelo 3D/ })
+  await studio.scrollIntoViewIfNeeded()
   await expect.poll(() => studio.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(1150)
   await expect(studio).toHaveCSS('object-fit', 'contain')
   await expect(studio.locator('xpath=..')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
