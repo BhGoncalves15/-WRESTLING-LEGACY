@@ -38,7 +38,7 @@ function visualHistory(title: TitleRecord, career: Career | null, state: BeltSta
   }))]
 }
 
-function BeltCard({ title, career, state }: { title: TitleRecord; career: Career | null; state?: BeltState }) {
+function BeltCard({ title, career, state, eager }: { title: TitleRecord; career: Career | null; state?: BeltState; eager: boolean }) {
   const [version, setVersion] = useState('')
   const [expanded, setExpanded] = useState(false)
   const designs = visualHistory(title, career, state)
@@ -60,7 +60,7 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
   return <details className="panel report belt-card" onToggle={event => setExpanded(event.currentTarget.open)}
     style={{ '--org-accent': ORGANIZATIONS[title.promotion].accent } as CSSProperties}>
     <summary>
-      <BeltVisual title={title} career={career} />
+      <BeltVisual title={title} career={career} eager={eager} />
       <div className="belt-card-summary"><OrgMark id={title.promotion} small />
         <div className="row-text"><strong>{name}</strong><small>{title.status === 'later' ? 'Estreia posterior a janeiro' : holder}</small></div>
         <ChevronDown size={17} aria-hidden />
@@ -174,7 +174,8 @@ export default function Championships({ career, pending, onProposal }: {
       action={<CircuitSelect value={filter} onChange={setFilter} />} />
     <div className="belt-filters"><label>Buscar cinturão <input type="search" value={query} onChange={event => setQuery(event.target.value)} /></label></div>
     {career && states && <UnificationPanel career={career} states={states} pending={pending} onProposal={onProposal} />}
-    {titles.length ? <div className="belt-grid">{titles.map(title => <BeltCard key={title.id} title={title} career={career} state={states?.get(title.id)} />)}</div>
+    {titles.length ? <div className="belt-grid">{titles.map((title, index) =>
+      <BeltCard key={title.id} title={title} career={career} state={states?.get(title.id)} eager={index < 6} />)}</div>
       : <p className="empty-line">Nenhum campeonato encontrado.</p>}
   </>
 }

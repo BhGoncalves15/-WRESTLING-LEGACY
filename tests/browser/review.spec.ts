@@ -233,6 +233,28 @@ test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os 
   await expect(cards).toHaveCount(OPENING_TITLES.length)
   await expect(main.getByText('Foto de catálogo pendente', { exact: true })).toHaveCount(0)
   await expect(main.locator('.belt-load-error')).toHaveCount(0)
+  const firstImage = cards.first()
+  await expect(firstImage).toHaveAttribute('loading', 'eager')
+  await expect(firstImage.locator('xpath=..')).toHaveAttribute('data-belt-status', 'ready')
+  await expect.poll(async () => {
+    const frame = await firstImage.screenshot()
+    return page.evaluate(async png => {
+      const bytes = Uint8Array.from(atob(png), char => char.charCodeAt(0))
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+      const canvas = document.createElement('canvas')
+      canvas.width = 80
+      canvas.height = 32
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      bitmap.close()
+      let beltPixels = 0
+      for (let index = 0; index < data.length; index += 4) {
+        if (Math.min(data[index], data[index + 1], data[index + 2]) < 200) beltPixels++
+      }
+      return beltPixels / (canvas.width * canvas.height)
+    }, frame.toString('base64'))
+  }).toBeGreaterThan(.15)
   await main.getByRole('heading', { name: 'Campeonatos' }).scrollIntoViewIfNeeded()
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/catalogo-71-' + testInfo.project.name + '.png' })
 
