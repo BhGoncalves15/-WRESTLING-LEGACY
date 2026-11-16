@@ -4,7 +4,7 @@ Simulador de carreira de wrestling profissional para computador e celular. Você
 
 ## Beta da Carreira Livre
 
-A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A revisão acrescenta o editor 2D, a origem por catálogo, os vídeos de golpes e a galeria de cinturões. [Como testar a beta](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da revisão](docs/REVISAO-BETA.md)
+A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A atualização de 2026 integra datas verificadas à carreira, apresenta 30 demonstrações de golpes e leva a unificação de títulos ao ringue. [Como jogar](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da temporada 2026](docs/ATUALIZACAO-2026.md)
 
 ## Escopo aprovado
 
@@ -39,7 +39,7 @@ A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputá
 
 ## Fontes iniciais
 
-O calendário inicial inclui anúncios verificáveis conhecidos até 01/01/2026. Datas posteriores são referências da pesquisa. Cards e resultados da carreira são simulados. Dados de jogo como OVR, estilos, alinhamentos e salários recebem indicação própria.
+O calendário de 2026 inclui datas publicadas pelas empresas, datas documentadas em outras fontes e programação simulada nas lacunas. Cada data recebe seu rótulo no jogo. Lutas e resultados da carreira são simulados. Dados de jogo como OVR, estilos, alinhamentos e salários recebem indicação própria. [Fontes por evento](src/content/calendar-2026.ts)
 
 - [NXT em 30/12/2025](https://www.wwe.com/shows/wwenxt/2025-12-30/results) e [linhagem do NXT Championship](https://www.wwe.com/titlehistory/nxt-championship).
 - [TNA iMPACT! de 18/12/2025](https://tnawrestling.com/news/tna-impact-results-december-18-2025) e [anúncio de iMPACT! e Genesis](https://tnawrestling.com/news/tna-wrestling-to-make-history-over-two-special-nights-in-dallas).
