@@ -1,10 +1,11 @@
 # Fotografias de cinturões
 
-Cada WebP abaixo é um recorte redimensionado da fotografia indicada. As cores, inscrições e placas do cinturão foram preservadas. Aplicam-se aos recortes as licenças das fotografias correspondentes. As marcas e os cinturões retratados pertencem a seus titulares.
+Os WebP abaixo mantêm as cores, inscrições e proporções das fontes. O recorte da réplica WWE de 2014 e da versão vermelha da AAA inclui remoção do fundo. Em janeiro de 2026, a galeria principal usa a fotografia frontal do NXT North American e ilustrações próprias para os outros títulos. As fotos aparecem também no histórico visual de suas respectivas linhagens. Aplicam-se aos recortes as licenças das fotografias correspondentes. As marcas e os cinturões retratados pertencem a seus titulares.
 
 | Arquivo | Fotógrafo | Licença | Fotografia original |
 | --- | --- | --- | --- |
 | raw-world-2023.webp | Zippo9310 | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | [Damian Priest WHC](https://commons.wikimedia.org/wiki/File:Damian_Priest_WHC_-_WWE_Live_Birmingham_April_2024.jpg) |
+| sd-world-2014.webp | DraftSaturn15 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | [Réplica comemorativa do WWE Championship de 2014](https://commons.wikimedia.org/wiki/File:WWE_Championship_(2014)_commemorative_belt.jpg) |
 | raw-women-2023.webp | Carter Sterling | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) | [Rhea Ripley 2024](https://commons.wikimedia.org/wiki/File:Rhea_Ripley_2024.jpg) |
 | nxt-na-2018.webp | Miguel Discart | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) | [Referee with NXT North American Championship](https://commons.wikimedia.org/wiki/File:Referee_with_NXT_North_American_Championship.jpg) |
 | nxt-men-2012.webp | Edge4life42 | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) | [NXT Champion Finn Balor](https://commons.wikimedia.org/wiki/File:NXT_Champion_Finn_Balor.jpg) |
@@ -21,8 +22,12 @@ Cada WebP abaixo é um recorte redimensionado da fotografia indicada. As cores, 
 | tna-world-2018.webp | Tabercil | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) | [Johnny Impact Feb 2019-2](https://commons.wikimedia.org/wiki/File:Johnny_Impact_Feb_2019-2.jpg) |
 | tna-knockouts-2007.webp | Pedrohoneto | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) | [TNA Women's Knockout Championship Belt](https://commons.wikimedia.org/wiki/File:TNA_Women%27s_Knockout_Championship_Belt.png) |
 | aaa-mega-2012.webp | Earl Gardner | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) | [El Hijo del Vikingo, Jan 2023](https://commons.wikimedia.org/wiki/File:El_Hijo_del_Vikingo,_Jan_2023.jpg) |
+| aaa-mixed-2003.webp | Tabercil | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) | [Cinturão vermelho de duplas mistas da AAA fotografado em 2012](https://commons.wikimedia.org/wiki/File:AAA_World_Mixed_Tag_Team_Championship_belt.jpg) |
+| roh-pure-2004.webp | EditorRock | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | [Primeira edição do ROH Pure](https://commons.wikimedia.org/wiki/File:ROH_Pure_Championship_Belt.jpg) |
 | roh-world-2023.webp | KMcWrestling Photography | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | [Bandido ROH](https://commons.wikimedia.org/wiki/File:Bandido_ROH.jpg) |
 
 Datas de introdução e transição conferidas nas histórias dos títulos da [WWE](https://www.wwe.com/titlehistory), [AEW](https://www.allelitewrestling.com/aew-international-championship-history) e [NJPW](https://www.njpw1972.com/623114). A edição histórica do AEW International de 2025 retrata o design Unified usado pelo campeão na abertura. O período do design pode divergir depois da abertura da carreira. Cada versão anterior permanece selecionável na galeria.
 
 Outras referências de edição: [AAA Mega](https://www.thesmackdownhotel.com/title-history/aaa-mega-championship), [ROH World](https://www.fightful.com/wrestling/roh-titles-undergo-redesign/), [TNA World](https://www.thesmackdownhotel.com/title-history/tna/tna-world-championship) e [TNA Knockouts](https://en.wikipedia.org/wiki/TNA_Knockouts_World_Championship#Championship_belt_designs).
+
+A pesquisa de modelos e linhagens também consultou [WWE Shop](https://shop.wwe.com/en/wwe/title-belts/o-3499672582+d-4540009258+z-8-669353758), [AEW](https://www.allelitewrestling.com/aew-world-championship-history), [NJPW](https://www.njpw1972.com/champions), [TNA](https://tnawrestling.com/roster/), [réplica oficial das duplas mistas da AAA](https://shop.wwe.com/en/aaa-world-mixed-tag-team-championship-replica-title-belt/p-247747206818005147), [ROH Pure](https://www.thesmackdownhotel.com/title-history/roh/roh-pure-championship), [BWF Sul-Americano](https://bwf.com.br/sul-americano/) e [BWF Maremoto](https://bwf.com.br/maremoto-volta-a-bwf-em-show-no-proximo-sabado-conheca-sua-historia/). As vitrines oficiais funcionam como referências e links de consulta. As ilustrações são criações do jogo, indicadas como tal.
