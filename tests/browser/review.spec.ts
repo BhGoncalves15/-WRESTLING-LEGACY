@@ -247,7 +247,7 @@ test('consulta Money in the Bank em outubro e alterna entre calendário mensal, 
   await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('raw')
   await main.getByRole('button', { name: 'Mês', exact: true }).click()
   for (let index = 0; index < 9; index++) await main.getByRole('button', { name: 'Mês seguinte' }).click()
-  await expect(main.getByRole('heading', { name: /outubro de 2026/i })).toBeVisible()
+  await expect(main.getByRole('region', { name: 'Visão mensal' }).getByRole('heading', { name: 'outubro de 2026', exact: true })).toBeVisible()
   await main.getByRole('button', { name: /^10 de outubro de 2026/ }).click()
   await expect(main.getByText('WWE Money in the Bank', { exact: true })).toBeVisible()
   await expect(main.getByText(/Smoothie King Center/)).toBeVisible()

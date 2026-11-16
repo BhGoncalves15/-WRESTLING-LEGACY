@@ -88,6 +88,7 @@ describe('combate, agenda e XP', () => {
       chooseAction({ ...bout, used }, 'rival', rival, 'normal', new Random(Math.imul(index + 1, 0x9e3779b9) >>> 0)))
     const guards = (used: string[]) => choices(used).filter(action => action === 'guard').length
     expect(guards(['dropkick', 'dropkick', 'dropkick'])).toBeGreaterThan(guards(['dropkick', 'jab', 'dropkick']) * 3)
+    expect(guards(['dropkick', 'breathe', 'dropkick', 'dropkick', 'breathe'])).toBe(guards(['dropkick', 'dropkick', 'dropkick']))
   })
 
   it('separa agenda anunciada e gerada e mantém identidades canônicas no recorte', () => {
@@ -153,6 +154,22 @@ describe('combate, agenda e XP', () => {
     const hard = setDifficulty(career, 'hard')
     expect(hard.profile.attributes).toEqual(career.profile.attributes)
     expect(overall(hard.profile.attributes, hard.profile.style)).toBe(overall(career.profile.attributes, career.profile.style))
+  })
+
+  it('recompensa variedade e desacelera a popularidade alta em vitórias semanais', () => {
+    const opening = startFight()
+    const duel = duelBoutFor(opening)
+    const career = { ...opening, shows: opening.shows.map(show => show.id === duel.showId ? { ...show, special: false } : show) }
+    const bout = { ...duel, rival: { ...duel.rival, condition: 0, position: 'grounded' as const }, plan: 'guard' }
+    const finishWith = (popularity: number, used: string[]) => resolvePlayerTurn({ ...career, popularity, bout: { ...bout, used } }, 'pin')
+    expect(finishWith(6, ['dropkick']).popularity).toBe(9)
+    expect(finishWith(82, ['dropkick', 'breathe', 'dropkick']).popularity).toBe(82)
+    expect(finishWith(82, ['dropkick', 'jab', 'chop']).popularity).toBe(83)
+    const lost = resolvePlayerTurn({ ...career, popularity: 82, bout: {
+      ...duel, player: { ...duel.player, condition: 0, position: 'grounded' }, plan: 'pin',
+    } }, 'guard')
+    expect(lost.bout?.finish).toEqual({ winner: 'rival', method: 'pinfall' })
+    expect(lost.popularity).toBe(81)
   })
 
   it('gasta XP em atributos e golpes e respeita os limites de evolução', () => {

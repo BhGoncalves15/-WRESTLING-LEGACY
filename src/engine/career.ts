@@ -770,7 +770,13 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
     + (series?.active && !series.winnerId ? 8 : 0) + (edition ? 10 : 0) + (champion ? 25 : 0)
   bout.xpAwarded = xp
   next.xp += xp
-  next.popularity = clamp(next.popularity + (won ? 4 : 1) + (show.special ? 2 : 0), 0, 100)
+  const diverseOffense = new Set(bout.used.filter(id => MOVE_BY_ID.has(id))).size >= 3
+  const established = career.popularity >= 75
+  const victoryGain = career.popularity < 50 ? 3 : established ? 0 : 2
+  const spotlight = show.special || Boolean(bout.titleId)
+  const popularityDelta = won ? victoryGain + Number(diverseOffense) + Number(spotlight) : bout.titleId ? -3 : -1
+  next.popularity = clamp(career.popularity + popularityDelta, 0, 100)
+  const popularityChange = next.popularity - career.popularity
   const states = titleStates(career)
   addTitleHistory(next, show, result, states)
   addCompetitionHistory(next, show, result, rivalries)
@@ -779,7 +785,8 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   const headline = result.multi ? (won ? 'Vitória em ' : 'Derrota em ') + MATCH_FORMAT_LABEL[matchFormat(result)]
     : (won ? 'Vitória sobre ' : 'Derrota para ') + fighterNames(career, matchTeams(result)[1])
   const fall = result.multi ? fighterName(career, result.winnerId) + ' finalizou ' + fighterName(career, result.multi.defeatedId) + ' · ' : ''
-  addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion, true)
+  const fanReaction = popularityChange ? ' · ' + (popularityChange > 0 ? '+' : '') + popularityChange + ' popularidade' : ''
+  addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP' + fanReaction, show.promotion, true)
   addHistory(next, 'show', show.name, 'Card encerrado com ' + (show.matches.length + 1) + ' lutas.', show.promotion)
   if (career.titleProposal && pendingUnificationBout(career)) {
     const home = next.shows.find(report => report.id === show.id)!

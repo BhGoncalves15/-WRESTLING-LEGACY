@@ -301,7 +301,7 @@ test('inscreve BH em uma copa, abre a chave e retoma a semifinal', async ({ page
   await expect(card.getByText('Inscrição confirmada', { exact: true })).toBeVisible()
   await navigate(page, 'Calendário')
   const stage = edition.name + ' · Semifinal 1'
-  await expect(main.getByText(stage, { exact: true })).toBeVisible()
+  await expect(main.getByText(stage + ' · chave simulada', { exact: true })).toBeVisible()
   await main.getByRole('button', { name: 'Avançar calendário' }).click()
   await expect(main.getByText(stage, { exact: true })).toBeVisible()
   await main.getByRole('button', { name: /^Dropkick / }).click()

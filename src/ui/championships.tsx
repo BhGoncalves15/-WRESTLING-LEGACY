@@ -178,8 +178,9 @@ export default function Championships({ career, pending, onProposal }: {
   const [filter, setFilter] = useState<CircuitFilter>('all')
   const [query, setQuery] = useState('')
   const states = useMemo(() => career ? titleStates(career) : null, [career])
+  const keyword = searchKey(query.trim())
   const titles = OPENING_TITLES.filter(title => (filter === 'all' || title.listings.includes(filter))
-    && searchKey(titleName(career, title)).includes(searchKey(query)))
+    && (searchKey(title.name).includes(keyword) || searchKey(titleName(career, title)).includes(keyword)))
   return <>
     <PageTitle title="Campeonatos" intro={titles.length + ' títulos · ' + (career ? 'Reinados desta carreira' : 'Abertura em 01/01/2026')}
       action={<CircuitSelect value={filter} onChange={setFilter} />} />

@@ -94,9 +94,9 @@ export const controlAttribute: Record<Move['kind'], Attribute> = {
 
 export function chooseAction(bout: DuelBout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
   const predicted = actor === 'rival' ? bout.used.at(-1) : undefined
-  const recent = bout.used.slice(-3)
-  const repeated = Boolean(predicted && MOVE_BY_ID.has(predicted) && recent.length === 3 && recent.every(action => action === predicted))
-  return chooseFighterAction(bout[actor], bout[other(actor)], fighter, difficulty, random, predicted, repeated)
+  const attacks = actor === 'rival' ? bout.used.filter(action => MOVE_BY_ID.has(action)).slice(-3) : []
+  const repeated = attacks.length === 3 && attacks.every(action => action === attacks[0])
+  return chooseFighterAction(bout[actor], bout[other(actor)], fighter, difficulty, random, repeated ? attacks[0] : predicted, repeated)
 }
 
 export function chooseFighterAction(side: BoutSide, opponent: BoutSide, fighter: Fighter, difficulty: Difficulty, random: Random,
