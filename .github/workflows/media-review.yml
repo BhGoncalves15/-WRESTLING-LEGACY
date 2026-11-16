@@ -1,0 +1,41 @@
+name: Conferir mídia licenciada
+
+on:
+  pull_request:
+    paths: [.github/workflows/media-review.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  references:
+    if: github.head_ref == 'feat/temporada-2026' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Obter os originais para inspeção
+        run: |
+          mkdir media-review
+          cd media-review
+          declare -A files=(
+            [dropkick.webm]='7/7a/Dropkick_-_pro_wrestling_move.webm'
+            [german.webm]='9/9a/German_Suplex.webm'
+            [spear.webm]='0/01/WWE_Roman_Reigns_Spear_finisher_-_Superman_punch.webm'
+            [roh-pure.jpg]='5/50/ROH_Pure_Championship_Belt.jpg'
+            [aaa-mixed.jpg]='4/4a/AAA_World_Mixed_Tag_Team_Championship_belt.jpg'
+            [wwe-2014.jpg]='a/a3/WWE_Championship_%282014%29_commemorative_belt.jpg'
+            [wwe-2023.jpg]='e/e5/Cody_Rhodes_with_his_Undisputed_Championship_%28Birmingham_UK%2C_April_2024%29_%282%29.jpg'
+            [wwe-us.jpg]='3/3a/Austin_Theory_-_WWE_Live_Birmingham_April_2023.jpg'
+          )
+          for name in "${!files[@]}"; do
+            curl --fail --silent --show-error --location --max-time 20 --max-filesize 15000000 \
+              --user-agent 'WrestlingLegacy-MediaReview/1.0 (https://github.com/BhGoncalves15/-WRESTLING-LEGACY)' \
+              "https://upload.wikimedia.org/wikipedia/commons/${files[$name]}" --output "$name" || rm -f -- "$name"
+          done
+          file ./*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: referencias-de-midia
+          path: media-review/
+          retention-days: 1
+          if-no-files-found: error
