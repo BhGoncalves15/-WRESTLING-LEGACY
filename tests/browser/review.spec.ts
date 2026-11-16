@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
-import { TITLES_BY_ID } from '../../src/content/titles'
+import { OPENING_TITLES, TITLES_BY_ID } from '../../src/content/titles'
+import { ORGANIZATIONS } from '../../src/content/organizations'
+import { beltVisualFor } from '../../src/content/belt-catalog'
 import { expect, test, type Page } from '@playwright/test'
 import { MOVES } from '../../src/content/moves'
-import { MULTI_DATA_VERSION } from '../../src/domain/model'
+import { MULTI_DATA_VERSION, PROMOTIONS } from '../../src/domain/model'
 import { advanceCalendarBy, advanceCareer, exampleProfile, newCareer, pendingUnificationBout, setTitleProposal } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
 import { duelBoutFor, smackdownDoubleChampion, smackdownPair } from '../fixtures'
@@ -155,7 +157,92 @@ test('abre a demonstração sob demanda, pausa, revê, troca golpes e lida com f
   await expect(main.getByText('Samoan Driver', { exact: true })).toBeVisible()
 })
 
-test('apresenta foto histórica, ausência de foto e designs que a carreira cria', async ({ page }, testInfo) => {
+test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os elencos', async ({ page }, testInfo) => {
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await visit(page, 'Campeonatos')
+  const cards = main.locator('.belt-card > summary img')
+  await expect(cards).toHaveCount(OPENING_TITLES.length)
+  const frames = await cards.evaluateAll(async images => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 115
+    canvas.height = 46
+    const ctx = canvas.getContext('2d')!
+    const records = []
+    for (const element of images) {
+      const img = element as HTMLImageElement
+      img.scrollIntoView({ block: 'center' })
+      await img.decode()
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      let left = canvas.width
+      let right = -1
+      let top = canvas.height
+      let bottom = -1
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const index = (y * canvas.width + x) * 4
+          if (Math.min(data[index], data[index + 1], data[index + 2]) >= 240) continue
+          left = Math.min(left, x)
+          right = Math.max(right, x)
+          top = Math.min(top, y)
+          bottom = Math.max(bottom, y)
+        }
+      }
+      const box = img.getBoundingClientRect()
+      records.push({ src: img.src, dimensions: [img.naturalWidth, img.naturalHeight], ratio: box.width / box.height,
+        fit: getComputedStyle(img).objectFit, background: getComputedStyle(img.parentElement!).backgroundColor,
+        corner: [...data.slice(0, 4)], left, right, top, bottom })
+    }
+    return records
+  })
+  const paths = new Set(frames.map(image => image.src))
+  expect(paths.size).toBe(OPENING_TITLES.length)
+  for (const [index, frame] of frames.entries()) {
+    const title = OPENING_TITLES[index]
+    const expected = beltVisualFor(title, null)
+    expect(frame.src, title.name).toContain('/' + expected.asset)
+    expect(frame.dimensions, title.name).toEqual([1150, 460])
+    expect(frame.ratio, title.name).toBeCloseTo(2.5, 1)
+    expect(frame.fit, title.name).toBe('contain')
+    expect(frame.background, title.name).toBe('rgb(255, 255, 255)')
+    expect(frame.corner, title.name).toEqual([255, 255, 255, 255])
+    expect(frame.right - frame.left, title.name).toBeGreaterThan(85)
+    expect(frame.left, title.name).toBeGreaterThan(1)
+    expect(frame.right, title.name).toBeLessThan(113)
+    expect(frame.top, title.name).toBeGreaterThan(1)
+    expect(frame.bottom, title.name).toBeLessThan(44)
+  }
+
+  const filter = main.getByLabel('Empresa ou brand')
+  for (const circuit of PROMOTIONS) {
+    await filter.selectOption(circuit)
+    const titles = OPENING_TITLES.filter(title => title.listings.includes(circuit))
+    await expect(cards).toHaveCount(titles.length)
+    const assets = await cards.evaluateAll(images => images.map(img => (img as HTMLImageElement).src))
+    expect(assets, circuit).toEqual(titles.map(title => frames[OPENING_TITLES.indexOf(title)].src))
+  }
+  await filter.selectOption('all')
+  await expect(cards).toHaveCount(OPENING_TITLES.length)
+  await expect(main.getByText('Foto de catálogo pendente', { exact: true })).toHaveCount(0)
+  await expect(main.locator('.belt-load-error')).toHaveCount(0)
+  await main.getByRole('heading', { name: 'Campeonatos' }).scrollIntoViewIfNeeded()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/catalogo-71-' + testInfo.project.name + '.png' })
+
+  await visit(page, 'Empresas')
+  const orgs = main.getByRole('group', { name: 'Escolha uma empresa ou brand' })
+  for (const id of PROMOTIONS) {
+    await orgs.getByRole('button', { name: new RegExp(ORGANIZATIONS[id].name) }).click()
+    const image = main.locator('.roster-belts img').first()
+    await image.scrollIntoViewIfNeeded()
+    expect(paths.has(await image.evaluate(el => (el as HTMLImageElement).src)), id).toBe(true)
+    await expect.poll(() => image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(1150)
+  }
+  expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('apresenta o modelo de referência, a foto histórica e as edições que a carreira cria', async ({ page }, testInfo) => {
   let career = newCareer(exampleProfile(), 'normal', { seed: 73958 })
   while (career.date < '2029-01-01' && !['unification', 'personalized'].every(kind =>
     career.titleChanges.some(change => change.kind === kind))) career = advanceCareer(career)
@@ -167,7 +254,8 @@ test('apresenta foto histórica, ausência de foto e designs que a carreira cria
   const search = main.getByRole('searchbox', { name: 'Buscar cinturão' })
   await search.fill('undisputed wwe')
   const card = main.locator('.belt-card').filter({ hasText: /Undisputed WWE Championship/ })
-  await expect(card.getByText('Foto de catálogo pendente', { exact: true })).toBeVisible()
+  await expect(card.locator('summary').first().getByRole('img', { name: 'Representação de Undisputed WWE Championship' }))
+    .toHaveAttribute('src', /belts\/catalog\/sd-world\.webp$/)
   await card.locator('summary').first().click()
   await expect(card.getByRole('link', { name: 'Consultar referência do campeonato' })).toHaveAttribute('href', /wwe\.com/)
   await card.getByLabel('Versão do cinturão').selectOption('sd-world-2014')
@@ -215,6 +303,13 @@ test('mantém uma foto local enquadrada entre galeria e perfil e preserva a edi�
   const card = main.locator('.belt-card').filter({ hasText: name }).first()
   const open = card.locator('summary').first()
   await find.fill(name)
+  const catalogImage = open.getByRole('img', { name: 'Representação de ' + name })
+  const referencePath = await catalogImage.getAttribute('src')
+  expect(referencePath).toMatch(/belts\/catalog\/sd-world\.webp$/)
+  await visit(page, 'Meu lutador')
+  await expect(main.getByRole('img', { name: 'Representação de ' + name })).toHaveAttribute('src', referencePath!)
+  await visit(page, 'Campeonatos')
+  await find.fill(name)
   await open.click()
   await card.getByLabel('Adicionar foto autorizada do cinturão').setInputFiles({
     name: 'foto-teste.webp', mimeType: 'image/webp', buffer: bytes,
@@ -245,7 +340,8 @@ test('mantém uma foto local enquadrada entre galeria e perfil e preserva a edi�
   expect(await image.getAttribute('src') === localUrl).toBe(true)
   await card.getByRole('button', { name: 'Remover foto local' }).click()
   await expect(card.getByText('Foto removida deste navegador.', { exact: true })).toBeVisible()
-  await expect(card.getByText('Foto de catálogo pendente', { exact: true })).toBeVisible()
+  await expect(card.locator('summary').first().getByRole('img', { name: 'Representação de Undisputed WWE Championship' }))
+    .toHaveAttribute('src', /belts\/catalog\/sd-world\.webp$/)
   expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
@@ -332,6 +428,10 @@ test('acompanha a proposta e reabre a luta de unificação no calendário jogáv
   await office.getByRole('combobox').selectOption('sd-us|sd-world')
   const preview = office.getByRole('region', { name: 'Prévia visual da unificação' })
   await expect(preview.getByRole('img', { name: /Modelo 3D/ })).toHaveAttribute('src', /wwe-unified\.webp$/)
+  const plaques = preview.locator('.belt-lineage-badge')
+  await expect(plaques).toHaveCount(2)
+  await expect(plaques.nth(0)).toHaveCSS('background-image', /catalog\/sd-us\.webp/)
+  await expect(plaques.nth(1)).toHaveCSS('background-image', /catalog\/sd-world\.webp/)
   await office.getByRole('button', { name: 'Enviar à diretoria' }).click()
   await expect(office.getByText(/Em análise · resposta até/)).toBeVisible()
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/unificacao-em-analise-' + testInfo.project.name + '.png' })
@@ -366,6 +466,8 @@ test('conclui a unificação e mantém o modelo na luta, no perfil e nos resulta
   const pattern = /belts\/studio\/wwe-unified\.webp$/
   const image = match.getByRole('img', { name: /Modelo 3D/ })
   await expect(image).toHaveAttribute('src', pattern)
+  await expect(match.locator('.belt-lineage-badge').first()).toHaveCSS('background-image', /catalog\/sd-us\.webp/)
+  await expect(match.locator('.belt-lineage-badge').last()).toHaveCSS('background-image', /catalog\/sd-world\.webp/)
   await expect.poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(1150)
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/unificacao-concluida-' + testInfo.project.name + '.png' })
   await visit(page, 'Meu lutador')

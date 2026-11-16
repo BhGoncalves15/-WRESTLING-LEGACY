@@ -547,9 +547,12 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .belt-media { display: grid; place-items: center; width: 100%; aspect-ratio: 5 / 2; overflow: hidden; border-radius: 6px;
   position: relative; background: #fff; isolation: isolate; container-type: inline-size; }
 .belt-media img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
-.belt-pending { padding: 6px; color: #56514d; font-size: .8rem; font-weight: 600; line-height: 1.2; text-align: center; }
+.belt-load-error { padding: 6px; color: #56514d; font-size: .8rem; font-weight: 600; line-height: 1.2; text-align: center; }
 .belt-media-thumbnail { flex: 0 0 auto; width: clamp(74px, 16vw, 159px); }
-.belt-media-thumbnail .belt-pending { font-size: .62rem; }
+.belt-media-thumbnail .belt-load-error { font-size: .62rem; }
+.belt-lineage-badge { position: absolute; left: var(--plate-position); top: 50%; transform: translate(-50%, -50%);
+  width: 4.55%; aspect-ratio: 1.13; border-radius: 50%; background: var(--plate-art) center 46% / auto 410%;
+  box-shadow: inset 0 0 0 .4cqw #cfa762, inset 0 0 .6cqw #1b1110b3; pointer-events: none; }
 .belt-inscription { position: absolute; left: 42%; right: 42%; top: 65.25%; transform: translateY(-50%); pointer-events: none;
   display: grid; gap: 1px; place-items: center; color: #f1d697; font-weight: 800; text-shadow: 0 1px #180e12; }
 .belt-inscription span { font-size: calc(var(--letter-size) * 1cqw); line-height: .98; white-space: nowrap; }

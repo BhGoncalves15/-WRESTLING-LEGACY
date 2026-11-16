@@ -1,5 +1,7 @@
 # Wrestling Legacy · Relatório da temporada 2026
 
+Este relatório registra a revisão inicial da temporada. Consulte a [cobertura visual da beta atual](CATALOGO-CINTUROES.md) para as imagens dos 71 cinturões.
+
 ## A. Alterações implementadas
 
 - Calendário jogável com visualizações mensal, semanal e em lista. Cada card informa a empresa, a origem da data, a cidade e o local quando disponíveis. O calendário destaca a escalação do lutador, abre a luta em andamento e exibe os resultados dos cards já disputados.

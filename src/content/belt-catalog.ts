@@ -12,8 +12,9 @@ type StudioVariant = typeof STUDIO_VARIANTS[number]
 export type BeltEdition = { photo: BeltPhoto | undefined } | { change: TitleChange }
 export type BeltVisualRecord =
   | { kind: 'photo'; name: string; asset: string; photo: BeltPhoto }
-  | { kind: 'studio'; name: string; asset: string; brand: typeof STUDIO_BRANDS[number]; inscription: string }
-  | { kind: 'pending'; name: string; reference: string }
+  | { kind: 'catalog'; name: string; asset: string; reference: string }
+  | { kind: 'studio'; name: string; asset: string; brand: typeof STUDIO_BRANDS[number]; inscription: string;
+      lineage?: readonly [string, string] }
 
 type VisualOptions = {
   date?: string
@@ -22,9 +23,16 @@ type VisualOptions = {
   preview?: TitleRecord
 }
 
-function studio(title: TitleRecord, name: string, inscription: string, variant: StudioVariant): BeltVisualRecord {
+function catalogAsset(title: TitleRecord) {
+  return 'belts/catalog/' + title.id + '.webp'
+}
+
+function studio(title: TitleRecord, name: string, inscription: string, variant: StudioVariant,
+  secondary?: TitleRecord): BeltVisualRecord {
   const brand = title.promotion === 'nxt' ? 'nxt' : ORGANIZATIONS[title.promotion].company
-  return { kind: 'studio', name, brand, inscription, asset: 'belts/studio/' + brand + '-' + variant + '.webp' }
+  const lineage = variant === 'unified' && secondary && TITLES_BY_ID.has(title.id) && TITLES_BY_ID.has(secondary.id)
+    ? [catalogAsset(title), catalogAsset(secondary)] as const : undefined
+  return { kind: 'studio', name, brand, inscription, lineage, asset: 'belts/studio/' + brand + '-' + variant + '.webp' }
 }
 
 function shortName(name: string) {
@@ -35,7 +43,7 @@ function shortName(name: string) {
 export function beltVisualFor(title: TitleRecord, career: Career | null, options: VisualOptions = {}): BeltVisualRecord {
   const { date, unificationMatch, edition, preview } = options
   if (preview) {
-    return studio(title, unifiedTitleName(title, preview), shortName(title.name) + ' / ' + shortName(preview.name), 'unified')
+    return studio(title, unifiedTitleName(title, preview), shortName(title.name) + ' / ' + shortName(preview.name), 'unified', preview)
   }
   const change = edition ? ('change' in edition ? edition.change : undefined)
     : career?.titleChanges.filter(change => change.titleId === title.id && (!date || change.date < date
@@ -51,10 +59,15 @@ export function beltVisualFor(title: TitleRecord, career: Career | null, options
     const complementary = honoree || (secondary && shortName(secondary.name))
     const inscription = shortName(title.name) + (complementary ? ' / ' + complementary : '')
     const variant = change.kind === 'personalized' ? 'tribute' : change.kind === 'redesign' ? 'redesign' : 'unified'
-    return studio(title, name, inscription, variant)
+    return studio(title, name, inscription, variant, secondary || undefined)
   }
-  if (title.origin === 'fictional') return studio(title, title.name, shortName(title.name), 'standard')
-  const photo = edition && 'photo' in edition ? edition.photo : beltPhotoOn(title, date ?? career?.date ?? START_DATE)
-  return photo ? { kind: 'photo', name: title.name, asset: 'belts/' + photo.id + '.webp', photo }
-    : { kind: 'pending', name: date && !edition ? titleName(career, title, date) : title.name, reference: beltReference(title) }
+  if (title.origin !== 'fictional') {
+    const photo = edition && 'photo' in edition ? edition.photo : beltPhotoOn(title, date ?? career?.date ?? START_DATE)
+    if (photo) return { kind: 'photo', name: title.name, asset: 'belts/' + photo.id + '.webp', photo }
+  }
+  const name = date && !edition ? titleName(career, title, date) : title.name
+  if (TITLES_BY_ID.has(title.id)) {
+    return { kind: 'catalog', name, asset: catalogAsset(title), reference: beltReference(title) }
+  }
+  return studio(title, name, shortName(name), 'standard')
 }

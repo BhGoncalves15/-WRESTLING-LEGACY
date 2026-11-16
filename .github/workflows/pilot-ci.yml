@@ -97,7 +97,15 @@ jobs:
             if ($video.StatusCode -ne 206 -or $video.Headers['Content-Range'] -notmatch 'bytes 0-15/') {
               throw 'O servidor não entregou o intervalo de bytes do vídeo.'
             }
-            Write-Output 'Página, catálogo gzip e intervalo de vídeo verificados no Windows.'
+            $belt = Invoke-WebRequest -Uri "${url}belts/catalog/sd-us.webp"
+            $image = $belt.RawContentStream.ToArray()
+            if ($belt.Headers['Content-Type'] -notmatch 'image/webp' -or
+                [System.Text.Encoding]::ASCII.GetString($image, 0, 4) -ne 'RIFF' -or
+                [System.Text.Encoding]::ASCII.GetString($image, 8, 4) -ne 'WEBP') {
+              throw 'O servidor não entregou a imagem do campeonato em WebP.'
+            }
+
+            Write-Output 'Página, catálogo gzip, imagem de cinturão e intervalo de vídeo verificados no Windows.'
           } finally {
             if (!$launcher.HasExited) { Stop-Process -Id $launcher.Id }
           }

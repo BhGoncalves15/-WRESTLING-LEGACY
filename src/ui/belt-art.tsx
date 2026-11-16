@@ -10,7 +10,7 @@ type DisplayBelt = BeltVisualRecord | { kind: 'local'; name: string; reference: 
 export function useBeltVisual(title: TitleRecord, career: Career | null, options: Parameters<typeof beltVisualFor>[2] = {}): DisplayBelt {
   const photos = useBeltPhotoLibrary()
   const visual = beltVisualFor(title, career, options)
-  if (visual.kind === 'pending' && (options.date ?? career?.date ?? START_DATE) >= START_DATE) {
+  if (visual.kind === 'catalog' && title.origin !== 'fictional' && (options.date ?? career?.date ?? START_DATE) >= START_DATE) {
     const url = photos?.photos.get(title.id)
     if (url) return { ...visual, kind: 'local', url }
   }
@@ -29,8 +29,8 @@ function inscriptionLines(inscription: string) {
 }
 
 export function BeltAttribution({ visual }: { visual: DisplayBelt }) {
-  if (visual.kind === 'pending' || visual.kind === 'local') return <p className="belt-credit">
-    {visual.kind === 'local' && 'Foto deste navegador · '}
+  if (visual.kind === 'catalog' || visual.kind === 'local') return <p className="belt-credit">
+    {visual.kind === 'local' ? 'Foto deste navegador · ' : 'Representação visual feita para o jogo · '}
     <a href={visual.reference} target="_blank" rel="noreferrer">Consultar referência do campeonato</a>
   </p>
   if (visual.kind === 'photo') return <p className="belt-credit">
@@ -43,13 +43,17 @@ export function BeltAttribution({ visual }: { visual: DisplayBelt }) {
 function BeltFrame({ visual, size = 'catalog' }: { visual: DisplayBelt; size?: BeltProps['size'] }) {
   const [failed, setFailed] = useState(false)
   const lines = visual.kind === 'studio' ? inscriptionLines(visual.inscription) : []
-  const accessibleName = visual.kind === 'studio' ? 'Modelo 3D do ' + visual.name : 'Fotografia do ' + visual.name
+  const accessibleName = (visual.kind === 'studio' ? 'Modelo 3D do '
+    : visual.kind === 'catalog' ? 'Representação de ' : 'Fotografia do ') + visual.name
   return <div className={'belt-media belt-media-' + size} data-belt-kind={visual.kind}>
-    {visual.kind === 'pending' || failed
-      ? <span className="belt-pending">{failed ? 'Imagem indisponível' : 'Foto de catálogo pendente'}</span>
+    {failed
+      ? <span className="belt-load-error" role="status">Imagem do cinturão indisponível</span>
       : <>
         <img src={visual.kind === 'local' ? visual.url : import.meta.env.BASE_URL + visual.asset} loading={size === 'feature' ? 'eager' : 'lazy'} decoding="async"
           alt={accessibleName} onError={() => setFailed(true)} />
+        {visual.kind === 'studio' && visual.lineage && visual.lineage.map((asset, index) =>
+          <span className="belt-lineage-badge" aria-hidden="true" key={index}
+            style={{ '--plate-art': `url("${import.meta.env.BASE_URL + asset}")`, '--plate-position': index === 0 ? '28.73%' : '71.27%' } as CSSProperties} />)}
         {lines.length > 0 && <div className="belt-inscription" aria-hidden>
           {lines.map((line, index) => <span key={index} style={{ '--letter-size': Math.min(1.55, 26 / line.length) } as CSSProperties}>{line}</span>)}
         </div>}
@@ -59,6 +63,6 @@ function BeltFrame({ visual, size = 'catalog' }: { visual: DisplayBelt; size?: B
 
 export function BeltVisual({ title, career, size, ...options }: BeltProps) {
   const visual = useBeltVisual(title, career, options)
-  const key = visual.kind === 'pending' ? title.id : visual.kind === 'local' ? visual.url : visual.asset
+  const key = visual.kind === 'local' ? visual.url : visual.asset
   return <BeltFrame visual={visual} key={key} size={size} />
 }

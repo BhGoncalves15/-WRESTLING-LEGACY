@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { readFileSync, readdirSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { beltArtworkFor, titleName, type BeltArtBrief } from '../src/content/belt-designs'
@@ -118,17 +119,37 @@ describe('linhagens e versões de cinturão', () => {
     expect(beltPhotoOn(TITLES_BY_ID.get('nxt-na')!)).toBeUndefined()
     for (const title of OPENING_TITLES) {
       const visual = beltVisualFor(title, null)
-      expect(visual.kind).toBe(beltPhotoOn(title) ? 'photo' : 'pending')
+      expect(visual.kind).toBe(beltPhotoOn(title) ? 'photo' : 'catalog')
     }
+  })
+
+  it('embala uma imagem WebP diferente por título e confere todas as referências públicas', () => {
+    const directory = new URL('../public/belts/catalog/', import.meta.url)
+    const designById = JSON.parse(readFileSync(new URL('../scripts/belt-catalog-designs.json', import.meta.url), 'utf8'))
+    const ids = OPENING_TITLES.map(title => title.id)
+    expect(Object.keys(designById).sort()).toEqual([...ids].sort())
+    expect(readdirSync(directory).sort()).toEqual(ids.map(id => id + '.webp').sort())
+
+    const signatures = new Set<string>()
+    for (const title of OPENING_TITLES) {
+      const model = beltVisualFor(title, null, { edition: { photo: undefined } })
+      expect(model).toMatchObject({ kind: 'catalog', asset: 'belts/catalog/' + title.id + '.webp' })
+      const file = readFileSync(new URL(title.id + '.webp', directory))
+      expect(file.subarray(0, 4).toString(), title.id).toBe('RIFF')
+      expect(file.subarray(8, 12).toString(), title.id).toBe('WEBP')
+      expect(file.readUInt32LE(4) + 8, title.id).toBe(file.length)
+      signatures.add(createHash('sha256').update(file).digest('hex'))
+    }
+    expect(signatures.size).toBe(ids.length)
   })
 
   it('entrega modelos locais distintos para todas as edições nas oito identidades', () => {
     const modeled = new Set<string>()
     for (const title of OPENING_TITLES) {
-      const original = beltVisualFor({ ...title, origin: 'fictional' }, null)
+      const original = beltVisualFor({ ...title, id: 'novo-' + title.id, origin: 'fictional' }, null)
       const joined = beltVisualFor(title, null, { preview: title })
       expect(original.kind).toBe('studio')
-      expect(joined.kind).toBe('studio')
+      expect(joined).toMatchObject({ kind: 'studio', lineage: [`belts/catalog/${title.id}.webp`, `belts/catalog/${title.id}.webp`] })
       for (const visual of [original, joined]) {
         if (visual.kind !== 'studio' || modeled.has(visual.asset)) continue
         const file = readFileSync(new URL('../public/' + visual.asset, import.meta.url))
@@ -224,7 +245,8 @@ describe('linhagens e versões de cinturão', () => {
     expect(career.titleDecision?.status).toBe('unified')
     const title = TITLES_BY_ID.get(pair.titleId)!
     const current = beltVisualFor(title, career)
-    expect(current).toMatchObject({ kind: 'studio', brand: 'wwe', asset: 'belts/studio/wwe-unified.webp' })
+    expect(current).toMatchObject({ kind: 'studio', brand: 'wwe', asset: 'belts/studio/wwe-unified.webp',
+      lineage: ['belts/catalog/sd-us.webp', 'belts/catalog/sd-world.webp'] })
     expect(beltVisualFor(title, career, { date: career.date })).toEqual(beltVisualFor(title, null))
     expect(beltVisualFor(title, career, { date: career.date, unificationMatch: career.bout!.id })).toEqual(current)
     expect(beltVisualFor(title, importCareer(exportCareer(career)))).toEqual(current)

@@ -89,7 +89,7 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
         <p><strong>{chosen.label}</strong>{chosen.from && ' · Desde ' + dateText(chosen.from)}{chosen.until && ' · Até ' + dateText(chosen.until)}</p>
         {chosen !== latest && <BeltVisual title={title} career={career} edition={chosen.edition} />}
         <BeltAttribution visual={visual} />
-        {(visual.kind === 'pending' || visual.kind === 'local') && <LocalBeltPhotoControls titleId={title.id} />}
+        {(title.origin !== 'fictional' && (visual.kind === 'catalog' || visual.kind === 'local')) && <LocalBeltPhotoControls titleId={title.id} />}
         {'change' in chosen.edition && career && <p className="belt-credit">Prestígio na estreia {chosen.edition.change.prestige}/100.
           {chosen.edition.change.kind === 'personalized' && ' Homenagem ao reinado de ' + fighterNames(career, chosen.edition.change.champion) + '.'}
         </p>}
