@@ -575,6 +575,10 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .belt-detail h3 { font: 700 22px/1 var(--heading); }
 .design-history { display: grid; gap: 8px; border-block: 1px solid var(--line); padding: 11px 0; }
 .belt-credit a { text-decoration: underline; text-underline-offset: 2px; color: var(--lime); }
+.belt-local-photo { display: grid; gap: 8px; min-width: 0; }
+.belt-local-photo input { display: block; min-width: 0; max-width: 100%; }
+.belt-local-photo small { color: var(--muted); }
+.belt-local-photo .button { justify-self: start; }
 .belt-card .reign-history summary { padding: 7px 0; color: var(--lime); }
 .belt-card .reign-history .title-timeline { padding-left: 0; margin-top: 5px; }
 .unification-panel { margin-bottom: 14px; }

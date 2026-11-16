@@ -2,7 +2,7 @@ import { ChevronDown, Trophy } from 'lucide-react'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { ORGANIZATIONS, OPENING_TITLES, TITLES_BY_ID } from '../content/catalog'
 import { titleName, titlePrestige } from '../content/belt-designs'
-import { beltVisualFor, type BeltEdition } from '../content/belt-catalog'
+import type { BeltEdition } from '../content/belt-catalog'
 import { beltPhotoOn, realBeltDesigns } from '../content/belt-photos'
 import { defenseFormat, JUNIOR_WEIGHT_LIMIT, type TitleRecord, type TitleRule } from '../content/titles'
 import { searchKey } from '../domain/geography'
@@ -11,7 +11,8 @@ import { fighterNames, hasLiveBout, PLAYER_ID } from '../engine/career'
 import { unificationStats } from '../engine/title-office'
 import { sameTeam } from '../engine/matches'
 import { canUnify, titleStates, type BeltState, type BeltStates } from '../engine/titles'
-import { BeltAttribution, BeltVisual } from './belt-art'
+import { BeltAttribution, BeltVisual, useBeltVisual } from './belt-art'
+import { LocalBeltPhotoControls } from './belt-photo-library'
 import { CircuitSelect, type CircuitFilter } from './world-filter'
 import { dateText, OrgMark, PageTitle, SourceLink } from './shared'
 
@@ -43,6 +44,7 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
   const designs = visualHistory(title, career, state)
   const latest = designs.at(-1)!
   const chosen = designs.find(design => design.id === version) ?? latest
+  const visual = useBeltVisual(title, career, { edition: chosen.edition })
   const name = titleName(career, title)
   const unified = state?.designs?.find(change => change.kind === 'unification')
   const winningShow = unified && career?.shows.find(show => show.id === unified.showId)
@@ -86,7 +88,8 @@ function BeltCard({ title, career, state }: { title: TitleRecord; career: Career
         </select></label>}
         <p><strong>{chosen.label}</strong>{chosen.from && ' · Desde ' + dateText(chosen.from)}{chosen.until && ' · Até ' + dateText(chosen.until)}</p>
         {chosen !== latest && <BeltVisual title={title} career={career} edition={chosen.edition} />}
-        <BeltAttribution visual={beltVisualFor(title, career, { edition: chosen.edition })} />
+        <BeltAttribution visual={visual} />
+        {(visual.kind === 'pending' || visual.kind === 'local') && <LocalBeltPhotoControls titleId={title.id} />}
         {'change' in chosen.edition && career && <p className="belt-credit">Prestígio na estreia {chosen.edition.change.prestige}/100.
           {chosen.edition.change.kind === 'personalized' && ' Homenagem ao reinado de ' + fighterNames(career, chosen.edition.change.champion) + '.'}
         </p>}

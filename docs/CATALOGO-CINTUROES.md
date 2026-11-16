@@ -8,7 +8,7 @@ O jogo mantém duas fotografias licenciadas de edições históricas. A réplica
 
 Das 21 fotografias distribuídas na beta anterior, 19 ficaram fora desta versão porque mostravam lutadores, mãos, contexto de evento ou correias cortadas. A foto do NXT North American, por exemplo, mostra as mãos do árbitro e o ringue. A foto disponível do WWE United States no Commons mostra a placa de perto, sem a correia inteira. A foto da edição de 2004 do ROH World corta as duas pontas. Uma foto do Undisputed no Commons descreve o autor como desconhecido e informa ter vindo de uma busca. [NXT North American](https://commons.wikimedia.org/wiki/File:Referee_with_NXT_North_American_Championship.jpg) · [WWE United States](https://commons.wikimedia.org/wiki/File:New_US_Title.jpg) · [ROH World 2004](https://commons.wikimedia.org/wiki/File:ROH_World_Championship_2004.webp) · [Undisputed](https://commons.wikimedia.org/wiki/File:Undisputed_WWE_Championship.png)
 
-As vitrines abaixo permitem consultar fotografias oficiais de réplicas. Os arquivos distribuídos exigem uma licença de reutilização da **fotografia**. Por exemplo, a loja WWE identifica suas fotos como conteúdo próprio ou licenciado. As fotografias de catálogo das 71 edições correntes ficam **pendentes** nesta versão. [Termos da loja WWE](https://shop.wwe.com/en/product-drop-terms-and-conditions/x-4346)
+As vitrines abaixo permitem consultar fotografias oficiais de réplicas. Os arquivos distribuídos exigem uma licença de reutilização da **fotografia**. Por exemplo, a loja WWE identifica suas fotos como conteúdo próprio ou licenciado. As fotografias de catálogo das 71 edições correntes seguem **pendentes no pacote público**. [Termos da loja WWE](https://shop.wwe.com/en/product-drop-terms-and-conditions/x-4346)
 
 | Empresa | Fontes consultadas |
 | --- | --- |
@@ -22,9 +22,15 @@ As vitrines abaixo permitem consultar fotografias oficiais de réplicas. Os arqu
 
 ## Cinturões fictícios e salvamentos
 
-Os 16 modelos originais foram renderizados no Blender e são exibidos offline em WebP de 1150 × 460. São oito identidades visuais, incluindo o NXT, cada uma com um modelo padrão e um modelo de unificação. Couro texturizado, costuras, fechos, placas com bordas chanfradas, esmalte e relevo respondem à iluminação de estúdio. Inscrições da linhagem e homenagens são compostas no quadro, usando os nomes armazenados no jogo.
+São 32 modelos originais renderizados no Blender, exibidos offline em WebP de 1150 × 460. Cada uma das oito identidades visuais tem quatro modelos, para o título original, a unificação, a reformulação e a homenagem. As reformulações mudam o contorno e o acabamento da placa. As homenagens usam correias próprias, placas laterais adicionais e inscrição do campeão. Couro texturizado, costuras, fechos, placas chanfradas e esmalte respondem à iluminação de estúdio.
 
-O jogo escolhe o modelo automaticamente para unificações, homenagens e reformulações. Um novo campeonato declarado com `origin: 'fictional'` usa o mesmo protocolo. A beta permite gerar desenhos de cinturão pela carreira e conserva os mesmos IDs, reinados e formato de save. O catálogo de fotos exige a fonte, o autor, a licença e o intervalo de uso da edição. [Seleção central](../src/content/belt-catalog.ts) · [Fontes por ID](../src/content/belt-photos.ts) · [Gerador dos modelos](../scripts/render-belt-studio.py)
+O jogo escolhe a peça pelo tipo de edição registrado na carreira. Um novo campeonato declarado com `origin: 'fictional'` recebe o modelo original da sua empresa. Os mesmos IDs, reinados e formato de save permitem abrir as carreiras das betas anteriores. O catálogo de fotos registra fonte, autor, licença e intervalo de uso. [Seleção central](../src/content/belt-catalog.ts) · [Fontes por ID](../src/content/belt-photos.ts) · [Gerador dos modelos](../scripts/render-belt-studio.py)
+
+## Usar uma foto autorizada neste navegador
+
+Abra **Campeonatos**, escolha o título e, em **Histórico visual**, use **Adicionar foto autorizada do cinturão**. Escolha um arquivo JPG, PNG ou WebP frontal, com a peça inteira e fundo branco ou transparente. O jogo centraliza a fotografia em 1150 × 460 preservando a proporção. A imagem fica no navegador, aparece em todas as telas que usam a edição de referência e pode ser substituída ou removida ali mesmo. As fotos oficiais distribuídas e as edições simuladas têm prioridade nas versões a que pertencem.
+
+As imagens adicionadas ficam em uma base local de mídia. Cada computador, endereço do jogo e navegador tem sua própria base. A carreira exportada leva os dados esportivos e as edições simuladas.
 
 ## Inventário das edições
 

@@ -3,7 +3,7 @@ import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { beltArtworkFor, titleName, type BeltArtBrief } from '../src/content/belt-designs'
 import { beltPhotoOn, realBeltDesigns } from '../src/content/belt-photos'
-import { STUDIO_BRANDS, beltVisualFor } from '../src/content/belt-catalog'
+import { STUDIO_BRANDS, STUDIO_VARIANTS, beltVisualFor } from '../src/content/belt-catalog'
 import { OPENING_TITLES, ROSTER_BY_ID, TITLES_BY_ID, showsThrough } from '../src/content/catalog'
 import { editionsForSeason } from '../src/content/tournaments'
 import { makePlace, type Country, type CountryPlaces } from '../src/content/geography'
@@ -122,7 +122,7 @@ describe('linhagens e versões de cinturão', () => {
     }
   })
 
-  it('entrega modelos locais distintos para criações e unificações nas oito identidades', () => {
+  it('entrega modelos locais distintos para todas as edições nas oito identidades', () => {
     const modeled = new Set<string>()
     for (const title of OPENING_TITLES) {
       const original = beltVisualFor({ ...title, origin: 'fictional' }, null)
@@ -137,6 +137,12 @@ describe('linhagens e versões de cinturão', () => {
       }
     }
     expect(modeled.size).toBe(STUDIO_BRANDS.length * 2)
+    const studioFiles = STUDIO_BRANDS.flatMap(brand => STUDIO_VARIANTS.map(variant => {
+      const file = readFileSync(new URL('../public/belts/studio/' + brand + '-' + variant + '.webp', import.meta.url))
+      expect(file.subarray(8, 12).toString()).toBe('WEBP')
+      return file.toString('base64')
+    }))
+    expect(new Set(studioFiles).size).toBe(STUDIO_BRANDS.length * STUDIO_VARIANTS.length)
   })
 
   it('gera arte reproduzível, varia as placas e reserva um motivo para a unificação', () => {
@@ -158,12 +164,16 @@ describe('linhagens e versões de cinturão', () => {
     expect(career.shows).toHaveLength(showsThrough(addDays(START_DATE, -1), career.date).length)
     expect(career.tournamentFields).toHaveLength([2026, 2027, 2028].flatMap(year => editionsForSeason(year)).length)
     expect(ageOn(career.profile.age, career.date)).toBe(27)
-    expect(career.titleChanges.some(change => change.kind === 'redesign')).toBe(true)
+    const redesign = career.titleChanges.find(change => change.kind === 'redesign')!
+    expect(redesign).toBeDefined()
+    const redesignTitle = TITLES_BY_ID.get(redesign.titleId)!
+    expect(beltVisualFor(redesignTitle, career, { edition: { change: redesign } }))
+      .toMatchObject({ kind: 'studio', asset: expect.stringMatching(/-redesign\.webp$/) })
     const tribute = career.titleChanges.find(change => change.kind === 'personalized')!
     expect(tribute).toBeDefined()
     const tributeTitle = TITLES_BY_ID.get(tribute.titleId)!
     const tributeVisual = beltVisualFor(tributeTitle, career, { edition: { change: tribute } })
-    expect(tributeVisual).toMatchObject({ kind: 'studio', inscription: expect.stringContaining(' / ') })
+    expect(tributeVisual).toMatchObject({ kind: 'studio', asset: expect.stringMatching(/-tribute\.webp$/), inscription: expect.stringContaining(' / ') })
     const unifications = career.titleChanges.filter(change => change.kind === 'unification')
     expect(unifications.length).toBeGreaterThan(0)
     const imported = importCareer(exportCareer(career))

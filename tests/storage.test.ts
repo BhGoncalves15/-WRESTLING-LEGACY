@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { advanceCareer, exampleProfile, newCareer, signOffer } from '../src/engine/career'
 import { createSave, listSaves, openSave, saveCareer } from '../src/storage/indexed-db'
+import { deleteLocalBeltPhoto, loadLocalBeltPhotos, saveLocalBeltPhoto } from '../src/storage/local-belt-photos'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
 
 function damageCurrent(id: string) {
@@ -19,6 +20,18 @@ function damageCurrent(id: string) {
 }
 
 describe('integridade de saves', () => {
+  it('salva, substitui e remove fotos locais sem gravar uma nova revisão da carreira', async () => {
+    const career = await createSave(newCareer(exampleProfile(), 'normal', { seed: 579 }))
+    const first = 'data:image/webp;base64,YQ=='
+    const second = 'data:image/webp;base64,Yg=='
+    await saveLocalBeltPhoto('sd-us', first)
+    await saveLocalBeltPhoto('sd-world', first)
+    await saveLocalBeltPhoto('sd-us', second)
+    expect(await loadLocalBeltPhotos()).toEqual(new Map([['sd-us', second], ['sd-world', first]]))
+    await deleteLocalBeltPhoto('sd-us')
+    expect(await loadLocalBeltPhotos()).toEqual(new Map([['sd-world', first]]))
+    expect((await openSave(career.id)).career).toEqual(career)
+  })
   it('isola carreiras e impede duas abas de gravarem na mesma revisão', async () => {
     const original = await createSave(newCareer(exampleProfile(), 'normal', { seed: 123 }))
     const other = await createSave(newCareer({ ...exampleProfile(), name: 'Outra carreira' }, 'normal', { seed: 456 }))

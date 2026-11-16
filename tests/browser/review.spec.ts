@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { TITLES_BY_ID } from '../../src/content/titles'
 import { expect, test, type Page } from '@playwright/test'
 import { MOVES } from '../../src/content/moves'
@@ -196,6 +197,55 @@ test('apresenta foto histórica, ausência de foto e designs que a carreira cria
   await personalized.locator('summary').first().click()
   await personalized.getByLabel('Versão do cinturão').selectOption(tribute.showId)
   await expect(personalized.locator('.design-history').getByText(/Homenagem ao reinado de/)).toBeVisible()
+  await expect(personalized.getByRole('img', { name: /Modelo 3D/ }).filter({ visible: true }).last())
+    .toHaveAttribute('src', /-tribute\.webp$/)
+  expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('mantém uma foto local enquadrada entre galeria e perfil e preserva a edição histórica', async ({ page }) => {
+  const career = smackdownDoubleChampion()
+  const bytes = readFileSync(new URL('../../public/belts/sd-world-2014.webp', import.meta.url))
+  const name = 'Undisputed WWE Championship'
+  const imageName = 'Fotografia do ' + name
+  const main = page.getByRole('main')
+  await page.goto('./')
+  await restore(page, exportCareer(career))
+  await visit(page, 'Campeonatos')
+  const find = main.getByRole('searchbox', { name: 'Buscar cinturão' })
+  const card = main.locator('.belt-card').filter({ hasText: name }).first()
+  const open = card.locator('summary').first()
+  await find.fill(name)
+  await open.click()
+  await card.getByLabel('Adicionar foto autorizada do cinturão').setInputFiles({
+    name: 'foto-teste.webp', mimeType: 'image/webp', buffer: bytes,
+  })
+  await expect(card.getByText('Foto salva neste navegador.', { exact: true })).toBeVisible()
+  const image = open.getByRole('img', { name: imageName })
+  await expect.poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth + '×' + el.naturalHeight)).toBe('1150×460')
+  const localUrl = await image.getAttribute('src')
+  expect(localUrl?.startsWith('data:image/')).toBe(true)
+  await expect(image).toHaveCSS('object-fit', 'contain')
+  await expect(image.locator('xpath=..')).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await card.getByLabel('Versão do cinturão').selectOption('sd-world-2014')
+  await expect(card.locator('.design-history').getByRole('img', { name: imageName })).toHaveAttribute('src', /sd-world-2014\.webp$/)
+  await visit(page, 'Meu lutador')
+  const profilePhoto = main.getByRole('img', { name: imageName })
+  await expect(profilePhoto).toBeVisible()
+  expect(await profilePhoto.getAttribute('src') === localUrl).toBe(true)
+  await page.reload()
+  await expect(profilePhoto).toBeVisible()
+  expect(await profilePhoto.getAttribute('src') === localUrl).toBe(true)
+  await visit(page, 'Campeonatos')
+  await find.fill(name)
+  await open.click()
+  await card.getByLabel('Trocar foto do cinturão').setInputFiles({
+    name: 'corrompido.png', mimeType: 'image/png', buffer: Buffer.from('sem dados de foto'),
+  })
+  await expect(card.getByRole('alert')).toHaveText('O arquivo de imagem não pôde ser aberto.')
+  expect(await image.getAttribute('src') === localUrl).toBe(true)
+  await card.getByRole('button', { name: 'Remover foto local' }).click()
+  await expect(card.getByText('Foto removida deste navegador.', { exact: true })).toBeVisible()
+  await expect(card.getByText('Foto de catálogo pendente', { exact: true })).toBeVisible()
   expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
