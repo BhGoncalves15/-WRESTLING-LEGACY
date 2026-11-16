@@ -167,15 +167,21 @@ test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os 
     const canvas = document.createElement('canvas')
     canvas.width = 115
     canvas.height = 46
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!
     const records = []
     for (const element of images) {
       const img = element as HTMLImageElement
       img.scrollIntoView({ block: 'center' })
       await img.decode()
+      if (!img.complete || !img.naturalWidth) throw new Error('Imagem ainda indisponível: ' + img.src)
+      // WebKit may defer painting a lazy element even after decode().
+      const response = await fetch(img.currentSrc)
+      if (!response.ok) throw new Error('Falha HTTP ' + response.status + ': ' + img.currentSrc)
+      const bitmap = await createImageBitmap(await response.blob())
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      bitmap.close()
       let left = canvas.width
       let right = -1
       let top = canvas.height
