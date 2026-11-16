@@ -3,20 +3,21 @@ import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { beltArtworkFor, titleName, type BeltArtBrief } from '../src/content/belt-designs'
 import { openingBeltPhoto, realBeltDesigns } from '../src/content/belt-photos'
-import { OPENING_TITLES, ROSTER_BY_ID, TITLES_BY_ID } from '../src/content/catalog'
+import { OPENING_TITLES, ROSTER_BY_ID, TITLES_BY_ID, showsThrough } from '../src/content/catalog'
+import { editionsForSeason } from '../src/content/tournaments'
 import { makePlace, type Country, type CountryPlaces } from '../src/content/geography'
 import { MOVE_DESCRIPTIONS, MOVE_REFERENCES } from '../src/content/move-details'
 import { MOVES, validMoveset } from '../src/content/moves'
 import { defaultAppearance } from '../src/domain/appearance'
 import { searchKey } from '../src/domain/geography'
-import { MULTI_DATA_VERSION, SAVE_VERSION, START_DATE, ageOn } from '../src/domain/model'
+import { MULTI_DATA_VERSION, REVIEW_DATA_VERSION, SAVE_VERSION, START_DATE, addDays, ageOn } from '../src/domain/model'
 import {
-  advanceCareer, changeCareerMove, exampleProfile, hasLiveBout, improveMove, negotiate, newCareer,
-  resolvePlayerTurn, setTitleProposal, signOffer, unlockMove, updateAppearance,
+  advanceCalendarBy, advanceCareer, changeCareerMove, exampleProfile, hasLiveBout, improveMove, negotiate, newCareer,
+  pendingUnificationBout, resolvePlayerTurn, setTitleProposal, signOffer, unlockMove, updateAppearance,
 } from '../src/engine/career'
 import { beltsDue, compatibleTitles, titleStates } from '../src/engine/titles'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
-import { careerWithOffer, duelBoutFor } from './fixtures'
+import { careerWithOffer, duelBoutFor, smackdownDoubleChampion, smackdownPair, winSinglesFixture } from './fixtures'
 
 describe('revisão da criação e do moveset', () => {
   it('aceita somente idades iniciais inteiras de 18 a 24 e envelhece ao virar o ano', () => {
@@ -28,7 +29,7 @@ describe('revisão da criação e do moveset', () => {
   })
 
   it('migra um save v7 com idade antiga, origem, traje e luta em andamento', () => {
-    const opening = careerWithOffer('nxt')
+    const opening = careerWithOffer('nxt', 'men', 'legacy')
     const active = advanceCareer(signOffer(opening, opening.offers.find(offer => offer.promotion === 'nxt')!.id))
     const { look: _look, ...profile } = active.profile
     const legacy = { ...active, profile: { ...profile, age: 34, gear: 'Jaqueta antiga', entrance: 'Entrada antiga' },
@@ -132,8 +133,8 @@ describe('linhagens e versões de cinturão', () => {
     let career = newCareer({ ...exampleProfile(), age: 24 }, 'normal', { seed: 73958 })
     const second = newCareer(exampleProfile(), 'normal', { seed: 44 })
     while (career.date < '2029-01-01') career = advanceCareer(career)
-    expect(career.shows.length).toBe(1590)
-    expect(career.tournamentFields.length).toBe(51)
+    expect(career.shows).toHaveLength(showsThrough(addDays(START_DATE, -1), career.date).length)
+    expect(career.tournamentFields).toHaveLength([2026, 2027, 2028].flatMap(year => editionsForSeason(year)).length)
     expect(ageOn(career.profile.age, career.date)).toBe(27)
     expect(career.titleChanges.some(change => change.kind === 'redesign')).toBe(true)
     expect(career.titleChanges.some(change => change.kind === 'personalized')).toBe(true)
@@ -164,33 +165,63 @@ describe('linhagens e versões de cinturão', () => {
       ? { ...change, secondaryId: 'aew-tag' } : change) })).toThrow(/unificados/)
   }, 15_000)
 
-  it('decide a proposta do jogador no evento especial compartilhado com a sua brand', () => {
-    const open = careerWithOffer('smackdown')
-    let career = signOffer(open, open.offers.find(offer => offer.promotion === 'smackdown')!.id)
-    const win = () => {
-      const bout = duelBoutFor(career)
-      career = resolvePlayerTurn({ ...career, bout: { ...bout, plan: 'guard',
-        player: { ...bout.player, position: 'standing', stamina: 100 },
-        rival: { ...bout.rival, position: 'grounded', condition: 0 },
-      } }, 'pin')
-    }
-    while (career.date < '2026-03-13') {
-      career = advanceCareer(career)
-      if (hasLiveBout(career)) win()
-    }
-    const pair = { titleId: 'sd-us', secondaryId: 'sd-world' }
-    expect(() => setTitleProposal(career, { ...pair, secondaryId: 'raw-world' })).toThrow(/compatíveis/)
-    career = setTitleProposal(career, pair)
-    expect(setTitleProposal(career, null).titleProposal).toBeNull()
-    expect(importCareer(exportCareer(career)).titleProposal).toEqual(pair)
-    while (career.date < '2026-04-18' && career.titleProposal) {
-      career = advanceCareer(career)
-      if (hasLiveBout(career)) win()
-    }
+  it('avalia em três dias e registra a defesa que unificou os cinturões da brand', () => {
+    let career = smackdownDoubleChampion()
+    const pair = smackdownPair
+    expect(() => setTitleProposal(career, { ...pair, secondaryId: 'raw-world' })).toThrow(/brand responsável/)
+    expect(() => setTitleProposal(career, { ...pair, secondaryId: 'aew-world' })).toThrow(/linhagens independentes/)
+    career = setTitleProposal({ ...career, popularity: 40 }, pair)
+    const reviewOn = addDays(career.date, 3)
+    expect(setTitleProposal(career, null).titleDecision?.status).toBe('cancelled')
+    expect(importCareer(exportCareer(career)).titleProposal).toMatchObject({ ...pair, reviewOn, approvedOn: null })
+    career = advanceCalendarBy(advanceCalendarBy(career, 1), 1)
+    expect(career.titleDecision).toBeNull()
+    career = advanceCalendarBy(career, 1)
+    expect(career.titleDecision).toMatchObject({ status: 'approved', date: reviewOn })
+    career = advanceCareer(career)
+    expect(pendingUnificationBout(career)).toBe(true)
+    career = winSinglesFixture(importCareer(exportCareer(career)))
     const decision = career.titleChanges.find(change => change.kind === 'unification' && change.proposed)
-    expect(decision).toMatchObject({ ...pair, showId: 'raw@2026-04-18' })
+    expect(decision).toMatchObject({ ...pair, matchId: career.bout?.id, champions: ['career-player'] })
     expect(titleStates(importCareer(exportCareer(career))).get(pair.secondaryId)?.retiredBy).toBe(pair.titleId)
     expect(career.titleProposal).toBeNull()
+    expect(career.titleDecision?.status).toBe('unified')
+  })
+
+  it('aprova imediatamente com defesas e popularidade e cancela se o campeão perder', () => {
+    let double = smackdownDoubleChampion()
+    while (double.date < '2026-04-03') {
+      double = advanceCareer(double)
+      if (hasLiveBout(double)) double = winSinglesFixture(double)
+    }
+    const career = setTitleProposal({ ...double, popularity: 100 }, smackdownPair)
+    expect(career.titleDecision?.status).toBe('approved')
+    expect(career.titleProposal?.approvedOn).toBe(career.date)
+    const fight = advanceCareer(career)
+    expect(pendingUnificationBout(fight)).toBe(true)
+    const bout = duelBoutFor(fight)
+    const lost = resolvePlayerTurn({
+      ...fight, bout: { ...bout, plan: 'pin', player: { ...bout.player, condition: 0, position: 'grounded' } },
+    }, 'guard')
+    expect(lost.bout?.finish).toMatchObject({ winner: 'rival' })
+    expect(lost.titleDecision).toMatchObject({ status: 'cancelled', reason: expect.stringMatching(/perda do título principal/) })
+    const states = titleStates(importCareer(exportCareer(lost)))
+    expect(states.get(smackdownPair.titleId)?.holders).not.toContain('career-player')
+    expect(states.get(smackdownPair.secondaryId)?.holders).toContain('career-player')
+    expect(states.get(smackdownPair.secondaryId)?.retiredBy).toBeUndefined()
+  })
+
+  it('migra uma proposta antiga com data de avaliação e encerra pedidos obsoletos', () => {
+    const career = smackdownDoubleChampion('legacy')
+    const old = { ...career, schemaVersion: 8, dataVersion: REVIEW_DATA_VERSION, titleProposal: smackdownPair }
+    const restore = (save: object) => importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 8, career: save }))
+    const restored = restore(old)
+    expect(restored.shows).toEqual(career.shows)
+    expect(restored.calendar).toBe('legacy')
+    expect(restored.titleProposal).toMatchObject({ ...smackdownPair, reviewOn: addDays(career.date, 3) })
+    const snapshot = restore({ ...old, titleProposal: { titleId: 'aew-world', secondaryId: 'aew-tnt' } })
+    expect(snapshot.titleProposal).toBeNull()
+    expect(snapshot.titleDecision?.reason).toMatch(/contrato/)
   })
 
   it('oferece renovação negociável e mercado alternativo quando o vínculo termina', () => {

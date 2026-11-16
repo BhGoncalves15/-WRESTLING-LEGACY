@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
+import { MOVES } from '../../src/content/moves'
 import { MULTI_DATA_VERSION } from '../../src/domain/model'
 import { advanceCareer, exampleProfile, newCareer } from '../../src/engine/career'
 import { exportCareer } from '../../src/storage/save-format'
+import { smackdownDoubleChampion } from '../fixtures'
 
 async function visit(page: Page, name: string) {
   const menu = page.getByRole('button', { name: 'Abrir navegação' })
@@ -165,6 +167,14 @@ test('exibe fotografia local e versões anteriores de um cinturão em uma carrei
   await card.locator('summary').first().click()
   await expect(card.getByText('Histórico visual')).toBeVisible()
   await expect(card.getByRole('link', { name: 'Miguel Discart' })).toBeVisible()
+  await main.getByRole('searchbox', { name: 'Buscar cinturão' }).fill('roh pure championship')
+  const regional = main.locator('.belt-card').filter({ hasText: 'ROH Pure Championship' })
+  await expect(regional.getByRole('img', { name: 'Ilustração de referência do ROH Pure Championship' })).toBeVisible()
+  await regional.locator('summary').first().click()
+  await regional.getByLabel('Versão do cinturão').selectOption({ label: 'Foto 1 · Referência fotográfica' })
+  const past = regional.getByRole('img', { name: 'Fotografia do ROH Pure Championship' })
+  await expect.poll(() => past.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0)
+  await expect(regional.getByRole('link', { name: 'EditorRock' })).toBeVisible()
   await restore(page, exportCareer(career))
   await visit(page, 'Campeonatos')
   const unified = main.locator('.belt-card').filter({ hasText: /\(Unificado\)/ }).first()
@@ -204,4 +214,74 @@ test('importa um personagem antigo acima da idade inicial e desbloqueia o Spear'
   await expect(catalog.getByRole('button', { name: 'Spear Equipado' })).toBeVisible()
   await page.reload()
   await expect(main.getByText('Spear', { exact: true })).toBeVisible()
+})
+
+test('reproduz as 30 demonstrações do catálogo no navegador', async ({ page }, testInfo) => {
+  test.setTimeout(100_000)
+  const main = page.getByRole('main')
+  await page.goto('./')
+  await main.getByRole('button', { name: 'Nova carreira' }).click()
+  await main.getByRole('button', { name: 'Usar exemplo BH' }).click()
+  await expect(main.getByLabel('Cidade', { exact: true })).toHaveValue('BR:50:5008305')
+  for (let index = 0; index < 3; index++) await main.getByRole('button', { name: 'Continuar' }).click()
+  const catalog = main.getByRole('region', { name: 'Catálogo de golpes' })
+  const search = catalog.getByRole('searchbox', { name: 'Buscar golpe' })
+  const results = catalog.getByRole('list', { name: 'Golpes disponíveis para consulta' })
+  for (const move of MOVES) {
+    await search.fill(move.name)
+    await results.getByRole('button', { name: new RegExp('^' + move.name) }).click()
+    const video = catalog.locator('video')
+    await catalog.getByRole('button', { name: 'Reproduzir', exact: true }).click()
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime), { message: move.name }).toBeGreaterThan(0.15)
+    if (move.id === 'spear') {
+      await expect(catalog.getByRole('link', { name: 'ROEwrestling' })).toBeVisible()
+      if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/spear-licenciado-' + testInfo.project.name + '.png', fullPage: true })
+    }
+  }
+})
+
+test('consulta Money in the Bank em outubro e alterna entre calendário mensal, semanal e arquivo', async ({ page }, testInfo) => {
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await visit(page, 'Calendário')
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('raw')
+  await main.getByRole('button', { name: 'Mês', exact: true }).click()
+  for (let index = 0; index < 9; index++) await main.getByRole('button', { name: 'Mês seguinte' }).click()
+  await expect(main.getByRole('region', { name: 'Visão mensal' }).getByRole('heading', { name: 'outubro de 2026', exact: true })).toBeVisible()
+  await main.getByRole('button', { name: /^10 de outubro de 2026/ }).click()
+  await expect(main.getByText('WWE Money in the Bank', { exact: true })).toBeVisible()
+  await expect(main.getByText(/Smoothie King Center/)).toBeVisible()
+  await expect(main.getByText(/Evento especial · Data oficial/)).toBeVisible()
+  expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/calendario-mes-' + testInfo.project.name + '.png', fullPage: true })
+  await main.getByRole('button', { name: 'Semana', exact: true }).click()
+  await expect(main.getByRole('region', { name: 'Visão semanal' }).getByRole('button', { name: /^10 de outubro de 2026/ })).toHaveAttribute('aria-pressed', 'true')
+  await main.getByRole('button', { name: 'Arquivo real 2026' }).click()
+  await main.getByRole('combobox', { name: /Empresa ou brand/ }).selectOption('bwf')
+  await expect(main.getByText('BWF In House 31', { exact: true })).toBeVisible()
+  await expect(main.getByText(/Data documentada/).first()).toBeVisible()
+})
+
+test('acompanha a proposta e reabre a luta de unificação no calendário jogável', async ({ page }, testInfo) => {
+  const career = { ...smackdownDoubleChampion(), popularity: 40 }
+  await page.goto('./')
+  await restore(page, exportCareer(career))
+  const main = page.getByRole('main')
+  await visit(page, 'Campeonatos')
+  const office = main.getByRole('region', { name: 'Proposta de unificação' })
+  await office.getByRole('combobox').selectOption('sd-us|sd-world')
+  await office.getByRole('button', { name: 'Enviar à diretoria' }).click()
+  await expect(office.getByText(/Em análise · resposta até/)).toBeVisible()
+  if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/unificacao-em-analise-' + testInfo.project.name + '.png' })
+  await visit(page, 'Calendário')
+  await main.getByRole('button', { name: 'Avançar até 1 semana' }).click()
+  await expect(main.getByText(/Luta de unificação · Defenda o título principal/)).toBeVisible()
+  await main.getByRole('button', { name: /^Dropkick / }).click()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(main.getByText(/Luta de unificação · Defenda o título principal/)).toBeVisible()
+  await expect(main.getByText('Turno 2', { exact: true })).toBeVisible()
+  await visit(page, 'Calendário')
+  await expect(main.getByText(/Você está escalado em .*Luta de unificação/)).toBeVisible()
+  await expect(main.getByRole('button', { name: 'Entrar no combate' })).toBeVisible()
 })

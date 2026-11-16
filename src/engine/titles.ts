@@ -1,7 +1,7 @@
 import { ROSTER_BY_ID, showPromotions, wrestlerAppearsIn } from '../content/catalog'
 import { NJPW_JUNIOR_IDS, TAMASHII_IDS } from '../content/roster-njpw'
 import { JUNIOR_WEIGHT_LIMIT, OPENING_TITLES, TITLES_BY_ID, defenseFormat, defenseSize, type TitleRecord } from '../content/titles'
-import { START_DATE, dayDistance, type Career, type MatchResult, type Show, type TitleChange, type TitlePair } from '../domain/model'
+import { START_DATE, dayDistance, type Career, type MatchResult, type Show, type ShowReport, type TitleChange, type TitlePair } from '../domain/model'
 import { matchFormat, matchTeams, matchWinners, sameTeam, titleMatchFormat } from './matches'
 
 export const CAREER_FIGHTER_ID = 'career-player'
@@ -103,20 +103,28 @@ export function canRedesign(state: BeltState, date: string) {
   return elapsed >= 4 * 365 || (elapsed >= 210 && (milestone || switches >= 4))
 }
 
-export function applyTitleChange(states: BeltStates, show: Show | undefined, change: TitleChange) {
+export function applyTitleChange(states: BeltStates, show: ShowReport | undefined, change: TitleChange) {
   const { titleId, date } = change
   const title = TITLES_BY_ID.get(titleId)
   const state = states.get(titleId)
-  if (!title || !state || state.retiredBy || !show?.special || show.id !== change.showId || show.date !== date
+  if (!title || !state || state.retiredBy || !show || show.id !== change.showId || show.date !== date
     || !showSupportsTitle(show, title)) throw new Error('Evento inválido para a mudança do cinturão.')
   if (change.kind === 'unification') {
     if (!canUnify(states, change)) throw new Error('Os campeonatos não podem ser unificados.')
+    if (change.matchId || change.champions || change.name) {
+      const match = show.matches.find(result => result.id === change.matchId)
+      if (!change.champions || !change.name || !match || match.titleId !== titleId || match.player !== change.proposed
+        || !sameTeam(change.champions, matchWinners(match)) || !sameTeam(change.champions, state.holders ?? [])
+        || !state.defenses || (!change.proposed && !show.special)) {
+        throw new Error('A unificação não corresponde à defesa registrada.')
+      }
+    } else if (!show.special) throw new Error('Evento inválido para a unificação anterior.')
     const retired = states.get(change.secondaryId)!
     retired.retiredBy = titleId
     retired.retiredOn = date
     retired.events.push({ date, from: retired.holders, to: null, kind: 'retired' })
     retired.holders = null
-  } else if (!canRedesign(state, date) || !state.events.some(event => event.kind === 'defense') || (change.kind === 'personalized'
+  } else if (!show.special || !canRedesign(state, date) || !state.events.some(event => event.kind === 'defense') || (change.kind === 'personalized'
     && (!state.holders || !sameTeam(state.holders, change.champion) || state.defenses < 4 || dayDistance(state.heldFrom, date) < 100))) {
     throw new Error('Histórico de design do cinturão inválido.')
   }

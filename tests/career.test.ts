@@ -6,7 +6,8 @@ import {
   PLAYER_ID, advanceCareer, balanceFor, declineOffer, exampleProfile, hasLiveBout, improveAttribute, improveMove,
   negotiate, newCareer, playerFor, recordFor, renewOffers, resolvePlayerTurn, setDifficulty, signOffer,
 } from '../src/engine/career'
-import { reasonUnavailable } from '../src/engine/combat'
+import { chooseAction, reasonUnavailable } from '../src/engine/combat'
+import { Random } from '../src/engine/random'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
 import { careerWithOffer, duelBoutFor } from './fixtures'
 
@@ -80,6 +81,16 @@ describe('criação e contratos', () => {
 })
 
 describe('combate, agenda e XP', () => {
+  it('aumenta guardas e reversões após três repetições de um ataque', () => {
+    const bout = duelBoutFor(startFight())
+    const rival = ROSTER_BY_ID.get(bout.rivalId)!
+    const choices = (used: string[]) => Array.from({ length: 220 }, (_, index) =>
+      chooseAction({ ...bout, used }, 'rival', rival, 'normal', new Random(Math.imul(index + 1, 0x9e3779b9) >>> 0)))
+    const guards = (used: string[]) => choices(used).filter(action => action === 'guard').length
+    expect(guards(['dropkick', 'dropkick', 'dropkick'])).toBeGreaterThan(guards(['dropkick', 'jab', 'dropkick']) * 3)
+    expect(guards(['dropkick', 'breathe', 'dropkick', 'dropkick', 'breathe'])).toBe(guards(['dropkick', 'dropkick', 'dropkick']))
+  })
+
   it('separa agenda anunciada e gerada e mantém identidades canônicas no recorte', () => {
     expect(new Set(ROSTER.map(fighter => fighter.id)).size).toBe(ROSTER.length)
     expect(ROSTER.every(fighter => fighter.appearance.date < '2026-01-01')).toBe(true)
@@ -143,6 +154,22 @@ describe('combate, agenda e XP', () => {
     const hard = setDifficulty(career, 'hard')
     expect(hard.profile.attributes).toEqual(career.profile.attributes)
     expect(overall(hard.profile.attributes, hard.profile.style)).toBe(overall(career.profile.attributes, career.profile.style))
+  })
+
+  it('recompensa variedade e desacelera a popularidade alta em vitórias semanais', () => {
+    const opening = startFight()
+    const duel = duelBoutFor(opening)
+    const career = { ...opening, shows: opening.shows.map(show => show.id === duel.showId ? { ...show, special: false } : show) }
+    const bout = { ...duel, rival: { ...duel.rival, condition: 0, position: 'grounded' as const }, plan: 'guard' }
+    const finishWith = (popularity: number, used: string[]) => resolvePlayerTurn({ ...career, popularity, bout: { ...bout, used } }, 'pin')
+    expect(finishWith(6, ['dropkick']).popularity).toBe(9)
+    expect(finishWith(82, ['dropkick', 'breathe', 'dropkick']).popularity).toBe(82)
+    expect(finishWith(82, ['dropkick', 'jab', 'chop']).popularity).toBe(83)
+    const lost = resolvePlayerTurn({ ...career, popularity: 82, bout: {
+      ...duel, player: { ...duel.player, condition: 0, position: 'grounded' }, plan: 'pin',
+    } }, 'guard')
+    expect(lost.bout?.finish).toEqual({ winner: 'rival', method: 'pinfall' })
+    expect(lost.popularity).toBe(81)
   })
 
   it('gasta XP em atributos e golpes e respeita os limites de evolução', () => {

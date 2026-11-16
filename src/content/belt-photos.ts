@@ -18,18 +18,24 @@ export type BeltPhoto = {
   source: string
   license: keyof typeof licenses
   licenseUrl: string
+  front?: boolean
+  note?: string
 }
 
-function photo(id: string, from: string, file: string, author: string, license: BeltPhoto['license'], until?: string): BeltPhoto {
+function photo(id: string, from: string, file: string, author: string, license: BeltPhoto['license'], until?: string,
+  options?: Pick<BeltPhoto, 'front' | 'note'>): BeltPhoto {
   return { id, from, until, author, source: 'https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(file.replaceAll(' ', '_')),
-    license, licenseUrl: licenses[license] }
+    license, licenseUrl: licenses[license], ...options }
 }
 
 const photos: Record<string, BeltPhoto[]> = {
   'raw-world': [photo('raw-world-2023', '2023-04-24', 'Damian Priest WHC - WWE Live Birmingham April 2024.jpg', 'Zippo9310', 'CC BY-SA 4.0')],
   'raw-women': [photo('raw-women-2023', '2023-06-12', 'Rhea Ripley 2024.jpg', 'Carter Sterling', 'CC BY-SA 2.0')],
   'nxt-men': [photo('nxt-men-2012', '2012-07-26', 'NXT Champion Finn Balor.jpg', 'Edge4life42', 'CC BY-SA 3.0', '2017-04-01')],
-  'nxt-na': [photo('nxt-na-2018', '2018-04-03', 'Referee with NXT North American Championship.jpg', 'Miguel Discart', 'CC BY-SA 2.0')],
+  'sd-world': [photo('sd-world-2014', '2014-08-18', 'WWE Championship (2014) commemorative belt.jpg', 'DraftSaturn15', 'CC BY 4.0',
+    '2023-06-02', { note: 'Réplica comemorativa da edição de 2014. Fundo removido e imagem reduzida.' })],
+  'nxt-na': [photo('nxt-na-2018', '2018-04-03', 'Referee with NXT North American Championship.jpg', 'Miguel Discart', 'CC BY-SA 2.0',
+    undefined, { front: true })],
   'aew-world': [photo('aew-world-2019', '2019-08-31', 'Bryan Danielson as AEW World Champion.jpg', 'McPhail', 'CC0')],
   'aew-tbs': [photo('aew-tbs-2022', '2022-01-05', 'JC TBS Champion.jpg', 'Gtandersson', 'CC BY-SA 4.0')],
   'aew-tag': [photo('aew-tag-2019', '2019-10-30', 'FTR in August 2023 as AEW World Tag Team Champions.jpg', 'McPhail', 'CC0')],
@@ -42,7 +48,11 @@ const photos: Record<string, BeltPhoto[]> = {
   'tna-world': [photo('tna-world-2018', '2018-04-22', 'Johnny Impact Feb 2019-2.jpg', 'Tabercil', 'CC BY-SA 3.0', '2021-08-19')],
   'tna-knockouts': [photo('tna-knockouts-2007', '2007-10-14', "TNA Women's Knockout Championship Belt.png", 'Pedrohoneto', 'CC BY-SA 3.0', '2014-12-25')],
   'aaa-mega': [photo('aaa-mega-2012', '2012-03-18', 'El Hijo del Vikingo, Jan 2023.jpg', 'Earl Gardner', 'CC BY-SA 2.0', '2026-03-14')],
+  'aaa-mixed': [photo('aaa-mixed-2003', '2003-06-15', 'AAA World Mixed Tag Team Championship belt.jpg', 'Tabercil', 'CC BY-SA 3.0',
+    '2025-04-19', { note: 'Versão vermelha fotografada em 2012. Fundo removido e imagem reduzida.' })],
   'roh-world': [photo('roh-world-2023', '2023-03-31', 'Bandido ROH.jpg', 'KMcWrestling Photography', 'CC BY-SA 4.0')],
+  'roh-pure': [photo('roh-pure-2004', '2004-07-17', 'ROH Pure Championship Belt.jpg', 'EditorRock', 'CC BY-SA 4.0',
+    '2023-03-31', { note: 'Placas da primeira edição, fotografadas em 2022. Imagem reduzida.' })],
   'njpw-iwgp': [photo('njpw-iwgp-2021', '2021-03-30', 'Zack Sabre Jr, IWGP Champion.jpg', 'Sceptre', 'CC BY 4.0', '2026-01-05')],
 }
 
@@ -51,5 +61,5 @@ export function realBeltDesigns(title: TitleRecord): BeltPhoto[] {
 }
 
 export function openingBeltPhoto(title: TitleRecord) {
-  return realBeltDesigns(title).find(photo => photo.from <= START_DATE && (!photo.until || START_DATE < photo.until))
+  return realBeltDesigns(title).find(photo => photo.front && photo.from <= START_DATE && (!photo.until || START_DATE < photo.until))
 }

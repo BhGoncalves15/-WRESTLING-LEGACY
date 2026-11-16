@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, compareShows, fitsEventRoster, nextShows, showPromotions, validLegacyShow, wrestlerAppearsIn } from '../content/catalog'
+import { ORGANIZATIONS, ROSTER_BY_ID, TITLES_BY_ID, compareShows, fitsEventRoster, scheduledShow, showPromotions, validLegacyShow, wrestlerAppearsIn } from '../content/catalog'
 import { MOVE_BY_ID, validMoveset } from '../content/moves'
 import { defenseFormat } from '../content/titles'
 import {
-  COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, MULTI_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
+  COMPETITIONS_DATA_VERSION, DATA_VERSION, LEGACY_DATA_VERSION, MULTI_DATA_VERSION, REVIEW_DATA_VERSION, START_DATE, SAVE_VERSION, TAG_DATA_VERSION, TEAM_TITLES_DATA_VERSION,
   TRIOS_DATA_VERSION, WORLD_DATA_VERSION, addDays, careerSchema, isTeamFormat, newCareerId, type Career, type DuelBout, type Fall,
   type MatchResult, type MultiBout, type Show,
 } from '../domain/model'
@@ -14,6 +14,7 @@ import { canBreakFall } from '../engine/multi-combat'
 import { TAG_ACTIONS, benchSlots, cornerFighterIds, cornerSide, isTagBout, legalFighterId, tagSwapUnavailable, tagTarget } from '../engine/tag-combat'
 import { careerTeamPartners } from '../engine/tag-teams'
 import { compatibleTitles, fighterDivision, showSupportsTitle, titleStates, titleTeamEligible } from '../engine/titles'
+import { UNIFICATION_REVIEW_DAYS, titleProposalIssue } from '../engine/title-office'
 import { validateTournaments } from '../engine/tournaments'
 
 function unique(ids: string[]): boolean {
@@ -28,6 +29,10 @@ const trioSaveSchema = z.looseObject({ schemaVersion: z.literal(4), dataVersion:
 const teamTitlesSaveSchema = z.looseObject({ schemaVersion: z.literal(5), dataVersion: z.literal(TEAM_TITLES_DATA_VERSION) })
 const competitionsSaveSchema = z.looseObject({ schemaVersion: z.literal(6), dataVersion: z.literal(COMPETITIONS_DATA_VERSION) })
 const multiSaveSchema = z.looseObject({ schemaVersion: z.literal(7), dataVersion: z.literal(MULTI_DATA_VERSION) })
+const reviewSaveSchema = z.looseObject({
+  schemaVersion: z.literal(8), dataVersion: z.literal(REVIEW_DATA_VERSION), date: z.iso.date(),
+  titleProposal: z.object({ titleId: z.string(), secondaryId: z.string() }).nullable().optional(),
+})
 const currentVersion = { schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION }
 const competitionDefaults = { ...currentVersion, tournamentEntries: [], tournamentFields: [] }
 const oldCornerSchema = z.object({
@@ -47,7 +52,7 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
   })
   const tag = save.bout?.tag
   return {
-    ...save, ...competitionDefaults, trioPartnerIds: null, mixedPartnerId: null,
+    ...save, ...competitionDefaults, calendar: legacyCalendar(save), trioPartnerIds: null, mixedPartnerId: null,
     preferredFormat: save.tagPartnerId ? 'tag' : 'singles',
     bout: tag ? { ...save.bout, tag: { player: corner(tag.player), rival: corner(tag.rival) } } : save.bout,
     shows: save.shows.map(show => ({
@@ -58,23 +63,40 @@ function migrateTagSave(save: z.infer<typeof tagSaveSchema>) {
   }
 }
 
+function legacyCalendar(save: Record<string, unknown>) {
+  const hasData = (value: unknown) => Array.isArray(value) && value.length > 0
+  return save.date === START_DATE && !hasData(save.shows) && !hasData(save.tournamentFields) && !hasData(save.tournamentEntries)
+    ? 'verified' : 'legacy'
+}
+
 function migrate(input: unknown): unknown {
   if (!input || typeof input !== 'object' || !('schemaVersion' in input)) return input
+  if (input.schemaVersion === 8) {
+    const review = reviewSaveSchema.safeParse(input)
+    if (!review.success) return input
+    const { titleProposal, date } = review.data
+    return {
+      ...review.data, ...currentVersion, calendar: legacyCalendar(review.data),
+      titleProposal: titleProposal ? {
+        ...titleProposal, requestedOn: date, reviewOn: addDays(date, UNIFICATION_REVIEW_DAYS), approvedOn: null,
+      } : null,
+    }
+  }
   if (input.schemaVersion === 7) {
     const multi = multiSaveSchema.safeParse(input)
-    return multi.success ? { ...multi.data, ...currentVersion } : input
+    return multi.success ? { ...multi.data, ...currentVersion, calendar: legacyCalendar(multi.data) } : input
   }
   if (input.schemaVersion === 6) {
     const competitions = competitionsSaveSchema.safeParse(input)
-    return competitions.success ? { ...competitions.data, ...currentVersion } : input
+    return competitions.success ? { ...competitions.data, ...currentVersion, calendar: legacyCalendar(competitions.data) } : input
   }
   if (input.schemaVersion === 5) {
     const teams = teamTitlesSaveSchema.safeParse(input)
-    return teams.success ? { ...teams.data, ...competitionDefaults } : input
+    return teams.success ? { ...teams.data, ...competitionDefaults, calendar: legacyCalendar(teams.data) } : input
   }
   if (input.schemaVersion === 4) {
     const trios = trioSaveSchema.safeParse(input)
-    return trios.success ? { ...trios.data, ...competitionDefaults, mixedPartnerId: null } : input
+    return trios.success ? { ...trios.data, ...competitionDefaults, calendar: legacyCalendar(trios.data), mixedPartnerId: null } : input
   }
   if (input.schemaVersion === 3) {
     const tag = tagSaveSchema.safeParse(input)
@@ -83,12 +105,12 @@ function migrate(input: unknown): unknown {
   const defaults = { ...competitionDefaults, tagPartnerId: null, trioPartnerIds: null, mixedPartnerId: null, preferredFormat: 'singles' }
   if (input.schemaVersion === 2) {
     const world = worldSchema.safeParse(input)
-    return world.success ? { ...world.data, ...defaults } : input
+    return world.success ? { ...world.data, ...defaults, calendar: legacyCalendar(world.data) } : input
   }
   if (input.schemaVersion !== 1) return input
   const legacy = legacySchema.safeParse(input)
   if (!legacy.success) return input
-  return { ...legacy.data, ...defaults, expandedOn: legacy.data.date, vacatedTitles: [] }
+  return { ...legacy.data, ...defaults, calendar: legacyCalendar(legacy.data), expandedOn: legacy.data.date, vacatedTitles: [] }
 }
 
 function validLineup(career: Career, show: Show, teams: readonly string[][], player: boolean, mixed?: true): boolean {
@@ -191,8 +213,8 @@ export function validateCareer(input: unknown): Career {
   const playerMatchDates = new Map<string, string>()
   const bookedByDate = new Map<string, Set<string>>()
   for (const [index, show] of shows.entries()) {
-    const expected = nextShows(show.promotion, addDays(show.date, -1), 1)[0]
-    const matchesSchedule = show.id === expected.id && show.name === expected.name && show.origin === expected.origin
+    const expected = scheduledShow(show, career.calendar)
+    const matchesSchedule = expected && show.id === expected.id && show.name === expected.name && show.origin === expected.origin
       && show.special === expected.special && show.series === expected.series
       && (show.guestPromotions ?? []).join(',') === (expected.guestPromotions ?? []).join(',')
     const legacySchedule = expandedOn && show.date <= expandedOn && show.id === show.promotion + '@' + show.date && !show.series && validLegacyShow(show)
@@ -222,13 +244,34 @@ export function validateCareer(input: unknown): Career {
     throw new Error('O histórico financeiro não corresponde às lutas da carreira.')
   }
 
-  const proposal = career.titleProposal
-  if (proposal) {
-    const primary = TITLES_BY_ID.get(proposal.titleId)
-    const secondary = TITLES_BY_ID.get(proposal.secondaryId)
-    if (!primary || !secondary || !compatibleTitles(primary, secondary)) throw new Error('A proposta de unificação é inválida.')
-  }
   const belts = titleStates(career)
+  const migratedReview = input && typeof input === 'object' && 'schemaVersion' in input && input.schemaVersion === 8
+  if (migratedReview && career.titleProposal) {
+    const proposal = career.titleProposal
+    const reason = titleProposalIssue(career, belts, proposal, career.date)
+    if (reason) {
+      const primary = TITLES_BY_ID.get(proposal.titleId)
+      const secondary = TITLES_BY_ID.get(proposal.secondaryId)
+      if (!primary || !secondary || !compatibleTitles(primary, secondary)) throw new Error('A proposta de unificação é inválida.')
+      career.titleProposal = null
+      career.titleDecision = { titleId: proposal.titleId, secondaryId: proposal.secondaryId, status: 'cancelled', date: career.date, reason }
+    }
+  }
+  const { titleProposal, titleDecision } = career
+  if (titleProposal && (
+    titleProposal.requestedOn < START_DATE || titleProposal.requestedOn > career.date
+    || titleProposal.reviewOn !== addDays(titleProposal.requestedOn, UNIFICATION_REVIEW_DAYS)
+    || (titleProposal.approvedOn === null ? titleProposal.reviewOn <= career.date
+      : titleProposal.approvedOn < titleProposal.requestedOn || titleProposal.approvedOn > career.date || titleProposal.approvedOn > titleProposal.reviewOn)
+    || titleProposalIssue(career, belts, titleProposal, career.date)
+  )) throw new Error('A proposta de unificação é inválida.')
+  if (titleDecision) {
+    const primary = TITLES_BY_ID.get(titleDecision.titleId)
+    const secondary = TITLES_BY_ID.get(titleDecision.secondaryId)
+    if (!primary || !secondary || !compatibleTitles(primary, secondary) || titleDecision.date < START_DATE || titleDecision.date > career.date) {
+      throw new Error('A decisão de unificação é inválida.')
+    }
+  }
   for (const [titleId, belt] of belts) {
     const holders = belt.holders
     if (!holders?.includes(PLAYER_ID) || holders.length < 2) continue
@@ -272,8 +315,8 @@ export function validateCareer(input: unknown): Career {
 
 const envelopeSchema = z.object({
   format: z.literal('wrestling-legacy'),
-  version: z.literal([1, 2, 3, 4, 5, 6, 7, SAVE_VERSION]),
-  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7, SAVE_VERSION]) }),
+  version: z.literal([1, 2, 3, 4, 5, 6, 7, 8, SAVE_VERSION]),
+  career: z.looseObject({ schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7, 8, SAVE_VERSION]) }),
 })
 
 export function exportCareer(career: Career): string {

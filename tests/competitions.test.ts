@@ -10,7 +10,7 @@ import { exportCareer, importCareer, validateCareer } from '../src/storage/save-
 import { duelBoutFor, signedBefore } from './fixtures'
 
 function resultsFor(career: Career, editionId: string) {
-  const edition = tournamentEdition(editionId)!
+  const edition = tournamentEdition(editionId, career.calendar)!
   const field = career.tournamentFields.find(item => item.editionId === editionId)
   return tournamentProgress(edition, field, new Map(career.shows.map(show => [show.id, show])))
 }
@@ -18,7 +18,7 @@ function resultsFor(career: Career, editionId: string) {
 function finishByPinfall(career: Career): Career {
   const bout = duelBoutFor(career)
   const next = resolvePlayerTurn({
-    ...career, bout: { ...bout, rival: { ...bout.rival, condition: 0, position: 'grounded' }, plan: 'guard' },
+    ...career, bout: { ...bout, player: { ...bout.player, position: 'standing', stamina: 100 }, rival: { ...bout.rival, condition: 0, position: 'grounded' }, plan: 'guard' },
   }, 'pin')
   expect(duelBoutFor(next).finish?.winner).toBe('player')
   return next
@@ -136,8 +136,8 @@ describe('competições da Carreira Livre', () => {
   })
 
   it('carrega a versão 5 com a luta ativa e abre as inscrições a partir da data do save', () => {
-    const edition = tournamentEdition('nxt-cup@2026/men')!
-    const signed = signedBefore('nxt', '2026-01-06')
+    const edition = tournamentEdition('nxt-cup@2026/men', 'legacy')!
+    const signed = signedBefore('nxt', '2026-01-06', 'men', 'legacy')
     const current = resolvePlayerTurn(advanceCareer(signed), 'dropkick')
     const { tournamentEntries: _entries, tournamentFields: _fields, ...fields } = current
     const legacy = { ...fields, schemaVersion: 5, dataVersion: TEAM_TITLES_DATA_VERSION }

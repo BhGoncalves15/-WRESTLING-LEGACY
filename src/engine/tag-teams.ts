@@ -5,7 +5,7 @@ import { TITLES_BY_ID, defenseFormat, type TitleRecord } from '../content/titles
 import { DIVISIONS, TEAM_SIZE, isTeamFormat, overall, type Career, type Division, type Show, type TeamFormat, type WrestlingTeam } from '../domain/model'
 import { matchWinners, sameTeam } from './matches'
 import type { Random } from './random'
-import { beltsDue, CAREER_FIGHTER_ID, titleEligible, titleStates, titleTeamEligible, type BeltStates } from './titles'
+import { beltsDue, CAREER_FIGHTER_ID, showSupportsTitle, titleEligible, titleStates, titleTeamEligible, type BeltStates } from './titles'
 
 export type RosterTeam = WrestlingTeam<RosterEntry>
 
@@ -88,9 +88,13 @@ type PlayerTeamBooking = { format: TeamFormat; partners: RosterEntry[]; opponent
 
 export function playerTeamBooking(
   career: Career, show: Show, states: BeltStates, candidates: readonly RosterEntry[], occupied: ReadonlySet<string>, random: Random,
+  priorityTitle?: TitleRecord,
 ): PlayerTeamBooking | undefined {
   const division = career.profile.division
-  const due = beltsDue(show, states, 21).flatMap(title => {
+  const availableTitles = beltsDue(show, states, 21)
+  const titles = priorityTitle && showSupportsTitle(show, priorityTitle)
+    ? [priorityTitle, ...availableTitles.filter(title => title.id !== priorityTitle.id)] : availableTitles
+  const due = titles.flatMap(title => {
     const format = defenseFormat(title)
     return format && format !== 'singles' && title.promotion === career.contract?.promotion
       && (title.division === division || title.division === 'mixed') ? [{ title, format }] : []

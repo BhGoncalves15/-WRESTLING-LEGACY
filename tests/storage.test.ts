@@ -52,6 +52,6 @@ describe('integridade de saves', () => {
     expect(copy.rng).toBe(advanced.rng)
     expect(() => validateCareer({ ...advanced, shows: [advanced.shows[0], ...advanced.shows] })).toThrow(/inconsistentes/)
     expect(() => importCareer('{broken')).toThrow(/JSON/)
-    expect(() => importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 9, career: original }))).toThrow(/incompatível/)
+    expect(() => importCareer(JSON.stringify({ format: 'wrestling-legacy', version: 10, career: original }))).toThrow(/incompatível/)
   })
 })

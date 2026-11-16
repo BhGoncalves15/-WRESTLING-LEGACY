@@ -145,7 +145,7 @@ function Tournaments({ career, promotion, division, pending, onEntry }: Circuit 
   const currentYear = seasonOf(career.date)
   const [year, setYear] = useState(currentYear)
   const reports = useMemo(() => new Map(career.shows.map(report => [report.id, report])), [career.shows])
-  const editions = editionsForSeason(year).filter(edition => edition.promotion === promotion && edition.division === division)
+  const editions = editionsForSeason(year, career.calendar).filter(edition => edition.promotion === promotion && edition.division === division)
   const years = Array.from({ length: currentYear - FIRST_SEASON + 2 }, (_, index) => FIRST_SEASON + index)
   return <>
     <div className="filter-bar season-filter"><label>Temporada<select value={year} onChange={event => setYear(Number(event.target.value))}>

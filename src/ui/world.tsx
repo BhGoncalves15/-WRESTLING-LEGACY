@@ -1,21 +1,16 @@
-import { ArrowRight, Building2, CalendarDays, ChevronDown, ChevronRight, Flame, Newspaper, Search, Swords, Trophy } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ArrowRight, Building2, CalendarDays, ChevronRight, Flame, Newspaper, Search, Swords, Trophy } from 'lucide-react'
+import { useState } from 'react'
 import {
-  ANNOUNCED_SHOWS, ARCHIVE_2026, COMPANY_NAMES, ORGANIZATIONS, TITLES_BY_ID, evidenceFor, rosterFor, showPromotions, upcomingShows,
+  COMPANY_NAMES, ORGANIZATIONS, evidenceFor, rosterFor, upcomingShows,
 } from '../content/catalog'
 import { HISTORICAL_OBSERVATIONS } from '../content/research-2026'
 import { TEAM_REFERENCES } from '../content/tag-teams'
-import { titleName } from '../content/belt-designs'
-import { roundName, tournamentEdition, tournamentSlots } from '../content/tournaments'
-import { COMPANIES, DIVISION_LABEL, MATCH_FORMAT_LABEL, METHOD_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId, type ShowReport } from '../domain/model'
-import { fighterName, fighterNames, hasLiveBout, nextCareerShow, PLAYER_ID, recordFor, showEvidence } from '../engine/career'
-import { matchFormat, matchTeams, matchWinners } from '../engine/matches'
+import { COMPANIES, DIVISION_LABEL, PROMOTIONS, START_DATE, addDays, overall, type Career, type PromotionId } from '../domain/model'
+import { hasLiveBout, nextCareerShow, PLAYER_ID, recordFor } from '../engine/career'
 import { defaultAppearance } from '../domain/appearance'
 import { FighterAvatar } from './avatar'
 import { CircuitSelect, type CircuitFilter } from './world-filter'
-import { dateShort, dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
-
-const RESULTS_PER_PAGE = 20
+import { dateText, EmptyState, OrgMark, PageTitle, SourceLink, UpcomingList } from './shared'
 
 export function Home({ career, pending, onNew, onSaves, onCalendar, onCompanies, onContracts, onFight, onAdvance }: {
   career: Career | null; pending: boolean; onNew: () => void; onSaves: () => void; onCalendar: () => void;
@@ -25,7 +20,7 @@ export function Home({ career, pending, onNew, onSaves, onCalendar, onCompanies,
   const active = career?.contract?.status === 'active' ? ORGANIZATIONS[career.contract.promotion] : null
   const next = career && nextCareerShow(career)
   const record = career && recordFor(career, PLAYER_ID)
-  const upcoming = upcomingShows(career?.worldThrough ?? addDays(START_DATE, -1), 2).slice(0, 5)
+  const upcoming = upcomingShows(career?.worldThrough ?? addDays(START_DATE, -1), 2, career?.calendar).slice(0, 5)
   const action = live ? onFight : active ? onAdvance : career ? onContracts : onNew
   const caption = live ? 'Entrar no combate' : active ? 'Avançar calendário' : career ? 'Ver propostas' : 'Nova carreira'
   return <>
@@ -65,98 +60,6 @@ export function Home({ career, pending, onNew, onSaves, onCalendar, onCompanies,
         })}</ul>
       </section>
     </div>
-  </>
-}
-
-function Results({ report, career }: { report: ShowReport; career: Career }) {
-  return <ul className="rows match-results">
-    {report.matches.map(match => {
-      const sides = matchTeams(match)
-      const format = MATCH_FORMAT_LABEL[matchFormat(match)]
-      const winner = fighterNames(career, matchWinners(match))
-      const finisher = match.tag ? ' de ' + fighterName(career, match.winnerId)
-        : match.multi ? ' sobre ' + fighterName(career, match.multi.defeatedId) : ''
-      const belt = match.titleId ? TITLES_BY_ID.get(match.titleId) : undefined
-      const edition = match.tournamentId ? tournamentEdition(match.tournamentId) : undefined
-      return <li className="record-row" key={match.id}>
-        {match.player && <FighterAvatar name={career.profile.name} look={career.profile.look ?? defaultAppearance()} />}
-        <div className="row-text"><strong>{sides.map(side => fighterNames(career, side)).join(' × ')}</strong>
-          <small>{winner} {match.tag ? 'venceram' : 'venceu'} · {METHOD_LABEL[match.method]}{finisher}</small>
-          {belt && <small className="belt-label">{titleName(career, belt, report.date)}</small>}
-          {edition && <small className="belt-label">{edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === report.id))}</small>}
-          {(match.tag || match.multi) && match.player && <small>Sua luta</small>}
-        </div>
-        <span className="chip">{match.tag || match.multi ? format : match.player ? 'Sua luta' : match.titleId ? 'Cinturão' : format}</span>
-      </li>
-    })}
-  </ul>
-}
-
-export function Calendar({ career, pending, onAdvance, onFight }: {
-  career: Career | null; pending: boolean; onAdvance: () => void; onFight: () => void
-}) {
-  const [filter, setFilter] = useState<CircuitFilter>('all')
-  const [period, setPeriod] = useState<'upcoming' | 'announced' | 'completed' | 'archive'>('upcoming')
-  const [resultPage, setResultPage] = useState(0)
-  const after = career?.worldThrough ?? addDays(START_DATE, -1)
-  const upcoming = (period === 'announced' ? ANNOUNCED_SHOWS.filter(show => show.date > after) : upcomingShows(after, 6))
-    .filter(show => filter === 'all' || showPromotions(show).includes(filter))
-  const reports = useMemo(() => period === 'completed'
-    ? (career?.shows ?? []).filter(show => filter === 'all' || showPromotions(show).includes(filter)).reverse() : [], [career?.shows, filter, period])
-  const pageCount = Math.ceil(reports.length / RESULTS_PER_PAGE)
-  const currentPage = Math.min(resultPage, Math.max(0, pageCount - 1))
-  const firstResult = currentPage * RESULTS_PER_PAGE
-  const archive = ARCHIVE_2026.filter(show => filter === 'all' || filter === show.promotion)
-  const live = career && hasLiveBout(career)
-  const next = career && nextCareerShow(career)
-  return <>
-    <PageTitle title="Calendário" intro={dateText(career?.date ?? START_DATE)}
-      action={career && <button className="button primary" disabled={pending} onClick={live ? onFight : onAdvance}>
-        {live ? 'Entrar no combate' : 'Avançar calendário'} <ArrowRight size={17} aria-hidden />
-      </button>} />
-    {career && !live && next && <div className="inline-note"><CalendarDays size={18} aria-hidden /><span>Próxima parada · {next.name} · {dateText(next.date)}</span></div>}
-    <div className="filter-bar">
-      <div className="segmented" role="group" aria-label="Tipo de agenda">
-        {([['upcoming', 'Próximos'], ['announced', 'Anunciados'], ['completed', 'Resultados'], ['archive', 'Arquivo real 2026']] as const)
-          .map(([value, label]) => <button key={value} aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</button>)}
-      </div>
-      <CircuitSelect value={filter} onChange={value => { setFilter(value); setResultPage(0) }} />
-    </div>
-    {(period === 'upcoming' || period === 'announced') && (upcoming.length ? <section className="panel">
-      <ul className="rows">{upcoming.map(show => {
-        const source = showEvidence(show.id)
-        const rounds = tournamentSlots(show).filter(({ edition }) => !career || edition.shows[0].date > after
-          || career.tournamentFields.some(field => field.editionId === edition.editionId))
-        const stages = [...new Set(rounds.map(({ edition, round }) => edition.name + ' · ' + roundName(edition, round)))]
-        return <li className="event-row calendar-row" key={show.id}>
-          <span className="date-stamp">{dateShort(show.date)}</span><div className="row-text">
-            <strong>{show.name}</strong><small>{showPromotions(show).map(id => ORGANIZATIONS[id].name).join(' + ')} · {show.origin === 'announced' ? 'Data anunciada' : 'Agenda simulada'}</small>
-            {stages.map(stage => <small className="belt-label" key={stage}>{stage}</small>)}
-          </div>{source && <SourceLink url={source} />}
-        </li>
-      })}</ul>
-    </section> : <EmptyState title="Nenhum evento neste filtro">Consulte as outras empresas ou a agenda simulada.</EmptyState>)}
-    {period === 'completed' && (career && reports.length ? <div className="stack">
-      {pageCount > 1 && <nav className="result-pagination" aria-label="Páginas de resultados">
-        <button type="button" className="button secondary" disabled={currentPage === 0}
-          onClick={() => setResultPage(currentPage - 1)}>Página anterior</button>
-        <span aria-live="polite">Página {currentPage + 1} de {pageCount}</span>
-        <button type="button" className="button secondary" disabled={currentPage >= pageCount - 1}
-          onClick={() => setResultPage(currentPage + 1)}>Próxima página</button>
-      </nav>}
-      {reports.slice(firstResult, firstResult + RESULTS_PER_PAGE).map(report => <details className="panel report" key={report.id}>
-        <summary><OrgMark id={report.promotion} small /><div className="row-text"><strong>{report.name}</strong>
-          <small>{dateText(report.date)} · {report.matches.length} resultados{live && career.bout?.showId === report.id ? ' · sua luta em andamento' : ''}</small>
-        </div><ChevronDown size={19} aria-hidden /></summary><Results report={report} career={career} />
-      </details>)}
-    </div> : <EmptyState title="Nenhum resultado neste filtro">Os cards aparecem aqui depois de simulados.</EmptyState>)}
-    {period === 'archive' && <section className="panel">
-      <header className="panel-head"><div><h2>Eventos reais de 2026</h2><p>Referências históricas para consulta. Os resultados da carreira seguem a simulação.</p></div></header>
-      <ul className="rows">{archive.map(show => <li className="event-row" key={show.promotion + show.date + show.name}>
-        <span className="date-stamp">{dateShort(show.date)}</span><div className="row-text"><strong>{show.name}</strong><small>{ORGANIZATIONS[show.promotion].name}</small></div>
-        <SourceLink url={show.source} />
-      </li>)}</ul>
-    </section>}
   </>
 }
 
