@@ -10,7 +10,7 @@ import {
   type Career, type DuelBout, type MatchFormat, type Method, type MoveKind, type MultiBout, type Show, type TagBout,
 } from '../domain/model'
 import { actionDescription, actionName, positionName, reasonUnavailable, TACTICAL_ACTIONS, telegraph } from '../engine/combat'
-import { PLAYER_ID, fighterName, nextCareerShow, playerFor } from '../engine/career'
+import { PLAYER_ID, fighterName, nextCareerShow, pendingUnificationBout, playerFor } from '../engine/career'
 import { formatForSize, multiFormatForSize } from '../engine/matches'
 import { BREAKUP_STAMINA, multiActionIssue } from '../engine/multi-combat'
 import { matchRivalry, rivalryStates } from '../engine/rivalries'
@@ -115,7 +115,7 @@ function FightLog({ bout }: { bout: Bout }) {
 }
 
 function DuelFight({ career, bout, show, player, pending, onTurn, onAdvance }: ActiveFightProps & { bout: DuelBout }) {
-  const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId) : undefined
+  const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId, career.calendar) : undefined
   const rivalries = useMemo(() => rivalryStates(career.shows), [career.shows])
   const rivalry = !bout.tag ? matchRivalry(rivalries, show, PLAYER_ID, bout.rivalId) : undefined
   const teamBout = isTagBout(bout) ? bout : null
@@ -135,6 +135,11 @@ function DuelFight({ career, bout, show, player, pending, onTurn, onAdvance }: A
   })) : []
   return <>
     <FightHeading career={career} show={show} bout={bout} format={format} />
+    {pendingUnificationBout(career) && <div className="inline-note"><Trophy size={19} aria-hidden />
+      <span>Luta de unificação · Defenda o título principal para incorporar a segunda linhagem.</span></div>}
+    {finished && career.titleDecision?.date === show.date && ['unified', 'cancelled'].includes(career.titleDecision.status)
+      && career.titleDecision.titleId === bout.titleId && <div className="inline-note"><Trophy size={19} aria-hidden />
+        <span>{career.titleDecision.reason}</span></div>}
     {edition && <div className="inline-note"><Trophy size={19} aria-hidden /><span>
       {edition.name} · {roundName(edition, edition.shows.findIndex(event => event.id === show.id))}
     </span></div>}

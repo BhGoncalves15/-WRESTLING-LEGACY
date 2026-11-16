@@ -5,7 +5,7 @@ import {
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { DIFFICULTIES, START_DATE, type Career, type Difficulty, type Profile } from '../domain/model'
 import {
-  advanceCareer, changeCareerMove, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
+  advanceCalendarBy, advanceCareer, changeCareerMove, declineOffer, hasLiveBout, improveAttribute, improveMove, negotiate, newCareer,
   registerRingWeight, renewOffers, resolvePlayerTurn, setCareerTeam, setDifficulty, setFightTarget, setMatchPreference, signOffer, unlockMove, updateAppearance, setTitleProposal,
 } from '../engine/career'
 import { setTournamentEntry } from '../engine/tournaments'
@@ -16,7 +16,8 @@ import { Creator } from './creator'
 import { Player } from './player'
 import { Saves, Settings } from './saves'
 import { dateText } from './shared'
-import { Calendar, Companies, Feed, Home } from './world'
+import { Companies, Feed, Home } from './world'
+import { Calendar } from './calendar'
 
 const Championships = lazy(() => import('./championships'))
 const Competitions = lazy(() => import('./competitions'))
@@ -213,8 +214,12 @@ export function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  function advance() {
-    change(advanceCareer, saved => {
+  function advance(days?: 1 | 7) {
+    change(days ? current => advanceCalendarBy(current, days) : advanceCareer, saved => {
+      const decision = saved.titleDecision
+      if (decision && (decision.date !== career?.titleDecision?.date || decision.status !== career.titleDecision.status)) {
+        setNotice({ text: decision.reason, error: decision.status === 'rejected' })
+      }
       if (hasLiveBout(saved)) navigate('combates')
       else if (saved.contract?.status === 'expired') navigate('contratos')
       else navigate('calendario')
@@ -232,7 +237,10 @@ export function App() {
     if (route === 'calendario') return <Calendar career={career} pending={pending} onAdvance={advance} onFight={openFight} />
     if (route === 'empresas') return <Companies career={career} />
     if (route === 'campeonatos') return <Suspense fallback={<p className="loading" role="status">Carregando campeonatos…</p>}>
-      <Championships key={career?.id} career={career} pending={pending} onProposal={pair => change(current => setTitleProposal(current, pair))} />
+      <Championships key={career?.id} career={career} pending={pending} onProposal={pair => change(current => setTitleProposal(current, pair), saved => {
+        const message = saved.titleDecision?.reason ?? 'Pedido recebido. A diretoria responde em até três dias da carreira.'
+        setNotice({ text: message, error: false })
+      })} />
     </Suspense>
     if (route === 'salvamentos') return <Saves vault={vault} current={career} pending={pending} onOpen={resume} onNew={openNew}
       onSave={() => change(current => current, () => setNotice({ text: 'Carreira salva.', error: false }))}
@@ -266,12 +274,12 @@ export function App() {
         onRefresh={() => change(renewOffers)} onCalendar={openCalendar} />
       if (route === 'combates') return <Suspense fallback={<section className="panel loading" aria-live="polite">Carregando combate…</section>}>
         <Fight career={career} pending={pending} onTurn={id => change(current => resolvePlayerTurn(current, id))}
-          onTarget={id => change(current => setFightTarget(current, id))} onAdvance={advance} onContracts={openContracts} />
+          onTarget={id => change(current => setFightTarget(current, id))} onAdvance={() => advance()} onContracts={openContracts} />
       </Suspense>
       if (route === 'noticias' || route === 'historico') return <Feed key={route} career={career} history={route === 'historico'} />
     }
     return <Home career={career} pending={pending} onNew={openNew} onSaves={() => navigate('salvamentos')}
-      onCalendar={openCalendar} onCompanies={() => navigate('empresas')} onContracts={openContracts} onFight={openFight} onAdvance={advance} />
+      onCalendar={openCalendar} onCompanies={() => navigate('empresas')} onContracts={openContracts} onFight={openFight} onAdvance={() => advance()} />
   }
 
   return <div className="app-shell">

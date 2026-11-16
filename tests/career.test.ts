@@ -6,7 +6,8 @@ import {
   PLAYER_ID, advanceCareer, balanceFor, declineOffer, exampleProfile, hasLiveBout, improveAttribute, improveMove,
   negotiate, newCareer, playerFor, recordFor, renewOffers, resolvePlayerTurn, setDifficulty, signOffer,
 } from '../src/engine/career'
-import { reasonUnavailable } from '../src/engine/combat'
+import { chooseAction, reasonUnavailable } from '../src/engine/combat'
+import { Random } from '../src/engine/random'
 import { exportCareer, importCareer, validateCareer } from '../src/storage/save-format'
 import { careerWithOffer, duelBoutFor } from './fixtures'
 
@@ -80,6 +81,15 @@ describe('criação e contratos', () => {
 })
 
 describe('combate, agenda e XP', () => {
+  it('aumenta guardas e reversões após três repetições de um ataque', () => {
+    const bout = duelBoutFor(startFight())
+    const rival = ROSTER_BY_ID.get(bout.rivalId)!
+    const choices = (used: string[]) => Array.from({ length: 220 }, (_, index) =>
+      chooseAction({ ...bout, used }, 'rival', rival, 'normal', new Random(Math.imul(index + 1, 0x9e3779b9) >>> 0)))
+    const guards = (used: string[]) => choices(used).filter(action => action === 'guard').length
+    expect(guards(['dropkick', 'dropkick', 'dropkick'])).toBeGreaterThan(guards(['dropkick', 'jab', 'dropkick']) * 3)
+  })
+
   it('separa agenda anunciada e gerada e mantém identidades canônicas no recorte', () => {
     expect(new Set(ROSTER.map(fighter => fighter.id)).size).toBe(ROSTER.length)
     expect(ROSTER.every(fighter => fighter.appearance.date < '2026-01-01')).toBe(true)

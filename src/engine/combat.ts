@@ -93,22 +93,27 @@ export const controlAttribute: Record<Move['kind'], Attribute> = {
 }
 
 export function chooseAction(bout: DuelBout, actor: Actor, fighter: Fighter, difficulty: Difficulty, random: Random): string {
-  return chooseFighterAction(bout[actor], bout[other(actor)], fighter, difficulty, random, actor === 'rival' ? bout.used.at(-1) : undefined)
+  const predicted = actor === 'rival' ? bout.used.at(-1) : undefined
+  const recent = bout.used.slice(-3)
+  const repeated = Boolean(predicted && MOVE_BY_ID.has(predicted) && recent.length === 3 && recent.every(action => action === predicted))
+  return chooseFighterAction(bout[actor], bout[other(actor)], fighter, difficulty, random, predicted, repeated)
 }
 
-export function chooseFighterAction(side: BoutSide, opponent: BoutSide, fighter: Fighter, difficulty: Difficulty, random: Random, predicted?: string): string {
+export function chooseFighterAction(side: BoutSide, opponent: BoutSide, fighter: Fighter, difficulty: Difficulty, random: Random,
+  predicted?: string, repeated = false): string {
   const choices = [...fighter.moves, ...TACTICAL_ACTIONS].filter(action => (
     !fighterActionIssue(side, opponent, fighter, action, predicted)
   ))
   const tactical = difficulty === 'hard' ? 1.45 : difficulty === 'easy' ? 0.55 : 1
+  const readsPattern = repeated && opponent.position !== 'grounded'
   return random.weighted(choices, action => {
     if (action === 'breathe') return side.position === 'grounded' ? 35 : side.stamina < 22 ? 19 * tactical : 0.8
-    if (action === 'guard') return side.position === 'grounded' ? 0.8 : 1.3
+    if (action === 'guard') return side.position === 'grounded' ? 0.8 : readsPattern ? 9 * tactical : 1.3
     if (action === 'climb') return fighter.style === 'Highflyer' && side.stamina > 24 ? 3 : 0.45
     if (action === 'pin') return opponent.condition <= 10 ? 90 * tactical : opponent.condition < 44 ? 21 * tactical : 1.5
     if (action === 'submit') return opponent.condition <= 10 ? 78 * tactical : opponent.condition < 48 ? (fighter.style === 'Submission Specialist' ? 30 : 12) * tactical : 0.8
     const move = MOVE_BY_ID.get(action)!
-    if (move.counters) return predicted ? 4 * tactical : 0.5
+    if (move.counters) return predicted ? (readsPattern ? 12 : 4) * tactical : 0.5
     const skill = fighter.attributes[controlAttribute[move.kind]]
     const power = (move.impact - 4) / 6
     const finisher = move.kind === 'finisher' || move.kind === 'signature'

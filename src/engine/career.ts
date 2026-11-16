@@ -1,6 +1,6 @@
 import {
-  OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID, compareShows, nextShowForCareer, nextShows, rosterFor,
-  fitsEventRoster, showPromotions, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
+  OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID, nextShowForCareer, rosterFor,
+  fitsEventRoster, showPromotions, showsThrough, upcomingShows, wrestlerAppearsIn, type Fighter, type RosterEntry,
 } from '../content/catalog'
 import { beltArtworkFor, titleName, titlePrestige, unifiedTitleName } from '../content/belt-designs'
 import { MOVE_BY_ID, defaultMoves, swapMove, validMoveset } from '../content/moves'
@@ -12,7 +12,7 @@ import {
   DIVISIONS, MATCH_FORMAT_LABEL, METHOD_LABEL, MULTI_SIZE, OPENING_OFFER_COUNT, PROMOTIONS, SAVE_VERSION, START_DATE, STARTING_AGE_MESSAGE, TEAM_FORMATS, TEAM_SIZE,
   addDays, clamp, dayDistance, isMultiFormat, isTeamFormat, newCareerId, overall, pointsSpent, profileSchema, ringWeightSchema,
   suggestedAttributes, validStartingAge, type Attribute, type Bout, type Career, type Difficulty, type HistoryItem, type MatchFormat, type MatchResult,
-  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type TitleChange, type TitlePair, type WrestlingTeam,
+  type Offer, type Profile, type PromotionId, type Show, type ShowReport, type TeamFormat, type TitleChange, type TitleDecision, type TitlePair, type WrestlingTeam,
 } from '../domain/model'
 import { createBout, playTurn, simulateSingles } from './combat'
 import { matchFormat, matchTeams, matchWinners, multiFormatForSize, sameTeam } from './matches'
@@ -27,6 +27,7 @@ import {
   titleEligible, titleStates, type BeltStates,
 } from './titles'
 import { planTournaments, type TournamentFixture } from './tournaments'
+import { UNIFICATION_REVIEW_DAYS, immediateUnification, titleProposalIssue, titleReviewIssue, unificationStats } from './title-office'
 
 export const PLAYER_ID = CAREER_FIGHTER_ID
 export { showEvidence } from '../content/calendar'
@@ -121,8 +122,8 @@ export function newCareer(input: Profile, difficulty: Difficulty, identity: Care
   const career: Career = {
     schemaVersion: SAVE_VERSION, dataVersion: DATA_VERSION, id: identity.id ?? newCareerId(), revision: 0,
     createdAt: identity.createdAt ?? Date.now(), mode: 'free', profile, difficulty, rng: random.state,
-    date: START_DATE, worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
-    bout: null, shows: [], expandedOn: null, vacatedTitles: [], titleChanges: [], titleProposal: null, tagPartnerId: null, trioPartnerIds: null,
+    date: START_DATE, calendar: 'verified', worldThrough: addDays(START_DATE, -1), offers: [], contract: null, xp: 0, popularity: 6,
+    bout: null, shows: [], expandedOn: null, vacatedTitles: [], titleChanges: [], titleProposal: null, titleDecision: null, tagPartnerId: null, trioPartnerIds: null,
     mixedPartnerId: null, preferredFormat: 'singles', tournamentEntries: [], tournamentFields: [], history: [], ledger: [],
   }
   career.offers = offersFor(career, random)
@@ -219,6 +220,10 @@ export function setCareerTeam(career: Career, format: TeamFormat, partners: read
     const name = fighterNames(career, [PLAYER_ID, ...current])
     vacatePlayerTitles(next, title => defenseFormat(title) === format, 'A equipe de ' + name + ' foi encerrada.')
     addHistory(next, 'team', 'Fim da equipe', name + ' encerraram a formação de ' + label + '.', promotion)
+    if (next.titleProposal) {
+      const issue = titleProposalIssue(next, titleStates(next), next.titleProposal, next.date)
+      if (issue) recordTitleDecision(next, next.titleProposal, 'cancelled', issue)
+    }
     return next
   }
   if (current.length) throw new Error('Encerre a formação atual antes de escolher novos parceiros.')
@@ -250,6 +255,10 @@ export function signOffer(career: Career, offerId: string): Career {
     addHistory(next, 'team', 'Fim das parcerias', 'Sua mudança de empresa ou brand encerrou as equipes anteriores.', career.contract?.promotion)
   }
   vacatePlayerTitles(next, title => title.promotion !== promotion, 'Você assinou com ' + ORGANIZATIONS[promotion].name + '.')
+  if (next.titleProposal) {
+    const issue = titleProposalIssue(next, titleStates(next), next.titleProposal, next.date)
+    if (issue) recordTitleDecision(next, next.titleProposal, 'cancelled', issue)
+  }
   const renewal = career.contract?.promotion === promotion && career.contract.status === 'expired'
   addHistory(next, 'contract', (renewal ? 'Renovação com ' : 'Contrato com ') + ORGANIZATIONS[promotion].name,
     'Acordo de ' + weeks + ' semanas, com $' + pay + ' por show disputado.', promotion)
@@ -257,26 +266,10 @@ export function signOffer(career: Career, offerId: string): Career {
 }
 
 export function nextCareerShow(career: Career): Show | undefined {
-  if (career.contract?.status !== 'active') return upcomingShows(career.worldThrough, 1)[0]
-  let show = nextShowForCareer(career.contract.promotion, career.worldThrough)
-  if (show?.series === 'tamashii' && career.profile.division === 'women') {
-    show = nextShowForCareer(career.contract.promotion, show.date)
-  }
+  if (career.contract?.status !== 'active') return upcomingShows(career.worldThrough, 1, career.calendar)[0]
+  const show = nextShowForCareer(career.contract.promotion, career.worldThrough, career.calendar,
+    event => !event.series || career.profile.division === 'men')
   return show && show.date < career.contract.end ? show : undefined
-}
-
-function dueShows(after: string, to: string): Show[] {
-  const due: Show[] = []
-  for (const promotion of PROMOTIONS) {
-    let cursor = after
-    let show = nextShows(promotion, cursor, 1)[0]
-    while (show.date <= to) {
-      due.push(show)
-      cursor = show.date
-      show = nextShows(promotion, cursor, 1)[0]
-    }
-  }
-  return due.sort(compareShows)
 }
 
 function bookRival(career: Career, show: Show, candidates: readonly RosterEntry[], random: Random, rivalries: RivalryStates) {
@@ -347,7 +340,7 @@ function addCompetitionHistory(career: Career, show: Show, match: MatchResult, r
       : fighterName(career, match.winnerId) + ' venceu a rivalidade'
     addHistory(career, 'rivalry', headline, fighterNames(career, fighters) + ' · ' + wins.join('–') + ' na série · ' + show.name, promotion)
   }
-  const edition = match.tournamentId && tournamentEdition(match.tournamentId)
+  const edition = match.tournamentId && tournamentEdition(match.tournamentId, career.calendar)
   if (!edition) return
   const round = edition.shows.findIndex(event => event.id === show.id)
   const winner = fighterName(career, match.winnerId)
@@ -356,13 +349,14 @@ function addCompetitionHistory(career: Career, show: Show, match: MatchResult, r
   addHistory(career, 'tournament', headline, roundName(edition, round) + ' · ' + show.name + ' · ' + METHOD_LABEL[match.method], edition.promotion)
 }
 
-function playerTitleOpportunity(career: Career, show: Show, states: BeltStates, occupied: Set<string>, random: Random, rivalries: RivalryStates, defensesOnly: boolean) {
+function playerTitleOpportunity(career: Career, show: Show, states: BeltStates, occupied: Set<string>, random: Random, rivalries: RivalryStates, defensesOnly: boolean, priorityTitle?: TitleRecord) {
   const contract = career.contract
   if (!contract) return undefined
   const due = beltsDue(show, states, 21).filter(title => (
     defenseFormat(title) === 'singles' && title.promotion === contract.promotion && titleEligible(career, title, PLAYER_ID)
   ))
-  const defense = due.find(title => states.get(title.id)?.holders?.includes(PLAYER_ID))
+  const defense = priorityTitle && defenseFormat(priorityTitle) === 'singles' ? priorityTitle
+    : due.find(title => states.get(title.id)?.holders?.includes(PLAYER_ID))
   const contenders = rosterFor(contract.promotion, false).filter(fighter => (
     fighter.division === career.profile.division && fighter.id !== career.tagPartnerId
     && !career.trioPartnerIds?.includes(fighter.id) && !occupied.has(fighter.id) && fitsEventRoster(show, fighter.id)
@@ -409,16 +403,20 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
   const playerFixture = fixtures.find(fixture => fixture.fighters.includes(PLAYER_ID))
   const tournamentRival = playerFixture && ROSTER_BY_ID.get(playerFixture.fighters.find(id => id !== PLAYER_ID)!)
   const ordinaryBooking = playerBooked && !playerFixture
-  const soloDefense = ordinaryBooking ? playerTitleOpportunity(career, show, states, occupied, random, rivalries, true) : undefined
+  const approved = career.titleProposal?.approvedOn ? TITLES_BY_ID.get(career.titleProposal.titleId) : undefined
+  const priorityTitle = approved && showSupportsTitle(show, approved) ? approved : undefined
+  const soloDefense = ordinaryBooking && (!priorityTitle || defenseFormat(priorityTitle) === 'singles')
+    ? playerTitleOpportunity(career, show, states, occupied, random, rivalries, true, priorityTitle) : undefined
   const team = ordinaryBooking && !soloDefense && (career.tagPartnerId || career.trioPartnerIds || career.mixedPartnerId)
-    ? playerTeamBooking(career, show, states, eligible, occupied, random) : undefined
+    ? playerTeamBooking(career, show, states, eligible, occupied, random, priorityTitle) : undefined
   const opportunity = soloDefense ?? (ordinaryBooking && !team && !isTeamFormat(career.preferredFormat)
     ? playerTitleOpportunity(career, show, states, occupied, random, rivalries, false) : undefined)
   const rival = tournamentRival ?? team?.opponents[0] ?? opportunity?.rival
     ?? (ordinaryBooking && soloCandidates.length ? bookRival(career, show, soloCandidates, random, rivalries) : undefined)
   const playerTitle = team?.title ?? opportunity?.title
   const extraRivals: RosterEntry[] = []
-  if (rival && ordinaryBooking && !team && isMultiFormat(career.preferredFormat)) {
+  const unificationMatch = playerTitle && playerTitle.id === priorityTitle?.id
+  if (rival && ordinaryBooking && !team && !unificationMatch && isMultiFormat(career.preferredFormat)) {
     const pool = soloCandidates.filter(fighter => fighter.id !== rival.id && (!playerTitle || titleEligible(career, playerTitle, fighter.id)))
     while (pool.length && extraRivals.length < MULTI_SIZE[career.preferredFormat] - 2) {
       const extra = bookRival(career, show, pool, random, rivalries)
@@ -522,7 +520,8 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
     const opponents = namesList.format((team?.opponents ?? [rival, ...extraRivals]).map(fighter => fighter.name))
     const format = team?.format ?? (extraRivals.length ? multiFormatForSize(extraRivals.length + 2) : 'singles')
     const stakes = playerFixture ? playerFixture.edition.name + ' · ' + roundName(playerFixture.edition, playerFixture.round)
-      : [MATCH_FORMAT_LABEL[format], playerTitle && titleName(career, playerTitle, show.date)].filter(Boolean).join(' · ')
+      : [unificationMatch ? 'Luta de unificação' : MATCH_FORMAT_LABEL[format],
+        playerTitle && titleName(career, playerTitle, show.date)].filter(Boolean).join(' · ')
     addHistory(career, 'match', 'Luta marcada contra ' + opponents, show.name + ' · ' + stakes, show.promotion, true)
   } else if (matches.length) {
     const mainEvent = matches.at(-1)!
@@ -533,96 +532,144 @@ function bookShow(career: Career, show: Show, random: Random, playerBooked: bool
   }
   return { ...show, matches }
 }
-export function setTitleProposal(career: Career, pair: TitlePair | null): Career {
-  if (hasLiveBout(career)) throw new Error('Finalize o combate para enviar uma proposta.')
-  if (!pair) return { ...career, titleProposal: null }
-  const promotion = career.contract?.status === 'active' ? career.contract.promotion : undefined
-  const states = titleStates(career)
-  if (!promotion || career.titleProposal || TITLES_BY_ID.get(pair.titleId)?.promotion !== promotion || !canUnify(states, pair)
-    || !states.get(pair.titleId)?.holders?.includes(PLAYER_ID)) {
-    throw new Error('A proposta exige dois cinturões compatíveis da sua brand, com uma defesa em cada reinado.')
+function recordTitleDecision(career: Career, pair: TitlePair, status: TitleDecision['status'], reason: string) {
+  const { titleId, secondaryId } = pair
+  career.titleDecision = { titleId, secondaryId, date: career.date, status, reason }
+  if (status !== 'approved') career.titleProposal = null
+  const headlines = { approved: 'Unificação aprovada', rejected: 'Unificação recusada', cancelled: 'Unificação cancelada',
+    unified: 'Unificação de campeonatos' }
+  addHistory(career, 'title', headlines[status], reason, TITLES_BY_ID.get(titleId)!.promotion, true)
+}
+
+function reviewTitleProposal(career: Career, states: BeltStates) {
+  const pair = career.titleProposal
+  if (!pair || pair.approvedOn) return
+  const issue = titleReviewIssue(career, states, pair, career.date)
+  if (issue) {
+    recordTitleDecision(career, pair, 'rejected', issue)
+    return
   }
-  const next = { ...career, titleProposal: pair }
-  addHistory(next, 'title', 'Proposta de unificação', 'A diretoria decidirá no próximo evento especial da brand.', promotion)
+  career.titleProposal = { ...pair, approvedOn: career.date }
+  recordTitleDecision(career, pair, 'approved', 'A diretoria aprovou a luta. Se você defender o título principal, o segundo cinturão será incorporado.')
+}
+
+function keepTitleProposalCurrent(career: Career, states: BeltStates) {
+  const pair = career.titleProposal
+  if (!pair) return
+  const issue = titleProposalIssue(career, states, pair, career.date)
+  if (issue) recordTitleDecision(career, pair, 'cancelled', issue)
+}
+
+function reviewBefore(career: Career, states: BeltStates, date: string) {
+  const pair = career.titleProposal
+  if (!pair || pair.approvedOn || pair.reviewOn > date) return
+  career.date = pair.reviewOn
+  reviewTitleProposal(career, states)
+}
+
+export function setTitleProposal(career: Career, pair: TitlePair | null): Career {
+  if (hasLiveBout(career)) throw new Error('Finalize o combate antes de alterar a proposta.')
+  if (!pair) {
+    if (!career.titleProposal) return career
+    const next = { ...career }
+    recordTitleDecision(next, career.titleProposal, 'cancelled', 'Você retirou o pedido antes da luta.')
+    return next
+  }
+  if (career.titleProposal) throw new Error('Já existe uma proposta em andamento.')
+  const states = titleStates(career)
+  const issue = titleProposalIssue(career, states, pair, career.date)
+  if (issue) throw new Error(issue)
+  const reviewOn = addDays(career.date, UNIFICATION_REVIEW_DAYS)
+  const next: Career = {
+    ...career, titleProposal: { ...pair, requestedOn: career.date, reviewOn, approvedOn: null }, titleDecision: null,
+  }
+  addHistory(next, 'title', 'Proposta de unificação recebida', 'A diretoria responde em até três dias da carreira.',
+    TITLES_BY_ID.get(pair.titleId)!.promotion, true)
+  if (immediateUnification(next, states, pair)) reviewTitleProposal(next, states)
   return next
 }
 
-function officeApproves(states: BeltStates, pair: TitlePair) {
-  const first = states.get(pair.titleId)!
-  const second = states.get(pair.secondaryId)!
-  const primary = TITLES_BY_ID.get(pair.titleId)!
-  const secondary = TITLES_BY_ID.get(pair.secondaryId)!
-  // Consolidate overlapping divisions when both belts are well defended and their standing is comparable.
-  return first.defenses + second.defenses >= 4
-    && Math.abs(titlePrestige(primary, first.defenses) - titlePrestige(secondary, second.defenses)) <= 28
+export function pendingUnificationBout(career: Career) {
+  return !!career.titleProposal?.approvedOn && hasLiveBout(career) && career.bout?.titleId === career.titleProposal.titleId
 }
 
-function closeBeltOffice(career: Career, shows: readonly Show[], states: BeltStates) {
+function createUnification(career: Career, show: ShowReport, states: BeltStates, pair: TitlePair, result: MatchResult) {
+  const title = TITLES_BY_ID.get(pair.titleId)!
+  const secondary = TITLES_BY_ID.get(pair.secondaryId)!
+  const state = states.get(title.id)!
+  const org = ORGANIZATIONS[title.promotion]
+  const name = unifiedTitleName(title, secondary)
+  const prestige = titlePrestige(title, state.defenses, true)
+  const artwork = beltArtworkFor({
+    title: name, promotion: org.name, accent: org.accent, company: org.company, prestige,
+    lineage: [title.name, secondary.name], reason: 'unification', formerDesign: state.designs?.at(-1)?.artwork,
+    seed: career.rng + '|' + show.id,
+  })
+  const change: TitleChange = {
+    kind: 'unification', titleId: title.id, secondaryId: secondary.id, date: show.date, showId: show.id,
+    name, artwork, prestige, proposed: result.player, matchId: result.id, champions: [...matchWinners(result)],
+  }
+  applyTitleChange(states, show, change)
+  career.titleChanges = [...career.titleChanges, change]
+  const detail = name + ' · ' + show.name + ' · ' + fighterNames(career, change.champions!) + ' · ' + METHOD_LABEL[result.method] + '.'
+  if (result.player) recordTitleDecision(career, pair, 'unified', detail)
+  else addHistory(career, 'title', 'Unificação de campeonatos', detail, title.promotion)
+}
+
+function closeBeltOffice(career: Career, shows: readonly ShowReport[], states: BeltStates) {
   const agendas = shows.filter(show => show.special)
     .flatMap(show => showPromotions(show).map(promotion => ({ show, promotion })))
   for (const { show, promotion } of agendas) {
+    if (career.titleChanges.some(change => change.showId === show.id && TITLES_BY_ID.get(change.titleId)?.promotion === promotion)) continue
     const titles = OPENING_TITLES.filter(title => title.promotion === promotion && showSupportsTitle(show, title))
-    const proposal = career.titleProposal
-    const requested = proposal && titles.some(title => title.id === proposal.titleId) ? proposal : null
-    let pair: TitlePair | undefined
-    let proposed = false
-    if (requested) {
-      career.titleProposal = null
-      if (career.contract?.status === 'active' && career.contract.promotion === promotion && show.date < career.contract.end
-        && states.get(requested.titleId)?.holders?.includes(PLAYER_ID) && canUnify(states, requested) && officeApproves(states, requested)) {
-        pair = requested
-        proposed = true
-      } else {
-        addHistory(career, 'title', 'Unificação recusada', 'A diretoria decidiu manter as linhagens separadas. Ela considerou o vínculo, os reinados, as defesas e o prestígio.', promotion)
-      }
-    }
-    if (!pair && !requested) {
-      for (const [index, title] of titles.entries()) {
-        const primary = states.get(title.id)
-        if (!primary?.holders || primary.holders.includes(PLAYER_ID)) continue
-        const secondary = titles.slice(index + 1).find(other => compatibleTitles(title, other)
-          && canUnify(states, { titleId: title.id, secondaryId: other.id })
-          && officeApproves(states, { titleId: title.id, secondaryId: other.id }))
-        if (secondary) {
-          pair = { titleId: title.id, secondaryId: secondary.id }
-          break
-        }
-      }
+    const defenses = show.matches.filter(match => match.titleId && !match.player)
+    // An NPC merger follows a successful defense on this card by the team holding both belts.
+    const decision = defenses.flatMap(match => {
+      const defended = TITLES_BY_ID.get(match.titleId!)!
+      const state = states.get(defended.id)
+      if (defended.promotion !== promotion || !state?.holders || !sameTeam(state.holders, matchWinners(match)) || !state.defenses) return []
+      return titles.flatMap(other => {
+        if (!compatibleTitles(defended, other)) return []
+        const pair = { titleId: defended.id, secondaryId: other.id }
+        if (!canUnify(states, pair)) return []
+        const { defenses, gap } = unificationStats(states, pair)
+        return defenses >= 4 && gap <= 28 ? [{ pair, match }] : []
+      })
+    })[0]
+    if (decision) {
+      createUnification(career, show, states, decision.pair, decision.match)
+      continue
     }
     const lastChange = career.titleChanges.filter(change => TITLES_BY_ID.get(change.titleId)?.promotion === promotion).at(-1)
-    const redesign = !pair && (!lastChange || dayDistance(lastChange.date, show.date) >= 150) ? titles.find(title => {
+    if (lastChange && dayDistance(lastChange.date, show.date) < 150) continue
+    const title = titles.find(title => {
       const state = states.get(title.id)!
       return canRedesign(state, show.date) && state.events.some(event => event.kind === 'defense')
-    }) : undefined
-    const title = pair ? TITLES_BY_ID.get(pair.titleId) : redesign
+    })
     if (!title) continue
     const state = states.get(title.id)!
     const champion = state.holders && state.defenses >= 4 && dayDistance(state.heldFrom, show.date) >= 100 ? [...state.holders] : undefined
-    const kind = pair ? 'unification' : champion ? 'personalized' : 'redesign'
-    const prestige = titlePrestige(title, state.defenses, Boolean(pair || state.designs?.some(change => change.kind === 'unification')))
-    const name = pair ? unifiedTitleName(title) : titleName(career, title)
-    const secondaryName = pair && TITLES_BY_ID.get(pair.secondaryId)!.name
+    const kind = champion ? 'personalized' : 'redesign'
+    const prestige = titlePrestige(title, state.defenses, Boolean(state.designs?.some(change => change.kind === 'unification')))
+    const name = titleName(career, title)
+    const org = ORGANIZATIONS[promotion]
     const artwork = beltArtworkFor({
-      title: name, promotion: ORGANIZATIONS[promotion].name, accent: ORGANIZATIONS[promotion].accent,
-      prestige, lineage: [title.name, ...(secondaryName ? [secondaryName] : [])],
+      title: name, promotion: org.name, accent: org.accent, company: org.company, prestige, lineage: [title.name],
       reason: kind, formerDesign: state.designs?.at(-1)?.artwork, seed: career.rng + '|' + show.id,
     })
     const fields = { titleId: title.id, date: show.date, showId: show.id, artwork, prestige }
-    const change: TitleChange = pair ? { ...fields, kind: 'unification', secondaryId: pair.secondaryId, proposed }
-      : champion ? { ...fields, kind: 'personalized', champion } : { ...fields, kind: 'redesign' }
+    const change: TitleChange = champion ? { ...fields, kind: 'personalized', champion } : { ...fields, kind: 'redesign' }
     applyTitleChange(states, show, change)
     career.titleChanges = [...career.titleChanges, change]
-    const detail = pair ? 'A diretoria reuniu ' + title.name + ' e ' + secondaryName + ' após defesas dos mesmos campeões.'
-      : champion ? 'A diretoria homenageou o reinado de ' + fighterNames(career, champion) + '.'
-        : 'A diretoria atualizou a identidade visual após um ciclo de mudanças de campeão.'
-    addHistory(career, 'title', pair ? 'Unificação de campeonatos' : 'Novo design de cinturão',
-      name + ' · ' + detail + ' ' + show.name + '.', promotion)
+    const detail = champion ? 'A diretoria homenageou o reinado de ' + fighterNames(career, champion) + '.'
+      : 'A diretoria atualizou a identidade visual após um ciclo de mudanças de campeão.'
+    addHistory(career, 'title', 'Novo design de cinturão', name + ' · ' + detail + ' ' + show.name + '.', promotion)
   }
 }
 
 function advanceThrough(career: Career, target: string): Career {
   const random = new Random(career.rng)
-  const shows = dueShows(career.worldThrough, target)
+  const shows = showsThrough(career.worldThrough, target, career.calendar)
   const next: Career = { ...career, shows: [...career.shows], date: target, worldThrough: target }
   const states = titleStates(career)
   const rivalries = rivalryStates(career.shows)
@@ -631,7 +678,10 @@ function advanceThrough(career: Career, target: string): Career {
     let end = start + 1
     while (shows[end]?.date === date) end++
     const today = shows.slice(start, end)
+    reviewBefore(next, states, date)
     next.date = date
+    keepTitleProposalCurrent(next, states)
+    const firstReport = next.shows.length
     const { fields, entries, fixtures } = planTournaments(next, today)
     next.tournamentFields = fields
     next.tournamentEntries = entries
@@ -643,10 +693,12 @@ function advanceThrough(career: Career, target: string): Career {
         && show.date >= next.contract.start && show.date < next.contract.end
       next.shows.push(bookShow(next, show, random, playerBooked, occupied, states, rivalries, card))
     }
-    if (!hasLiveBout(next)) closeBeltOffice(next, today, states)
+    if (!hasLiveBout(next)) closeBeltOffice(next, next.shows.slice(firstReport), states)
     start = end
   }
+  reviewBefore(next, states, target)
   next.date = target
+  keepTitleProposalCurrent(next, states)
   next.rng = random.state
   if (next.contract?.status === 'active' && target >= next.contract.end) {
     const { promotion } = next.contract
@@ -664,6 +716,14 @@ export function advanceCareer(career: Career): Career {
   const target = next?.date ?? career.contract?.end
   if (!target) return career
   return advanceThrough(career, target)
+}
+
+export function advanceCalendarBy(career: Career, days: 1 | 7): Career {
+  if (hasLiveBout(career)) throw new Error('Finalize a luta em andamento antes de avançar.')
+  const target = addDays(career.date, days)
+  if (career.contract?.status !== 'active') return advanceThrough(career, target)
+  const boundary = nextCareerShow(career)?.date ?? career.contract.end
+  return advanceThrough(career, target < boundary ? target : boundary)
 }
 
 export function renewOffers(career: Career): Career {
@@ -704,7 +764,7 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   const variety = new Set(bout.used).size
   const rivalries = rivalryStates(career.shows)
   const series = !bout.tag && !bout.multi ? matchRivalry(rivalries, show, PLAYER_ID, rival.id) : undefined
-  const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId) : undefined
+  const edition = bout.tournamentId ? tournamentEdition(bout.tournamentId, career.calendar) : undefined
   const champion = edition && won && edition.shows.at(-1)?.id === show.id
   const xp = 24 + (won ? 24 : 0) + Math.min(14, variety * 2) + (show.special ? 10 : 0) + (bout.titleId ? 15 : 0)
     + (series?.active && !series.winnerId ? 8 : 0) + (edition ? 10 : 0) + (champion ? 25 : 0)
@@ -721,6 +781,12 @@ export function resolvePlayerTurn(career: Career, action: string): Career {
   const fall = result.multi ? fighterName(career, result.winnerId) + ' finalizou ' + fighterName(career, result.multi.defeatedId) + ' · ' : ''
   addHistory(next, 'match', headline, show.name + ' · ' + fall + METHOD_LABEL[bout.finish.method] + ' · +' + xp + ' XP', show.promotion, true)
   addHistory(next, 'show', show.name, 'Card encerrado com ' + (show.matches.length + 1) + ' lutas.', show.promotion)
+  if (career.titleProposal && pendingUnificationBout(career)) {
+    const home = next.shows.find(report => report.id === show.id)!
+    if (won && canUnify(states, career.titleProposal)) createUnification(next, home, states, career.titleProposal, result)
+    else recordTitleDecision(next, career.titleProposal, 'cancelled', 'A unificação foi cancelada após a perda do título principal. O outro cinturão mantém o próprio reinado.')
+  }
+  keepTitleProposalCurrent(next, states)
   closeBeltOffice(next, next.shows.filter(report => report.date === show.date), states)
   return next
 }

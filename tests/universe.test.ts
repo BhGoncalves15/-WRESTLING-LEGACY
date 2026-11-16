@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANNOUNCED_SHOWS, ARCHIVE_2026, OPENING_TITLES, ORGANIZATIONS, ROSTER, ROSTER_BY_ID, TITLES_BY_ID,
-  nextShowForCareer, nextShows, rosterFor, showPromotions, wrestlerAppearsIn,
+  nextShowForCareer, nextShows, rosterFor, showPromotions, showsThrough, wrestlerAppearsIn,
 } from '../src/content/catalog'
 import { supportsDefense } from '../src/content/titles'
 import { COMPANIES, LEGACY_DATA_VERSION, PROMOTIONS, SAVE_VERSION, type Career, type PromotionId } from '../src/domain/model'
@@ -52,7 +52,8 @@ describe('universo de janeiro de 2026', () => {
     expect(ilja.promotion).toBe('smackdown')
     expect(wrestlerAppearsIn(ilja, 'aew')).toBe(false)
     expect(ARCHIVE_2026.some(show => show.name === 'AEW WrestleDream')).toBe(true)
-    expect(nextShows('aew', '2026-10-16', 1)[0].origin).toBe('generated')
+    expect(nextShows('aew', '2026-10-16', 1)[0].origin).toBe('verified')
+    expect(nextShows('aew', '2026-10-16', 1, 'legacy')[0].origin).toBe('generated')
   })
 
   it('abre eventos compartilhados para Raw e SmackDown uma vez por data', () => {
@@ -120,5 +121,21 @@ describe('universo de janeiro de 2026', () => {
     const next = advanceCareer(finishForPlayer(upgraded))
     expect(next.shows.some(show => show.promotion === 'aew')).toBe(true)
     expect(validateCareer(next)).toEqual(next)
+  })
+})
+
+describe('agenda com datas verificadas', () => {
+  it('substitui as datas provisórias do calendário e registra dois circuitos em um dia sem colisão de IDs', () => {
+    const calendar = showsThrough('2025-12-31', '2026-12-31')
+    const money = calendar.filter(show => show.name.includes('Money in the Bank'))
+    expect(money.map(show => [show.date, show.origin])).toEqual([['2026-10-10', 'verified']])
+    expect(calendar.filter(show => show.name.includes('Triplemanía')).map(show => show.date)).toEqual(['2026-09-11', '2026-09-13'])
+    expect(calendar.filter(show => show.promotion === 'njpw' && show.date === '2026-05-16').map(show => show.series))
+      .toEqual([undefined, 'tamashii'])
+    expect(new Set(calendar.map(show => show.id)).size).toBe(calendar.length)
+    expect(nextShowForCareer('njpw', '2026-06-27')?.name).toBe('AEW × NJPW Forbidden Door')
+    expect(calendar.find(show => show.name === 'BWF In House 31')?.origin).toBe('verified')
+    expect(calendar.find(show => show.name === 'BWF Maremoto · especial')?.origin).toBe('generated')
+    expect(new Set(ARCHIVE_2026.map(show => ORGANIZATIONS[show.promotion].company))).toEqual(new Set(COMPANIES))
   })
 })

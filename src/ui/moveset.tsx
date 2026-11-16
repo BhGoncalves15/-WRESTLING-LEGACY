@@ -1,7 +1,7 @@
 import { CirclePlay, LockKeyhole, Pause, RotateCcw } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { MOVE_BY_ID, MOVES, type Move } from '../content/moves'
-import { MOVE_DESCRIPTIONS, MOVE_REFERENCES } from '../content/move-details'
+import { LICENSED_MOVE_DEMOS, MOVE_DEMO_LICENSE, MOVE_DESCRIPTIONS, MOVE_REFERENCES } from '../content/move-details'
 import { searchKey } from '../domain/geography'
 import { ATTRIBUTE_NAMES, MOVE_KINDS, MOVE_KIND_LABEL, MOVE_SLOTS, type MoveKind, type Profile } from '../domain/model'
 import { controlAttribute, FINISHER_MOMENTUM, SIGNATURE_MOMENTUM } from '../engine/combat'
@@ -12,6 +12,7 @@ function Demo({ move }: { move: Move }) {
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const film = LICENSED_MOVE_DEMOS[move.id]
   function play(replay = false) {
     if (!video.current) return
     if (replay) video.current.currentTime = 0
@@ -21,19 +22,21 @@ function Demo({ move }: { move: Move }) {
   }
   return <div className="move-demo">
     <video ref={video} controls playsInline muted preload="metadata"
-      src={import.meta.env.BASE_URL + 'moves/' + move.id + '.mp4'} aria-label={'Demonstração 2D de ' + move.name}
+      src={import.meta.env.BASE_URL + 'moves/' + move.id + '.mp4'} aria-label={'Demonstração de ' + move.name}
       onLoadedMetadata={() => setLoading(false)} onError={() => { setFailed(true); setLoading(false) }}
       onWaiting={() => setLoading(true)} onCanPlay={() => setLoading(false)}
       onPlay={() => setPlaying(true)} onPause={() => { setPlaying(false); setLoading(false) }} onEnded={() => setPlaying(false)} />
     {failed ? <p className="demo-status" role="status">Vídeo indisponível. Consulte a descrição abaixo.</p>
       : loading && <p className="demo-status" role="status">Carregando demonstração…</p>}
     <div className="demo-controls">
-      <small>Demonstração 2D original · sem áudio</small>
+      <small>{film ? 'Demonstração filmada' : 'Demonstração 2D original'} · sem áudio</small>
       <button type="button" className="button secondary" disabled={failed} onClick={() => playing ? video.current?.pause() : play()}>
         {playing ? <Pause size={16} aria-hidden /> : <CirclePlay size={16} aria-hidden />}{playing ? 'Pausar' : 'Reproduzir'}
       </button>
       <button type="button" className="button secondary" disabled={failed || loading} onClick={() => play(true)}><RotateCcw size={16} aria-hidden /> Rever</button>
     </div>
+    {film && <p className="move-credit"><a href={film} target="_blank" rel="noreferrer">ROEwrestling</a> ·
+      {' '}<a href={MOVE_DEMO_LICENSE} target="_blank" rel="noreferrer">CC BY 3.0</a> · Trecho recortado, sem áudio e convertido para MP4.</p>}
   </div>
 }
 

@@ -1,6 +1,7 @@
-import { START_DATE, addDays, type Division, type PromotionId, type Show } from '../domain/model'
+import { START_DATE, addDays, type CalendarVersion, type Division, type PromotionId, type Show } from '../domain/model'
 import { nextShows } from './calendar'
 import { fitsEventRoster, rosterFor } from './roster'
+import { NJPW_JUNIOR_IDS } from './roster-njpw'
 
 type Tournament = {
   id: string
@@ -9,6 +10,8 @@ type Tournament = {
   finalDay: string
   divisions: readonly Division[]
   source?: string
+  junior?: boolean
+  verifiedSeasonOnly?: boolean
 } & ({ format: 'knockout' } | { format: 'groups'; winPoints: number; groups: readonly [string, string] })
 
 const both = ['men', 'women'] as const
@@ -29,6 +32,11 @@ const TOURNAMENTS: readonly Tournament[] = [
     id: 'g1-climax', name: 'G1 Climax', promotion: 'njpw', finalDay: '08-16', divisions: ['men'],
     format: 'groups', winPoints: 2, groups: ['Bloco A', 'Bloco B'], source: 'https://www.njpw1972.com/champions/g1-climax',
   },
+  {
+    id: 'best-super-juniors', name: 'Best of the Super Jr.', promotion: 'njpw', finalDay: '06-07', divisions: ['men'],
+    format: 'groups', winPoints: 2, groups: ['Bloco A', 'Bloco B'], source: 'https://www.njpw1972.com/637041',
+    junior: true, verifiedSeasonOnly: true,
+  },
   { id: 'njpw-cup', name: 'Copa de Desafiantes da NJPW', promotion: 'njpw', finalDay: '06-14', divisions: ['women'], format: 'knockout' },
   { id: 'tna-cup', name: 'Copa de Desafiantes da TNA', promotion: 'tna', finalDay: '04-18', divisions: both, format: 'knockout' },
   { id: 'aaa-cup', name: 'Copa de Desafiantes da AAA', promotion: 'aaa', finalDay: '03-14', divisions: both, format: 'knockout' },
@@ -44,43 +52,57 @@ export type TournamentEdition = Tournament & {
 
 export const tournamentSize = (format: Tournament['format']) => format === 'knockout' ? 4 : 6
 
-export function tournamentRoster(promotion: PromotionId, division: Division, opening: Show) {
-  return rosterFor(promotion, false).filter(fighter => fighter.division === division && fitsEventRoster(opening, fighter.id))
+export function tournamentRoster(promotion: PromotionId, division: Division, opening: Show, junior = false) {
+  return rosterFor(promotion, false).filter(fighter => fighter.division === division && fitsEventRoster(opening, fighter.id)
+    && (!junior || NJPW_JUNIOR_IDS.has(fighter.id)))
 }
 
-const seasons = new Map<number, TournamentEdition[]>()
+const seasons = new Map<string, TournamentEdition[]>()
 export const FIRST_SEASON = Number(START_DATE.slice(0, 4))
 export const seasonOf = (date: string) => Number(date.slice(0, 4))
 
-export function editionsForSeason(year: number): readonly TournamentEdition[] {
+const primaryFinal2026: Partial<Record<string, string>> = {
+  'nxt-cup': '04-04', 'continental-classic': '12-19', 'tna-cup': '04-11', 'roh-cup': '05-15',
+}
+const njpwTours: Partial<Record<string, string>> = {
+  'new-japan-cup': 'NJPW New Japan Cup', 'g1-climax': 'NJPW G1 Climax 36', 'best-super-juniors': 'NJPW Best of the Super Jr. 33',
+}
+
+export function editionsForSeason(year: number, calendar: CalendarVersion = 'verified'): readonly TournamentEdition[] {
   if (year < FIRST_SEASON || year > 9999) return []
-  const cached = seasons.get(year)
+  const key = calendar + ':' + year
+  const cached = seasons.get(key)
   if (cached) return cached
+  const revised = calendar === 'verified' && year === 2026
   const editions = TOURNAMENTS.flatMap(tournament => {
-    const target = year + '-' + tournament.finalDay
-    const final = nextShows(tournament.promotion, addDays(target, -1), 3).find(show => !show.series)!
-    const before = nextShows(tournament.promotion, addDays(final.date, -100), 40)
+    if (tournament.verifiedSeasonOnly && calendar === 'legacy') return []
+    const target = year + '-' + ((revised && primaryFinal2026[tournament.id]) || tournament.finalDay)
+    const final = nextShows(tournament.promotion, addDays(target, -1), 3, calendar).find(show => !show.series)!
+    const roundCount = tournament.format === 'knockout' ? 2 : 6
+    const before = nextShows(tournament.promotion, addDays(final.date, -100), revised ? 70 : 40, calendar)
       .filter(show => show.date >= START_DATE && show.date < final.date && !show.series)
-    const roundsBeforeFinal = tournament.format === 'knockout' ? 2 : 6
-    if (before.length < roundsBeforeFinal) return []
-    const shows = [...before.slice(-roundsBeforeFinal), final]
+    const tour = revised ? njpwTours[tournament.id] : undefined
+    const actualRounds = tour ? before.filter(show => show.name.startsWith(tour)) : []
+    const rounds = actualRounds.length >= roundCount ? actualRounds : before
+    if (rounds.length < roundCount) return []
+    const shows = [...rounds.slice(-roundCount), final]
     return tournament.divisions.filter(division => (
-      tournamentRoster(tournament.promotion, division, shows[0]).length >= tournamentSize(tournament.format)
+      tournamentRoster(tournament.promotion, division, shows[0], tournament.junior).length >= tournamentSize(tournament.format)
     )).map(division => ({
       ...tournament, division, shows, editionId: tournament.id + '@' + year + '/' + division,
     }))
   }).sort((a, b) => a.shows[0].date.localeCompare(b.shows[0].date))
-  seasons.set(year, editions)
+  seasons.set(key, editions)
   return editions
 }
 
-export function tournamentEdition(editionId: string): TournamentEdition | undefined {
+export function tournamentEdition(editionId: string, calendar: CalendarVersion = 'verified'): TournamentEdition | undefined {
   const year = Number(editionId.match(/@(\d{4})\//)?.[1])
-  return Number.isInteger(year) ? editionsForSeason(year).find(edition => edition.editionId === editionId) : undefined
+  return Number.isInteger(year) ? editionsForSeason(year, calendar).find(edition => edition.editionId === editionId) : undefined
 }
 
-export function tournamentSlots(show: Show) {
-  return editionsForSeason(seasonOf(show.date)).flatMap(edition => {
+export function tournamentSlots(show: Show, calendar: CalendarVersion = 'verified') {
+  return editionsForSeason(seasonOf(show.date), calendar).flatMap(edition => {
     const round = edition.shows.findIndex(roundShow => roundShow.id === show.id)
     return round < 0 ? [] : [{ edition, round }]
   })

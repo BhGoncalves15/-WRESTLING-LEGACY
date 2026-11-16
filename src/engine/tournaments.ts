@@ -5,6 +5,7 @@ import { TEAM_FORMATS, type Career, type MatchResult, type Show, type ShowReport
 import { rankingsFor } from './rankings'
 import { careerTeamPartners } from './tag-teams'
 import { CAREER_FIGHTER_ID } from './titles'
+import { JUNIOR_WEIGHT_LIMIT } from '../content/titles'
 
 type Pair = readonly [string, string]
 type TournamentField = Career['tournamentFields'][number]
@@ -20,11 +21,13 @@ export function tournamentEntryIssue(career: Career, edition: TournamentEdition)
     return 'A inscrição exige contrato ativo neste circuito e a mesma divisão.'
   }
   if (contract.end <= edition.shows.at(-1)!.date) return 'Seu contrato precisa cobrir a data da final.'
+  const weight = career.profile.ringWeightKg
+  if (edition.junior && (weight === null || weight > JUNIOR_WEIGHT_LIMIT)) return 'A chave júnior exige peso de ringue de até ' + JUNIOR_WEIGHT_LIMIT + ' kg.'
   return undefined
 }
 
 export function setTournamentEntry(career: Career, editionId: string, registered: boolean): Career {
-  const edition = tournamentEdition(editionId)
+  const edition = tournamentEdition(editionId, career.calendar)
   if (!edition) throw new Error('Esta edição não está no calendário.')
   const issue = tournamentEntryIssue(career, edition)
   if (issue) throw new Error(issue)
@@ -91,7 +94,7 @@ export function tournamentProgress(edition: TournamentEdition, field: Tournament
 }
 
 export function planTournaments(career: Career, shows: readonly Show[]) {
-  const slots = shows.flatMap(tournamentSlots)
+  const slots = shows.flatMap(show => tournamentSlots(show, career.calendar))
   if (!slots.length) return { fields: career.tournamentFields, entries: career.tournamentEntries, fixtures: new Map<string, TournamentFixture[]>() }
   const fields = [...career.tournamentFields]
   const entries = new Set(career.tournamentEntries)
@@ -103,7 +106,7 @@ export function planTournaments(career: Career, shows: readonly Show[]) {
     if (round === 0 && !field) {
       const registered = entries.delete(edition.editionId)
       const size = tournamentSize(edition.format)
-      const pool = new Set(tournamentRoster(edition.promotion, edition.division, show).map(fighter => fighter.id))
+      const pool = new Set(tournamentRoster(edition.promotion, edition.division, show, edition.junior).map(fighter => fighter.id))
       const order = rankingsFor(career, edition.promotion, edition.division, show.date).map(row => row.fighterId)
       const contract = career.contract
       const partners = new Set(contract?.status === 'active' && contract.promotion === edition.promotion && show.date < contract.end
@@ -131,7 +134,7 @@ export function validateTournaments(career: Career) {
   const fields = new Map(tournamentFields.map(field => [field.editionId, field]))
   if (fields.size !== tournamentFields.length || new Set(tournamentEntries).size !== tournamentEntries.length) throw error()
   for (const id of tournamentEntries) {
-    const edition = tournamentEdition(id)
+    const edition = tournamentEdition(id, career.calendar)
     if (!edition || fields.has(id) || tournamentEntryIssue(career, edition)) throw error()
   }
   const shows = new Map(career.shows.map(show => [show.id, show]))
@@ -139,10 +142,10 @@ export function validateTournaments(career: Career) {
   const live = career.bout && !career.bout.multi && !career.bout.finish && career.bout.tournamentId ? career.bout : undefined
   let validLive = !live
   for (const field of fields.values()) {
-    const edition = tournamentEdition(field.editionId)
+    const edition = tournamentEdition(field.editionId, career.calendar)
     if (!edition || edition.shows[0].date > career.worldThrough || field.seeds.length !== tournamentSize(edition.format)
       || new Set(field.seeds).size !== field.seeds.length) throw error()
-    const pool = tournamentRoster(edition.promotion, edition.division, edition.shows[0])
+    const pool = tournamentRoster(edition.promotion, edition.division, edition.shows[0], edition.junior)
     if (field.seeds.some(id => id === CAREER_FIGHTER_ID ? career.profile.division !== edition.division : !pool.some(fighter => fighter.id === id))) throw error()
     for (const { show, result, fighters } of tournamentProgress(edition, field, shows).rounds) {
       if (show.date > career.worldThrough) break

@@ -1,4 +1,5 @@
-import { PROMOTIONS, addDays, dayDistance, type PromotionId, type Show } from '../domain/model'
+import { PROMOTIONS, addDays, dayDistance, type CalendarVersion, type PromotionId, type Show } from '../domain/model'
+import { CALENDAR_REFERENCES_2026, REPLACED_RECURRING_DATES, type CalendarReference } from './calendar-2026'
 import { SOURCES } from './sources'
 
 type Cadence = { start: string; days: number; name: string; series?: Show['series'] }
@@ -68,84 +69,115 @@ const ANNUAL_EVENTS: readonly SeasonEvent[] = [
   ['bwf', '03-21', 'BWF Noite dos Campeões'], ['bwf', '07-11', 'BWF Maremoto · especial'], ['bwf', '12-12', 'BWF In House · fim de temporada'],
 ]
 
-type ArchiveEvent = { promotion: PromotionId; date: string; name: string; source: string }
-export const ARCHIVE_2026: readonly ArchiveEvent[] = [
-  { promotion: 'raw', date: '2026-01-05', name: 'Raw · Stranger Things', source: 'https://www.wwe.com/shows/raw/2026-01-05' },
-  { promotion: 'smackdown', date: '2026-01-02', name: 'WWE SmackDown', source: 'https://www.wwe.com/shows/smackdown/2026-01-02' },
-  { promotion: 'smackdown', date: '2026-01-09', name: 'SmackDown · Three Stages of Hell', source: 'https://www.wwe.com/shows/smackdown/archive' },
-  { promotion: 'nxt', date: '2026-01-06', name: 'NXT New Year’s Evil', source: SOURCES.nxtEvil },
-  { promotion: 'aew', date: '2026-01-14', name: 'AEW Dynamite · Maximum Carnage', source: 'https://www.allelitewrestling.com/post/aew-dynamite-results-january-14-2026' },
-  { promotion: 'aew', date: '2026-01-17', name: 'AEW Collision · Maximum Carnage', source: SOURCES.aewOpps },
-  { promotion: 'aew', date: '2026-03-15', name: 'AEW Revolution', source: 'https://www.allelitewrestling.com/post/aew-revolution-2026-preview' },
-  { promotion: 'aew', date: '2026-04-12', name: 'AEW Dynasty', source: 'https://www.allelitewrestling.com/post/aew-dynasty-2026-results' },
-  { promotion: 'aew', date: '2026-08-30', name: 'AEW All In: London', source: SOURCES.aewAllIn },
-  { promotion: 'aew', date: '2026-09-26', name: 'AEW All Out', source: 'https://www.allelitewrestling.com/post/aew-all-out-results-september-26-2026' },
-  { promotion: 'aew', date: '2026-10-17', name: 'AEW WrestleDream', source: SOURCES.aewWrestleDream },
-  { promotion: 'njpw', date: '2026-01-04', name: 'Wrestle Kingdom 20', source: SOURCES.njpwWk20 },
-  { promotion: 'njpw', date: '2026-01-05', name: 'NJPW New Year Dash', source: SOURCES.njpwDash },
-  { promotion: 'njpw', date: '2026-05-16', name: 'NJPW TAMASHII · disputa de duplas', source: SOURCES.njpwTamashiiMay },
-  { promotion: 'njpw', date: '2026-11-03', name: 'NJPW Power Struggle', source: 'https://www.njpw1972.com/tornament/result/662785' },
-  { promotion: 'tna', date: '2026-01-17', name: 'TNA Genesis', source: 'https://tnawrestling.com/news/tna-genesis-2026-on-payperview-live-results' },
-  { promotion: 'tna', date: '2026-08-27', name: 'TNA iMPACT! · final do Knockouts TV', source: SOURCES.tnaTv },
-  { promotion: 'tna', date: '2026-11-05', name: 'TNA Thursday Night iMPACT!', source: SOURCES.tnaNov },
-  { promotion: 'aaa', date: '2026-01-17', name: 'Lucha Libre AAA · estreia na FOX', source: 'https://www.wwe.com/shows/aaa/full-lucha-libre-aaa-results-jan-17-2026' },
-  { promotion: 'aaa', date: '2026-01-24', name: 'Lucha Libre AAA', source: 'https://www.wwe.com/shows/aaa/lucha-libre-aaa-jan-24-2026/results' },
-  { promotion: 'aaa', date: '2026-09-11', name: 'AAA Triplemanía · Las Vegas', source: 'https://www.wwe.com/article/first-ever-triplemania-event-in-las-vegas-moves-to-iconic-mgm-grand-garden-arena' },
-  { promotion: 'roh', date: '2026-05-15', name: 'ROH Supercard of Honor', source: 'https://www.cagematch.net/?id=1&nr=449627&page=9' },
-  { promotion: 'roh', date: '2026-11-05', name: 'ROH on HonorClub', source: 'https://prowrestling.net/site/2026/11/06/roh-on-honorclub-results-11-5-eddie-kingston-and-ortiz-vs-trent-beretta-and-rocky-romero-roh-pure-champion-lee-moriarty-vs-ar-fox-in-a-proving-ground-match/' },
-  { promotion: 'bwf', date: '2026-02-28', name: 'BWF In House 31', source: SOURCES.bwfFeb },
-  { promotion: 'bwf', date: '2026-04-26', name: 'BWF Arnold Sports Festival South America', source: SOURCES.bwfArchive },
-  { promotion: 'bwf', date: '2026-10-31', name: 'BWF Dia de Los Muertos · Dia 1', source: SOURCES.bwfArchive },
-]
-
 const announcedById = new Map(ANNOUNCED_SHOWS.map(show => [show.id, show]))
-export function showEvidence(id: string) { return announcedById.get(id)?.source }
 
-export function compareShows(a: Show, b: Show): number {
-  return a.date.localeCompare(b.date) || a.promotion.localeCompare(b.promotion)
+function referenceId(entry: CalendarReference) {
+  return entry.promotion + '@' + entry.date + (entry.series ? '/' + entry.series : '')
 }
 
-export function showPromotions(show: Show): PromotionId[] {
+export const ARCHIVE_2026 = [...CALENDAR_REFERENCES_2026].sort((a, b) =>
+  a.date.localeCompare(b.date) || a.promotion.localeCompare(b.promotion))
+
+const referencesById = new Map(ARCHIVE_2026.map(entry => [referenceId(entry), entry]))
+const referencesByPromotion = new Map(PROMOTIONS.map(promotion => [
+  promotion, ARCHIVE_2026.filter(entry => entry.promotion === promotion),
+]))
+
+export function showReference(show: Pick<Show, 'id' | 'name' | 'origin'>) {
+  const entry = referencesById.get(show.id)
+  return show.origin !== 'generated' && entry?.name === show.name ? entry : undefined
+}
+
+export function showEvidence(id: string) {
+  return referencesById.get(id)?.source ?? announcedById.get(id)?.source
+}
+
+export function compareShows(a: Show, b: Show): number {
+  return a.date.localeCompare(b.date) || a.promotion.localeCompare(b.promotion) || a.id.localeCompare(b.id)
+}
+
+export function showPromotions(show: Pick<Show, 'promotion' | 'guestPromotions'>): PromotionId[] {
   return [show.promotion, ...(show.guestPromotions ?? [])]
 }
 
-export function nextShows(promotion: PromotionId, after: string, count: number): Show[] {
-  if (count <= 0) return []
+const replacedSpecials: Partial<Record<PromotionId, readonly string[]>> = {
+  raw: ['07-04', '11-28'],
+  nxt: ['02-15', '04-17'],
+  aew: ['03-14', '04-11', '05-24', '06-28', '08-30', '09-26', '10-17', '11-14', '12-27'],
+  njpw: ['02-11', '03-21', '06-14', '08-16', '10-12', '11-03'],
+  tna: ['04-18', '06-28', '10-11'],
+  aaa: ['03-14', '06-13', '08-22', '10-24', '12-19'],
+  roh: ['05-16', '07-25', '12-05'],
+}
+
+function promotionShows(promotion: PromotionId, after: string, through: string, calendar: CalendarVersion): Show[] {
   const events = new Map<string, Show>()
+  const inRange = (date: string) => date > after && date <= through
+  const revised = (date: string) => calendar === 'verified' && date.startsWith('2026-')
+  const add = (show: Show) => events.set(show.id, show)
   for (const cadence of SCHEDULE[promotion]) {
     const offset = Math.max(0, Math.floor(dayDistance(cadence.start, after) / cadence.days) + 1)
-    for (let index = 0; index < count; index++) {
-      const date = addDays(cadence.start, (offset + index) * cadence.days)
+    for (let date = addDays(cadence.start, offset * cadence.days); date <= through; date = addDays(date, cadence.days)) {
+      if (revised(date) && REPLACED_RECURRING_DATES[promotion]?.includes(date)) continue
       const show = createShow(promotion, date, cadence.name, 'generated', Boolean(cadence.series))
-      events.set(date, cadence.series ? { ...show, series: cadence.series } : show)
+      add(cadence.series ? { ...show, series: cadence.series } : show)
     }
   }
-  const cutoff = [...events.keys()].sort().at(-1)!
   const startYear = Number(after.slice(0, 4))
-  const endYear = Number(cutoff.slice(0, 4))
+  const endYear = Number(through.slice(0, 4))
   for (let year = startYear; year <= endYear; year++) {
     for (const [circuit, day, name, shared, from = 2026] of ANNUAL_EVENTS) {
       const date = year + '-' + day
-      if (circuit === promotion && year >= from && date > after && date <= cutoff) {
-        events.set(date, createShow(promotion, date, name, 'generated', true, shared ? ['smackdown'] : undefined))
-      }
+      if (circuit !== promotion || year < from || !inRange(date) || (revised(date) && replacedSpecials[promotion]?.includes(day))) continue
+      add(createShow(promotion, date, name, 'generated', true, shared ? ['smackdown'] : undefined))
     }
   }
-  for (const { source: _source, ...event } of ANNOUNCED_SHOWS) {
-    if (event.promotion === promotion && event.date > after && event.date <= cutoff) events.set(event.date, event)
+  for (const { source: _source, ...show } of ANNOUNCED_SHOWS) {
+    if (show.promotion === promotion && inRange(show.date)) add(show)
   }
-  return [...events.values()].sort(compareShows).slice(0, count)
+  if (calendar === 'verified' && after < '2026-12-31' && through >= '2026-01-01') {
+    for (const entry of referencesByPromotion.get(promotion) ?? []) {
+      if (!inRange(entry.date)) continue
+      const id = referenceId(entry)
+      if (entry.series && events.get(promotion + '@' + entry.date)?.series === entry.series) events.delete(promotion + '@' + entry.date)
+      const origin = announcedById.has(id) ? 'announced' : 'verified'
+      const show = createShow(promotion, entry.date, entry.name, origin, entry.special, entry.guestPromotions)
+      add({ ...show, id, ...(entry.series ? { series: entry.series } : {}) })
+    }
+  }
+  return [...events.values()].sort(compareShows)
 }
 
-export function upcomingShows(after: string, count = 3): Show[] {
-  return PROMOTIONS.flatMap(promotion => nextShows(promotion, after, count)).sort(compareShows)
+export function showsThrough(after: string, through: string, calendar: CalendarVersion = 'verified'): Show[] {
+  return PROMOTIONS.flatMap(promotion => promotionShows(promotion, after, through, calendar)).sort(compareShows)
 }
 
-export function nextShowForCareer(promotion: PromotionId, after: string): Show | undefined {
-  const own = nextShows(promotion, after, 1)[0]
-  if (promotion !== 'smackdown') return own
-  return [own, ...nextShows('raw', after, 4).filter(show => show.guestPromotions?.includes(promotion))]
-    .sort(compareShows)[0]
+export function scheduledShow(show: Pick<Show, 'id' | 'promotion' | 'date'>, calendar: CalendarVersion) {
+  return promotionShows(show.promotion, addDays(show.date, -1), show.date, calendar).find(entry => entry.id === show.id)
+}
+
+export function nextShows(promotion: PromotionId, after: string, count: number, calendar: CalendarVersion = 'verified'): Show[] {
+  if (count <= 0) return []
+  let span = count * (promotion === 'bwf' ? 28 : 7)
+  while (true) {
+    const events = promotionShows(promotion, after, addDays(after, span), calendar)
+    if (events.length >= count) return events.slice(0, count)
+    span *= 2
+  }
+}
+
+export function upcomingShows(after: string, count = 3, calendar: CalendarVersion = 'verified'): Show[] {
+  return PROMOTIONS.flatMap(promotion => nextShows(promotion, after, count, calendar)).sort(compareShows)
+}
+
+export function nextShowForCareer(promotion: PromotionId, after: string, calendar: CalendarVersion = 'verified',
+  eligible: (show: Show) => boolean = () => true): Show | undefined {
+  const own = nextShows(promotion, after, 2, calendar).find(eligible)
+  if (!own) return undefined
+  const circuits = calendar === 'verified' && after < '2026-12-31' ? PROMOTIONS : promotion === 'smackdown' ? ['raw'] as const : []
+  const guest = circuits.filter(id => id !== promotion).flatMap(id => promotionShows(id, after, own.date, calendar))
+    .filter(show => show.guestPromotions?.includes(promotion) && eligible(show))
+  return [...guest, own].sort(compareShows)[0]
 }
 
 export function validLegacyShow(show: Show): boolean {

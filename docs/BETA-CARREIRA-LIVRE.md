@@ -19,7 +19,7 @@ Crie seu lutador, assine com uma das sete empresas e dispute combates por turnos
 Com Git e Node.js 22.13 ou mais recente:
 
 ```bash
-git clone --branch feat/revisao-beta https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
+git clone --branch feat/temporada-2026 https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
 cd ./-WRESTLING-LEGACY
 npm ci
 npm run dev
@@ -31,6 +31,7 @@ Abra o endereço **Local** no PC ou **Network** no celular conectado ao mesmo Wi
 
 - **Nova carreira → Usar exemplo BH** preenche o personagem de referência. Confira a origem, o visual, os atributos e os golpes nas quatro etapas.
 - Em **Contratos**, negocie ou aceite uma proposta. Depois, use **Avançar calendário** para entrar no card.
+- Em **Calendário**, alterne entre lista, semana e mês. **Avançar 1 dia** e **Avançar até 1 semana** param no seu próximo compromisso. **Arquivo real 2026** mostra datas e fontes.
 - Em **Meu lutador**, edite o visual, melhore atributos, escolha o formato preferido e abra o catálogo de golpes para reproduzir as demonstrações ou aprender o Spear.
-- Em **Campeonatos**, abra um card para consultar as fontes, as versões de design e o reinado. Propostas de unificação aparecem quando o jogador detém dois títulos compatíveis.
-- Em **Salvamentos**, importe uma carreira das versões 1 a 8. Exporte o JSON na versão anterior antes de trocar de aparelho ou endereço, pois os saves ficam guardados no navegador da origem em que você jogou.
+- Em **Campeonatos**, abra um card para consultar as fontes, as versões de design e o reinado. Ao deter e defender dois títulos compatíveis, você pode enviar uma proposta de unificação. A diretoria responde em até três dias da carreira e, se aprovar, agenda uma defesa.
+- Em **Salvamentos**, importe uma carreira das versões 1 a 9. Use a exportação de JSON antes de trocar de aparelho ou endereço. Saves já em andamento mantêm sua agenda e suas chaves anteriores. Novas carreiras usam o calendário revisado.

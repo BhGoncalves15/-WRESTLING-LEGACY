@@ -31,6 +31,14 @@ export const MOVE_DESCRIPTIONS: Record<string, string> = {
   spear: 'O lutador corre, baixa o ombro contra o tronco do rival e o derruba com a investida.',
 }
 
+export const LICENSED_MOVE_DEMOS: Readonly<Partial<Record<string, string>>> = {
+  dropkick: 'https://commons.wikimedia.org/wiki/File:Dropkick_-_pro_wrestling_move.webm',
+  german: 'https://commons.wikimedia.org/wiki/File:German_Suplex.webm',
+  spear: 'https://commons.wikimedia.org/wiki/File:WWE_Roman_Reigns_Spear_finisher_-_Superman_punch.webm',
+}
+
+export const MOVE_DEMO_LICENSE = 'https://creativecommons.org/licenses/by/3.0/'
+
 type MoveReference = { alias: string; fighter: string; source: string; fighterId?: string; replace?: string }
 
 export const MOVE_REFERENCES: Readonly<Record<string, readonly MoveReference[]>> = {

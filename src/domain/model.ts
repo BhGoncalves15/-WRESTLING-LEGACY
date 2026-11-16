@@ -11,8 +11,11 @@ export const TRIOS_DATA_VERSION = 'world-2026-01-01.4'
 export const TEAM_TITLES_DATA_VERSION = 'world-2026-01-01.5'
 export const COMPETITIONS_DATA_VERSION = 'world-2026-01-01.6'
 export const MULTI_DATA_VERSION = 'world-2026-01-01.7'
-export const DATA_VERSION = 'world-2026-01-01.8'
-export const SAVE_VERSION = 8
+export const REVIEW_DATA_VERSION = 'world-2026-01-01.8'
+export const DATA_VERSION = 'world-2026-01-01.9'
+export const SAVE_VERSION = 9
+const calendarVersions = ['legacy', 'verified'] as const
+export type CalendarVersion = typeof calendarVersions[number]
 export const INITIAL_ATTRIBUTE = 40
 export const INITIAL_BUDGET = 180
 export const INITIAL_LIMIT = 90
@@ -247,7 +250,7 @@ export const showSchema = z.object({
   promotion,
   date: dateSchema,
   name: z.string().min(1).max(100),
-  origin: z.enum(['announced', 'generated']),
+  origin: z.enum(['announced', 'verified', 'generated']),
   special: z.boolean(),
   series: z.literal('tamashii').optional(),
   guestPromotions: z.array(promotion).optional(),
@@ -294,9 +297,25 @@ export type LedgerItem = z.infer<typeof ledgerSchema>
 export const titlePairSchema = z.object({ titleId: id, secondaryId: id })
 export type TitlePair = z.infer<typeof titlePairSchema>
 
+const titleProposalSchema = titlePairSchema.extend({
+  requestedOn: dateSchema,
+  reviewOn: dateSchema,
+  approvedOn: dateSchema.nullable(),
+})
+export type TitleProposal = z.infer<typeof titleProposalSchema>
+
+const titleDecisionSchema = titlePairSchema.extend({
+  date: dateSchema,
+  status: z.enum(['approved', 'rejected', 'cancelled', 'unified']),
+  reason: z.string().min(1).max(290),
+})
+export type TitleDecision = z.infer<typeof titleDecisionSchema>
+
 const titleChangeFields = { titleId: id, showId: id, date: dateSchema, prestige: safeInt.max(100), artwork: beltArtSchema }
 const titleChangeSchema = z.discriminatedUnion('kind', [
-  z.object({ ...titleChangeFields, kind: z.literal('unification'), secondaryId: id, proposed: z.boolean() }),
+  z.object({ ...titleChangeFields, kind: z.literal('unification'), secondaryId: id, proposed: z.boolean(),
+    name: z.string().min(1).max(100).optional(), matchId: id.optional(), champions: z.array(id).min(1).max(3).optional(),
+  }),
   z.object({ ...titleChangeFields, kind: z.literal('redesign') }),
   z.object({ ...titleChangeFields, kind: z.literal('personalized'), champion: z.array(id).min(1).max(3) }),
 ])
@@ -314,6 +333,7 @@ export const careerSchema = z.object({
   rng: rngSchema,
   date: dateSchema,
   worldThrough: dateSchema,
+  calendar: z.enum(calendarVersions),
   offers: z.array(offerSchema).max(OPENING_OFFER_COUNT),
   contract: contractSchema.nullable(),
   xp: safeInt,
@@ -323,7 +343,8 @@ export const careerSchema = z.object({
   expandedOn: dateSchema.nullable(),
   vacatedTitles: z.array(z.object({ titleId: id, date: dateSchema })),
   titleChanges: z.array(titleChangeSchema).default([]),
-  titleProposal: titlePairSchema.nullable().default(null),
+  titleProposal: titleProposalSchema.nullable().default(null),
+  titleDecision: titleDecisionSchema.nullable().default(null),
   tagPartnerId: id.nullable(),
   trioPartnerIds: z.tuple([id, id]).nullable(),
   mixedPartnerId: id.nullable(),

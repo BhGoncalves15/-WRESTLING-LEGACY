@@ -519,6 +519,8 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .move-equip { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
 .move-equip label { flex: 1 1 125px; }
 .move-equip small { flex: 1 1 100%; }
+.move-credit { margin: 0 0 6px; font-size: .74rem; color: var(--muted); }
+.move-credit a { text-decoration: underline; text-underline-offset: 2px; color: var(--lime); }
 
 @media (max-width: 680px) {
   .geography-fields, .appearance-editor, .move-layout { grid-template-columns: minmax(0, 1fr); }
@@ -544,12 +546,10 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .belt-card > summary > .chip { justify-self: start; margin-left: 3px; }
 .belt-card-art { position: relative; }
 .belt-media { display: grid; place-items: center; overflow: hidden; min-height: 135px; aspect-ratio: 16 / 9; border-radius: 6px;
-  background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--org-accent) 21%, #27291f), #111310 76%); }
-.belt-media img { display: block; width: 100%; height: 100%; max-height: 190px; object-fit: contain; filter: drop-shadow(0 8px 8px #0009); }
-.belt-media.belt-photo { padding: 5px; }
+  position: relative; padding: 8px; background: #fff; }
+.belt-media img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .belt-render { width: 100%; height: auto; }
-.belt-placeholder { display: grid; justify-items: center; gap: 7px; padding: 13px; text-align: center; color: var(--org-accent); }
-.belt-art-kind { position: absolute; bottom: 7px; right: 7px; border-radius: 4px; padding: 3px 6px; background: #0f110de0; font-size: 10px; color: #e5e6da; }
+.belt-art-kind { position: absolute; bottom: 7px; right: 8px; border-radius: 3px; padding: 2px 5px; background: #f5f2ed; font-size: 10px; color: #443d34; }
 .belt-detail { display: grid; gap: 9px; padding: 12px 11px; border-top: 1px solid var(--line); font-size: 12px; }
 .belt-detail p, .belt-detail .title-meta { overflow-wrap: anywhere; }
 .belt-detail h3 { font: 700 22px/1 var(--heading); }
@@ -560,7 +560,33 @@ input[aria-invalid="true"] { border-color: var(--red); }
 .unification-panel { margin-bottom: 14px; }
 .unification-panel > div { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; padding: 0 19px 16px; }
 .unification-panel label { flex: 1 1 210px; }
+.unification-status { flex: 1 1 100%; margin: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .belt-card { animation: belt-arrive 160ms ease-out; }
   @keyframes belt-arrive { from { opacity: .6; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+}
+
+.calendar-advance { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.calendar-advance > span, .calendar-legacy { color: var(--muted); font-size: .86rem; }
+.calendar-legacy { margin: 0 0 12px; }
+.calendar-layout { margin-bottom: 12px; width: fit-content; }
+.calendar-period { display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px auto; gap: 8px; }
+.calendar-period h2 { justify-content: center; text-align: center; text-transform: capitalize; }
+.calendar-weekdays, .calendar-day-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 0 12px; gap: 4px; }
+.calendar-weekdays { color: var(--muted); text-align: center; font-size: .76rem; padding-top: 10px; padding-bottom: 6px; }
+.calendar-day-grid { padding-bottom: 12px; }
+.calendar-day { min-height: 50px; padding: 4px; display: flex; flex-direction: column; gap: 3px; justify-content: center; align-items: center; border-radius: 6px; border: 1px solid var(--line); background: var(--raised); color: var(--text); cursor: pointer; }
+.calendar-day[aria-current=date] { box-shadow: inset 0 0 0 1px var(--muted); }
+.calendar-day[aria-pressed=true] { border-color: var(--lime); background: #262d16; }
+.calendar-day-player { color: var(--lime); }
+.calendar-day-count { line-height: 1; min-width: 15px; padding: 2px 3px; border-radius: 8px; color: #ccd1c5; font-size: .64rem; background: #2d342e; }
+.calendar-day-count.special { color: #19170e; background: #e8c46c; }
+.calendar-selected { margin-top: 16px; }
+.calendar-selected > h2 { margin: 0 0 8px; font-size: 1rem; }
+.calendar-player-report { box-shadow: inset 3px 0 var(--lime); }
+@media (max-width: 520px) {
+  .calendar-period { grid-template-columns: 36px minmax(0, 1fr) 36px; padding-inline: 8px; }
+  .calendar-period .text-button { grid-column: 1/-1; justify-self: center; }
+  .calendar-weekdays, .calendar-day-grid { padding-inline: 6px; gap: 3px; }
+  .calendar-day { min-height: 44px; }
 }

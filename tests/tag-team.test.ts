@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { OPENING_TITLES, ORGANIZATIONS, nextShows } from '../src/content/catalog'
 import { TEAM_REFERENCES } from '../src/content/tag-teams'
 import { supportsTagDefense } from '../src/content/titles'
-import { COMPANIES, TAG_DATA_VERSION, WORLD_DATA_VERSION, type BoutSide, type Career, type TagBout } from '../src/domain/model'
+import { COMPANIES, TAG_DATA_VERSION, WORLD_DATA_VERSION, type BoutSide, type CalendarVersion, type Career, type TagBout } from '../src/domain/model'
 import { PLAYER_ID, advanceCareer, exampleProfile, hasLiveBout, newCareer, recordFor, resolvePlayerTurn, setCareerTeam, signOffer } from '../src/engine/career'
 import { matchTeams, matchWinners } from '../src/engine/matches'
 import { isTagBout } from '../src/engine/tag-combat'
@@ -13,8 +13,8 @@ import { careerWithOffer } from './fixtures'
 
 const PARTNER = 'hank-walker'
 
-function nxtCareer() {
-  const career = careerWithOffer('nxt')
+function nxtCareer(calendar: CalendarVersion = 'verified') {
+  const career = careerWithOffer('nxt', 'men', calendar)
   return signOffer(career, career.offers.find(offer => offer.promotion === 'nxt')!.id)
 }
 
@@ -23,8 +23,8 @@ function boutOf(career: Career): TagBout {
   return career.bout
 }
 
-function tagDebut() {
-  return advanceCareer(setCareerTeam(nxtCareer(), 'tag', [PARTNER]))
+function tagDebut(calendar: CalendarVersion = 'verified') {
+  return advanceCareer(setCareerTeam(nxtCareer(calendar), 'tag', [PARTNER]))
 }
 
 function tagOut(career: Career) {
@@ -197,7 +197,7 @@ describe('Tag Team', () => {
   })
 
   it('migra um save v2 em luta individual sem mudar seu turno nem seu calendário', () => {
-    const career = resolvePlayerTurn(advanceCareer(nxtCareer()), 'guard')
+    const career = resolvePlayerTurn(advanceCareer(nxtCareer('legacy')), 'guard')
     const { tagPartnerId: _tagPartnerId, trioPartnerIds: _trioPartnerIds, preferredFormat: _preferredFormat, ...fields } = career
     const versionTwo = {
       ...fields, schemaVersion: 2, dataVersion: WORLD_DATA_VERSION,
@@ -212,7 +212,7 @@ describe('Tag Team', () => {
   })
 
   it('migra a versão 3 com dupla em andamento e mantém a próxima ação determinística', () => {
-    const career = tagOut(tagDebut())
+    const career = tagOut(tagDebut('legacy'))
     const bout = boutOf(career)
     const oldCorner = ({ partners, legalIndex, ...state }: TagBout['tag']['player']) => ({
       ...state, partnerId: partners[0].id, partner: partners[0].side, partnerLegal: legalIndex === 1,
