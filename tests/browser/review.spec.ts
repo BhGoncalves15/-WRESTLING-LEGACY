@@ -228,6 +228,7 @@ test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os 
     await expect(cards).toHaveCount(titles.length)
     const assets = await cards.evaluateAll(images => images.map(img => (img as HTMLImageElement).src))
     expect(assets, circuit).toEqual(titles.map(title => frames[OPENING_TITLES.indexOf(title)].src))
+    await expect(cards.first().locator('xpath=..')).toHaveAttribute('data-belt-status', 'ready')
   }
   await filter.selectOption('all')
   await expect(cards).toHaveCount(OPENING_TITLES.length)
@@ -235,26 +236,31 @@ test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os 
   await expect(main.locator('.belt-load-error')).toHaveCount(0)
   const firstImage = cards.first()
   await expect(firstImage).toHaveAttribute('loading', 'eager')
-  await expect(firstImage.locator('xpath=..')).toHaveAttribute('data-belt-status', 'ready')
-  await expect.poll(async () => {
-    const frame = await firstImage.screenshot()
-    return page.evaluate(async png => {
-      const bytes = Uint8Array.from(atob(png), char => char.charCodeAt(0))
-      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
-      const canvas = document.createElement('canvas')
-      canvas.width = 80
-      canvas.height = 32
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      bitmap.close()
-      let beltPixels = 0
-      for (let index = 0; index < data.length; index += 4) {
-        if (Math.min(data[index], data[index + 1], data[index + 2]) < 200) beltPixels++
-      }
-      return beltPixels / (canvas.width * canvas.height)
-    }, frame.toString('base64'))
-  }).toBeGreaterThan(.15)
+  const lastImage = cards.last()
+  await expect(lastImage).toHaveAttribute('loading', 'lazy')
+  for (const image of [firstImage, lastImage]) {
+    await image.scrollIntoViewIfNeeded()
+    await expect(image.locator('xpath=..')).toHaveAttribute('data-belt-status', 'ready')
+    await expect.poll(async () => {
+      const frame = await image.screenshot()
+      return page.evaluate(async png => {
+        const bytes = Uint8Array.from(atob(png), char => char.charCodeAt(0))
+        const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+        const canvas = document.createElement('canvas')
+        canvas.width = 80
+        canvas.height = 32
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        bitmap.close()
+        let beltPixels = 0
+        for (let index = 0; index < data.length; index += 4) {
+          if (Math.min(data[index], data[index + 1], data[index + 2]) < 200) beltPixels++
+        }
+        return beltPixels / (canvas.width * canvas.height)
+      }, frame.toString('base64'))
+    }).toBeGreaterThan(.15)
+  }
   await main.getByRole('heading', { name: 'Campeonatos' }).scrollIntoViewIfNeeded()
   if (process.env.QA_SCREENSHOTS) await page.screenshot({ path: process.env.QA_SCREENSHOTS + '/catalogo-71-' + testInfo.project.name + '.png' })
 
@@ -268,6 +274,36 @@ test('carrega e enquadra todos os títulos, filtra as nove agendas e confere os 
     await expect.poll(() => image.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(1150)
   }
   expect(await main.evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('mantém o aviso até a imagem carregar ao voltar para Todas', async ({ page }) => {
+  const firstTitle = OPENING_TITLES[0]
+  const source = beltVisualFor(firstTitle, null).asset
+  let releaseImage!: () => void
+  const blockedImage = new Promise<void>(resolve => { releaseImage = resolve })
+  await page.route('**/' + source, async route => {
+    await blockedImage
+    await route.continue()
+  })
+  await page.goto('./')
+  const main = page.getByRole('main')
+  await visit(page, 'Campeonatos')
+  const filter = main.getByLabel('Empresa ou brand')
+  const firstFrame = main.locator('.belt-card > summary .belt-media').first()
+  try {
+    await filter.selectOption('tna')
+    await expect(firstFrame).toHaveAttribute('data-belt-status', 'ready')
+    await filter.selectOption('all')
+    await expect(firstFrame.getByRole('img')).toHaveAttribute('src', new RegExp('/' + source + '$'))
+    await expect(firstFrame).toHaveAttribute('data-belt-status', 'loading')
+    await expect(firstFrame.getByText('Carregando imagem…')).toBeVisible()
+  } finally {
+    releaseImage()
+  }
+  await expect(firstFrame).toHaveAttribute('data-belt-status', 'ready')
+  await expect(firstFrame.getByRole('img')).toHaveJSProperty('naturalWidth', 1150)
+  await expect(firstFrame.getByText('Carregando imagem…')).toHaveCount(0)
+  await expect(main.locator('.belt-load-error')).toHaveCount(0)
 })
 
 test('apresenta o modelo de referência, a foto histórica e as edições que a carreira cria', async ({ page }, testInfo) => {

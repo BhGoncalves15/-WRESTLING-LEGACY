@@ -4,7 +4,7 @@ Crie seu lutador, assine com uma das sete empresas e dispute combates por turnos
 
 ## Jogar no Windows
 
-1. Baixe o ZIP **wrestling-legacy-beta** e use **Extrair tudo**.
+1. Abra a execução mais recente aprovada na [página da beta no GitHub Actions](https://github.com/BhGoncalves15/-WRESTLING-LEGACY/actions/workflows/pilot-ci.yml?query=branch%3Amain+is%3Asuccess), baixe **wrestling-legacy-beta** em **Artifacts** e use **Extrair tudo**.
 2. Abra a pasta extraída e dê dois cliques em **JOGAR-WINDOWS.exe**. O jogo abre no navegador.
 3. Deixe a janela do iniciador aberta enquanto joga. Se o navegador estiver fechado, use [localhost:4173/-WRESTLING-LEGACY/](http://localhost:4173/-WRESTLING-LEGACY/).
 
@@ -19,7 +19,7 @@ Crie seu lutador, assine com uma das sete empresas e dispute combates por turnos
 Com Git e Node.js 22.13 ou mais recente:
 
 ```bash
-git clone --branch feat/catalogo-cinturoes https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
+git clone https://github.com/BhGoncalves15/-WRESTLING-LEGACY.git
 cd ./-WRESTLING-LEGACY
 npm ci
 npm run dev

@@ -12,6 +12,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    outputs:
+      belt_count: ${{ steps.package.outputs.belt_count }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -44,12 +46,15 @@ jobs:
       - name: Testar o iniciador local
         run: GO111MODULE=off go test ./scripts/launcher
       - name: Preparar o pacote da beta
+        id: package
         run: |
           mkdir -p pacote-beta/-WRESTLING-LEGACY
           cp -R dist/. pacote-beta/-WRESTLING-LEGACY/
           cp docs/BETA-CARREIRA-LIVRE.md pacote-beta/COMO-TESTAR.md
           cp scripts/launcher/JOGAR-NO-CELULAR.cmd pacote-beta/
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o pacote-beta/JOGAR-WINDOWS.exe scripts/launcher/main.go
+          belt_count=$(find public/belts/catalog -maxdepth 1 -type f -name '*.webp' | wc -l)
+          printf 'belt_count=%s\n' "$belt_count" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
           name: wrestling-legacy-beta
@@ -71,6 +76,8 @@ jobs:
           path: pacote-beta
       - name: Verificar o executável e a mídia do jogo
         shell: pwsh
+        env:
+          EXPECTED_BELT_COUNT: ${{ needs.test.outputs.belt_count }}
         run: |
           $launcher = Start-Process -FilePath './pacote-beta/JOGAR-WINDOWS.exe' -ArgumentList '-sem-navegador' -PassThru
           try {
@@ -97,15 +104,23 @@ jobs:
             if ($video.StatusCode -ne 206 -or $video.Headers['Content-Range'] -notmatch 'bytes 0-15/') {
               throw 'O servidor não entregou o intervalo de bytes do vídeo.'
             }
-            $belt = Invoke-WebRequest -Uri "${url}belts/catalog/sd-us.webp"
-            $image = $belt.RawContentStream.ToArray()
-            if ($belt.Headers['Content-Type'] -notmatch 'image/webp' -or
-                [System.Text.Encoding]::ASCII.GetString($image, 0, 4) -ne 'RIFF' -or
-                [System.Text.Encoding]::ASCII.GetString($image, 8, 4) -ne 'WEBP') {
-              throw 'O servidor não entregou a imagem do campeonato em WebP.'
+            $belts = @(Get-ChildItem './pacote-beta/-WRESTLING-LEGACY/belts/catalog' -Filter '*.webp' -File)
+            $expected = [int]$env:EXPECTED_BELT_COUNT
+            if ($expected -le 0 -or $belts.Count -ne $expected) {
+              throw "O ZIP deve conter $expected cinturões. Encontrados $($belts.Count)."
+            }
+            foreach ($belt in $belts) {
+              $response = Invoke-WebRequest -Uri "${url}belts/catalog/$($belt.Name)"
+              $image = $response.RawContentStream.ToArray()
+              if ($response.Headers['Content-Type'] -notmatch 'image/webp' -or
+                  $image.Length -lt 12 -or
+                  [System.Text.Encoding]::ASCII.GetString($image, 0, 4) -ne 'RIFF' -or
+                  [System.Text.Encoding]::ASCII.GetString($image, 8, 4) -ne 'WEBP') {
+                throw "O servidor não entregou $($belt.Name) em WebP."
+              }
             }
 
-            Write-Output 'Página, catálogo gzip, imagem de cinturão e intervalo de vídeo verificados no Windows.'
+            Write-Output "Página, catálogo gzip, $($belts.Count) cinturões e intervalo de vídeo verificados no Windows."
           } finally {
             if (!$launcher.HasExited) { Stop-Process -Id $launcher.Id }
           }

@@ -426,11 +426,15 @@ def cast_wwe(x, y, width, height, z, metal, inset, accent):
 
 
 def relief_emblem(kind, mark, y, z, metal, face, accent, dark, pale):
-    if kind in ('wwe', 'wwe-globe'):
-        if kind == 'wwe-globe':
+    if kind in ('wwe', 'wwe-globe', 'world-tag'):
+        if kind != 'wwe':
             world_emblem(0, y, 1.11, 1.00, z, pale, dark)
         cast_wwe(0, y + .08, 1.88 if kind == 'wwe' else 1.10, 1.40 if kind == 'wwe' else .95,
                  z + .073, pale, dark, accent)
+        return
+    if kind == 'nxt-globe':
+        world_emblem(0, y, 1.45, .95, z, metal, dark)
+        lettering(mark, 0, y, z + .068, 1.0, 2.65, pale)
         return
     if kind == 'intercontinental':
         for x in (-1.40, 1.40):
@@ -597,9 +601,9 @@ def catalog_studio(design, output, samples, width):
 
     kind = design['emblem']
     usa = brand == 'wwe' and kind == 'eagle'
-    emblem_y = -.83 if usa else .37
+    emblem_y = -.83 if usa else {'world-tag': .05, 'nxt-globe': .43}.get(kind, .37)
     relief_emblem(kind, mark, emblem_y, z + .022, lip, engraving, accent, dark, bright)
-    show_mark = kind != 'wwe' and kind != 'wwe-globe' and (kind != 'mark' or mark != brand_mark)
+    show_mark = kind not in ('wwe', 'wwe-globe', 'world-tag', 'nxt-globe') and (kind != 'mark' or mark != brand_mark)
     if show_mark and not usa:
         lettering(brand_mark, 0, mh * .62, z, .157, 1.54, engraving)
     if kind == 'wwe-globe':
@@ -617,7 +621,7 @@ def catalog_studio(design, output, samples, width):
                                                     y + math.cos(angle) * .12), z + .005, .039, lip, .012)
 
     lines = design['text']
-    text_y = {'wwe': -1.10, 'wwe-globe': -.87, 'intercontinental': -.76}.get(kind, -.56)
+    text_y = {'wwe': -1.10, 'wwe-globe': -.87, 'intercontinental': -.79, 'nxt-globe': -.80}.get(kind, -.56)
     lens = min(mw * 1.38, 3.64)
     font_path = SERIF_PATH if design['detail'] in ('scroll', 'laurel') else FONT_PATH
     if usa:
@@ -632,10 +636,17 @@ def catalog_studio(design, output, samples, width):
             for i in range(4):
                 solid('Struck star', at(star_points(), .072, .076, sign * (.70 + i * .25), 1.24 - i * .11),
                       z + .015, .028, bright, .006)
+    elif kind == 'world-tag':
+        for text, y in zip(lines, (1.30, -1.25)):
+            banner = at(smooth_outline(PLAQUE, 1), 1.52, .24, y=y)
+            solid('Crimson title banner', banner, z, .045, accent, .016)
+            border('Polished banner edge', banner, z + .038, .020, lip)
+            lettering(text, 0, y, z + .050, .32, 2.76, bright, SERIF_PATH)
     else:
         text_metal = dark if brand == 'wwe' and face == plate else engraving
+        line_spacing = .23 if len(lines) > 2 else .30
         for i, text in enumerate(lines):
-            lettering(text, 0, text_y - .30 * i, z + .021, (.32 if i == 0 else .235),
+            lettering(text, 0, text_y - line_spacing * i, z + .021, (.32 if i == 0 else .235),
                       lens * (1 if i == 0 else .88), text_metal, font_path)
 
     # Side plates share the same metal and fasteners as the center casting.
