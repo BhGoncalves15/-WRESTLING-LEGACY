@@ -4,7 +4,7 @@ Simulador de carreira de wrestling profissional para computador e celular. Você
 
 ## Beta da Carreira Livre
 
-A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A atualização de 2026 integra datas verificadas à carreira, apresenta 30 demonstrações de golpes e leva a unificação de títulos ao ringue. [Como jogar](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da temporada 2026](docs/ATUALIZACAO-2026.md)
+A beta inclui as sete empresas, nove agendas, 300 perfis, 62 cinturões disputáveis na abertura e seis formatos de luta. A atualização de 2026 integra datas verificadas à carreira, apresenta 30 demonstrações de golpes e leva a unificação de títulos ao ringue. [Como jogar](docs/BETA-CARREIRA-LIVRE.md) · [Relatório da temporada 2026](docs/ATUALIZACAO-2026.md) · [Catálogo de cinturões](docs/CATALOGO-CINTUROES.md)
 
 ## Escopo aprovado
 
